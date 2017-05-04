@@ -31,7 +31,9 @@
 //  Structure of our class
 
 struct _fty_sensor_gpio_server_t {
-    mlm_client_t *mlm;    // malamute client
+    bool         verbose;  // is actor verbose or not
+    char         *name;    // actor name
+    mlm_client_t *mlm;     // malamute client
 };
 
 // TODO: get from config
@@ -60,12 +62,13 @@ s_get (zconfig_t *config, const char* key, char*dfl) {
 //  Create a new fty_sensor_gpio_server
 
 fty_sensor_gpio_server_t *
-fty_sensor_gpio_server_new (void)
+fty_sensor_gpio_server_new (const char* name)
 {
     fty_sensor_gpio_server_t *self = (fty_sensor_gpio_server_t *) zmalloc (sizeof (fty_sensor_gpio_server_t));
     assert (self);
     //  Initialize class properties here
     self->mlm  = mlm_client_new();
+    self->name = strdup (name);
 
     return self;
 }
@@ -230,7 +233,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
         return;
     }
     
-    fty_sensor_gpio_server_t *self = fty_sensor_gpio_server_new();
+    fty_sensor_gpio_server_t *self = fty_sensor_gpio_server_new(name);
     assert (self);
 
     mlm_client_t *client = mlm_client_new ();
@@ -258,12 +261,12 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     zmsg_destroy (&msg);
                     break;
                 }
-                else if (streq (command, "CONNECT")) {
-                    char *endpoint = zmsg_popstr (message);
+                else if (streq (cmd, "CONNECT")) {
+                    char *endpoint = zmsg_popstr (msg);
                      if (!endpoint)
                         zsys_error ("%s:\tMissing endpoint", self->name);
                     assert (endpoint);
-                    int r = mlm_client_connect (self->client, endpoint, 5000, self->name);
+                    int r = mlm_client_connect (self->mlm, endpoint, 5000, self->name);
                     if (r == -1)
                         zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
                     zsys_debug("fty-gpio-sensor-server: CONNECT %s/%s",endpoint,self->name);
@@ -397,7 +400,7 @@ fty_sensor_gpio_server_test (bool verbose)
     //assert ( (str_SELFTEST_DIR_RW != "") );
     // NOTE that for "char*" context you need (str_SELFTEST_DIR_RO + "/myfilename").c_str()
 
-    fty_sensor_gpio_server_t *self = fty_sensor_gpio_server_new ();
+    fty_sensor_gpio_server_t *self = fty_sensor_gpio_server_new (FTY_SENSOR_GPIO_AGENT);
     assert (self);
     fty_sensor_gpio_server_destroy (&self);
     //  @end
