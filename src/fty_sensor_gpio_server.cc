@@ -243,57 +243,53 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
 
     while (!zsys_interrupted)
     {
-         void *which = zpoller_wait (poller, TIMEOUT_MS);
-         if (which == NULL) {
-             if (zpoller_terminated (poller) || zsys_interrupted) {
-                 break;
-             }
-         }
-         if (which == pipe) {
-             if (verbose)
-                 zsys_debug ("which == pipe");
-             zmsg_t *message = zmsg_recv (pipe);
-             if (!message)
-                 break;
-             
-             char *command = zmsg_popstr (message);
-             if (!command) {
-                 zmsg_destroy (&message);
-                 zsys_warning ("Empty command.");
-                 continue;
-             }
-             if (streq(command, "$TERM")) {
-                 zsys_info ("Got $TERM");
-                 zmsg_destroy (&message);
-                 zstr_free (&command);
-                 break;
-             }
-             else
-                 if (streq(command, "CONNECT"))
-                 {
-                     char *endpoint = zmsg_popstr (message);
-
-                     if (endpoint) {
-                         zsys_debug ("fty-sensor-gpio: CONNECT: %s/%s", endpoint, name);
-                         int rv = mlm_client_connect (client, endpoint, 1000, name);
-                         if (rv == -1)
-                             zsys_error("mlm_client_connect failed\n");
-                     }
-                     zstr_free (&endpoint);
-                 }
-                 else
-                     if (streq (command, "VERBOSE"))
-                     {
-                         verbose = true;
-                         zsys_debug ("fty-sensor-gpio: VERBOSE=true");
-                     }
-                     else {
-                         zsys_error ("fty-sensor-gpio: Unknown actor command: %s.\n", command);
-                     }
-             zstr_free (&command);
-             zmsg_destroy (&message);
-         }
-
+        void *which = zpoller_wait (poller, TIMEOUT_MS);
+        if (which == NULL) {
+            if (zpoller_terminated (poller) || zsys_interrupted) {
+                break;
+            }
+        }
+        if (which == pipe) {
+            zmsg_t *msg = zmsg_recv (pipe);
+            char *cmd = zmsg_popstr (msg);
+            if (cmd) {
+                if (streq (cmd, "$TERM")) {
+                    zstr_free (&cmd);
+                    zmsg_destroy (&msg);
+                    break;
+                }
+                else if (streq (cmd, "BIND")) {
+                    char *endpoint = zmsg_popstr (msg);
+                    char *myname = zmsg_popstr (msg);
+                    assert (endpoint && myname);
+                    mlm_client_connect (self->mlm, endpoint, 5000, myname);
+                    zstr_free (&endpoint);
+                    zstr_free (&myname);
+                }
+                else if (streq (cmd, "PRODUCER")) {
+                    char *stream = zmsg_popstr (msg);
+                    assert (stream);
+                    mlm_client_set_producer (self->mlm, stream);
+                    zstr_free (&stream);
+                }
+                else if (streq (cmd, "CONSUMER")) {
+                    char *stream = zmsg_popstr (msg);
+                    char *pattern = zmsg_popstr (msg);
+                    assert (stream && pattern);
+                    mlm_client_set_consumer (self->mlm, stream, pattern);
+                    zstr_free (&stream);
+                    zstr_free (&pattern);
+                }
+                else if (streq (cmd, "LOADRULES")) {
+                    zstr_free (&ruledir);
+                    ruledir = zmsg_popstr (msg);
+                    assert (ruledir);
+                    flexible_alert_load_rules (self, ruledir);
+                }
+                zstr_free (&cmd);
+            }
+            zmsg_destroy (&msg);
+        }
         else if (which == mlm_client_msgpipe (self->mlm)) {
             zmsg_t *msg = mlm_client_recv (self->mlm);
             if (is_fty_proto (msg)) {
