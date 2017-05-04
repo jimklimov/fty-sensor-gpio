@@ -1,0 +1,23 @@
+#   fty-sensor-gpio configuration
+
+server
+    timeout = 10000     #   Client connection timeout, msec
+    background = 0      #   Run as background process
+    workdir = .         #   Working directory for daemon
+    verbose = 0         #   Do verbose logging of activity?
+
+malamute
+    endpoint = ipc://@/malamute                     #   Malamute endpoint
+    address = fty-sensor-gpio                       #   Agent address
+
+# Sensors configuration section
+sensors
+    1
+        name          = 1
+        part-number   = DCS001
+        port          = 1
+        normal-state  = opened
+    2
+        name          = 2
+        part-number   = M12
+        port          = 2
