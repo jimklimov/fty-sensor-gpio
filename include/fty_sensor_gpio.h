@@ -1,5 +1,5 @@
 /*  =========================================================================
-    fty-sensor-gpio - Manage GPI sensors and GPO devices
+    fty-sensor-gpio - Agent to manage GPI sensors and GPO devices
 
     Copyright (C) 2014 - 2017 Eaton                                        
                                                                            
@@ -22,9 +22,44 @@
 #ifndef FTY_SENSOR_GPIO_H_H_INCLUDED
 #define FTY_SENSOR_GPIO_H_H_INCLUDED
 
+#include <iostream>
+#include <sstream>
+#include <cstddef>
+#include <map>
+
+using namespace std;
+
 //  Include the project library file
 #include "fty_sensor_gpio_library.h"
 
 //  Add your own public definitions here, if you need them
+#define FTY_SENSOR_GPIO_AGENT "fty-sensor-gpio"
+
+//  Structure to store information on a monitored GPI
+//  This includes both the template and configuration information
+
+struct _gpi_info_t {
+    string name;        // sensor asset name
+    string part_number; // GPI sensor part number
+    string type;        // GPI sensor type (door-contact, ...)
+    int normal_state;   // opened | closed
+    int current_state;  // opened | closed
+    int gpi_number;     // GPI number, 1 - 10
+/*
+    char *part_number; // GPI sensor part number
+    char *type;        // GPI sensor type (door-contact, ...)
+    int normal_state;  // opened | closed
+    int current_state; // opened | closed
+    int gpi_number;    // GPI number, 1 - 10
+*/
+};
+
+// Array of monitored GPI (10 GPI on IPC3000)
+extern struct _gpi_info_t gpi_list[10];
+
+// Config file accessors
+char* s_get (zconfig_t *config, const char* key, std::string &dfl);
+char* s_get (zconfig_t *config, const char* key, char*dfl);
+
 
 #endif
