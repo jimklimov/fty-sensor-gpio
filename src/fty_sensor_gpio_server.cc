@@ -270,6 +270,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     char *stream = zmsg_popstr (msg);
                     assert (stream);
                     mlm_client_set_producer (self->mlm, stream);
+                    zsys_debug ("fty_sensor_gpio: setting PRODUCER on %s", stream);
                     zstr_free (&stream);
                 }
                 else if (streq (cmd, "CONSUMER")) {
@@ -277,6 +278,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     char *pattern = zmsg_popstr (msg);
                     assert (stream && pattern);
                     mlm_client_set_consumer (self->mlm, stream, pattern);
+                    zsys_debug ("fty_sensor_gpio: setting CONSUMER on %s/%s", stream, pattern);
                     zstr_free (&stream);
                     zstr_free (&pattern);
                 }
