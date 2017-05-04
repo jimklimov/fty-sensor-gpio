@@ -258,13 +258,16 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     zmsg_destroy (&msg);
                     break;
                 }
-                else if (streq (cmd, "BIND")) {
-                    char *endpoint = zmsg_popstr (msg);
-                    char *myname = zmsg_popstr (msg);
-                    assert (endpoint && myname);
-                    mlm_client_connect (self->mlm, endpoint, 5000, myname);
+                else if (streq (command, "CONNECT")) {
+                    char *endpoint = zmsg_popstr (message);
+                     if (!endpoint)
+                        zsys_error ("%s:\tMissing endpoint", self->name);
+                    assert (endpoint);
+                    int r = mlm_client_connect (self->client, endpoint, 5000, self->name);
+                    if (r == -1)
+                        zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
+                    zsys_debug("fty-gpio-sensor-server: CONNECT %s/%s",endpoint,self->name);
                     zstr_free (&endpoint);
-                    zstr_free (&myname);
                 }
                 else if (streq (cmd, "PRODUCER")) {
                     char *stream = zmsg_popstr (msg);
@@ -294,6 +297,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
             if (is_fty_proto (msg)) {
                 fty_proto_t *fmsg = fty_proto_decode (&msg);
                 if (fty_proto_id (fmsg) == FTY_PROTO_ASSET) {
+                    zsys_debug ("%s: received FTY_PROTO_ASSET msg", __func__);
                     fty_sensor_gpio_handle_asset (self, fmsg);
                 }
                 /*if (fty_proto_id (fmsg) == FTY_PROTO_METRIC) {
