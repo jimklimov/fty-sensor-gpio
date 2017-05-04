@@ -251,6 +251,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
         if (which == pipe) {
             zmsg_t *msg = zmsg_recv (pipe);
             char *cmd = zmsg_popstr (msg);
+            zsys_debug ("fty_sensor_gpio: received command %s", cmd);
             if (cmd) {
                 if (streq (cmd, "$TERM")) {
                     zstr_free (&cmd);
