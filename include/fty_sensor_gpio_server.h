@@ -1,5 +1,5 @@
 /*  =========================================================================
-    fty_sensor_gpio_server - 42ITy GPIO server
+    fty_sensor_gpio_server - Actor
 
     Copyright (C) 2014 - 2017 Eaton                                        
                                                                            
@@ -26,14 +26,11 @@
 extern "C" {
 #endif
 
-//  @interface
-//  Create a new fty_sensor_gpio_server
-FTY_SENSOR_GPIO_EXPORT fty_sensor_gpio_server_t *
-    fty_sensor_gpio_server_new (void);
 
-//  Destroy the fty_sensor_gpio_server
+//  @interface
+//  fty_info_server actor
 FTY_SENSOR_GPIO_EXPORT void
-    fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p);
+    fty_sensor_gpio_server (zsock_t *pipe, void *args);
 
 //  Self test of this class
 FTY_SENSOR_GPIO_EXPORT void
