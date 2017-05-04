@@ -229,7 +229,6 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
         zsys_error ("Adress for fty-sensor-gpio actor is NULL");
         return;
     }
-    bool verbose = false;
     
     fty_sensor_gpio_server_t *self = fty_sensor_gpio_server_new();
     assert (self);
@@ -280,12 +279,9 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     zstr_free (&stream);
                     zstr_free (&pattern);
                 }
-                else if (streq (cmd, "LOADRULES")) {
-                    zstr_free (&ruledir);
-                    ruledir = zmsg_popstr (msg);
-                    assert (ruledir);
-                    flexible_alert_load_rules (self, ruledir);
-                }
+                else
+                    zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
+
                 zstr_free (&cmd);
             }
             zmsg_destroy (&msg);
