@@ -94,7 +94,8 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
 
 //  --------------------------------------------------------------------------
 //  Check for the existence of a template file according to the asset part nb
-//  If one exists, it's a GPIO sensor
+//  If one exists, it's a GPIO sensor, so return the template filename
+//  Otherwise, it's not a GPIO sensor, so return an empty string
 
 static string
 is_asset_gpio_sensor (string sensor_partnumber)
@@ -109,29 +110,16 @@ is_asset_gpio_sensor (string sensor_partnumber)
     string template_file = string("./data/") + string(sensor_partnumber) + string(".tpl");
     config_template = zconfig_load (template_file.c_str());
     if (!config_template) {
-        zsys_error ("Failed to load template config file %s: %m", template_file.c_str());
-        exit (EXIT_FAILURE);
+        zsys_debug ("Template config file %s doesn't exist!", template_file.c_str());
+        zsys_debug ("Asset is not a GPIO sensor, skipping!");
     }
-    char* sensor_type = s_get (config_template, "type",  NULL);
-    if (sensor_type) {
-        std::cout << "\ttype: " << sensor_type << std::endl;
-        //gpi_list[sensor_num].type = sensor_type;
-    }
-    else
-         std::cout << "FAILED to read sensor type" << std::endl;
-    char* sensor_normal_state = s_get (config_template, "normal-state",  NULL);
-    if (sensor_normal_state) {
-        std::cout << "\tsensor_normal_state: " << sensor_normal_state << std::endl;
-        /*if (sensor_normal_state == string("opened"))
-            gpi_list[sensor_num].normal_state = GPIO_STATUS_OPENED;
-        else if (sensor_normal_state == string("closed"))
-            gpi_list[sensor_num].normal_state = GPIO_STATUS_CLOSED;
-        */
-        // else exception...
+    else {
+        return template_file;
     }
 
     return "";
 }
+
 //  --------------------------------------------------------------------------
 //  When asset message comes, check if it is a GPIO sensor and store it or
 // update the monitoring structure.
@@ -169,6 +157,26 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyms
 
     if (rule_model_exists (rule, fty_proto_ext_string (ftymsg, "model", "")))
 */
+#if 0 
+    char* sensor_type = s_get (config_template, "type",  NULL);
+    if (sensor_type) {
+        std::cout << "\ttype: " << sensor_type << std::endl;
+        //gpi_list[sensor_num].type = sensor_type;
+    }
+    else
+         std::cout << "FAILED to read sensor type" << std::endl;
+    char* sensor_normal_state = s_get (config_template, "normal-state",  NULL);
+    if (sensor_normal_state) {
+        std::cout << "\tsensor_normal_state: " << sensor_normal_state << std::endl;
+        /*if (sensor_normal_state == string("opened"))
+            gpi_list[sensor_num].normal_state = GPIO_STATUS_OPENED;
+        else if (sensor_normal_state == string("closed"))
+            gpi_list[sensor_num].normal_state = GPIO_STATUS_CLOSED;
+        */
+        // else exception...
+    }
+#endif // #if 0
+
     const char* sensor_partnumber = fty_proto_ext_string (ftymsg, "model", "");
     string config_template = is_asset_gpio_sensor(sensor_partnumber);
 
