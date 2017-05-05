@@ -98,25 +98,30 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
 //  Otherwise, it's not a GPIO sensor, so return an empty string
 
 static string
-is_asset_gpio_sensor (string sensor_partnumber)
+is_asset_gpio_sensor (string asset_subtype, string asset_model)
 {
     zconfig_t *config_template = NULL;
 
-    if (sensor_partnumber == "")
+    if ((asset_subtype == "") || (asset_model == ""))
         return "";
 
-    // Acquire sensor template info (type, default-state, alarm-message)
-    // FIXME: open datadir/<sensor_partnumber>.tpl
-    string template_file = string("./data/") + string(sensor_partnumber) + string(".tpl");
-    config_template = zconfig_load (template_file.c_str());
-    if (!config_template) {
-        zsys_debug ("Template config file %s doesn't exist!", template_file.c_str());
-        zsys_debug ("Asset is not a GPIO sensor, skipping!");
+    // Check if it's a sensor, otherwise no need to continue!
+    if (asset_subtype == "sensor") {
+        // Acquire sensor template info (type, default-state, alarm-message)
+        // FIXME: open $datadir/<sensor_partnumber>.tpl
+        string template_file = string("./data/") + string(asset_model) + string(".tpl");
+        config_template = zconfig_load (template_file.c_str());
+        if (!config_template) {
+            zsys_debug ("Template config file %s doesn't exist!", template_file.c_str());
+            zsys_debug ("Asset is not a GPIO sensor, skipping!");
+        }
+        else {
+            return template_file;
+        }
     }
     else {
-        return template_file;
+        zsys_debug ("Asset is not a sensor, skipping!");
     }
-
     return "";
 }
 
@@ -177,8 +182,9 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyms
     }
 #endif // #if 0
 
-    const char* sensor_partnumber = fty_proto_ext_string (ftymsg, "model", "");
-    string config_template = is_asset_gpio_sensor(sensor_partnumber);
+    const char* asset_subtype = fty_proto_ext_string (ftymsg, "subtype", "");
+    const char* asset_model = fty_proto_ext_string (ftymsg, "model", "");
+    string config_template = is_asset_gpio_sensor(asset_subtype, asset_model);
 
     if (streq (operation, "delete")) {
 /*
