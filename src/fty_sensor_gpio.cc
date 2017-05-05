@@ -162,14 +162,6 @@ int main (int argc, char *argv [])
 
 //    map_string_t map_txt;
     
-    for (int i = 0; i < 10; i++) {
-        gpi_list[i].name = "";
-        gpi_list[i].part_number = "";
-        gpi_list[i].type = "unknown";
-        gpi_list[i].normal_state = GPIO_STATUS_UNKNOWN;
-        gpi_list[i].current_state = GPIO_STATUS_UNKNOWN;
-        gpi_list[i].gpi_number = -1;
-    }
 
 
     //get info from env

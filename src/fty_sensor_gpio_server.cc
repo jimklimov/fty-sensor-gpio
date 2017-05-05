@@ -31,9 +31,11 @@
 //  Structure of our class
 
 struct _fty_sensor_gpio_server_t {
-    bool         verbose;  // is actor verbose or not
-    char         *name;    // actor name
-    mlm_client_t *mlm;     // malamute client
+    bool               verbose;      // is actor verbose or not
+    char               *name;        // actor name
+    mlm_client_t       *mlm;         // malamute client
+    int                sensor_num;   // number of sensors monitored in gpi_list
+    struct _gpi_info_t gpi_list[10]; // Array of monitored GPI (10 GPI on IPC3000)
 };
 
 // TODO: get from config
@@ -68,7 +70,17 @@ fty_sensor_gpio_server_new (const char* name)
     assert (self);
     //  Initialize class properties here
     self->mlm  = mlm_client_new();
-    self->name = strdup (name);
+    self->name = strdup(name);
+    self->sensor_num = 0;
+
+    for (int i = 0; i < 10; i++) {
+        self->gpi_list[i].name = "";
+        self->gpi_list[i].part_number = "";
+        self->gpi_list[i].type = "";
+        self->gpi_list[i].normal_state = GPIO_STATUS_UNKNOWN;
+        self->gpi_list[i].current_state = GPIO_STATUS_UNKNOWN;
+        self->gpi_list[i].gpi_number = -1;
+    }
 
     return self;
 }
@@ -101,6 +113,7 @@ static string
 is_asset_gpio_sensor (string asset_subtype, string asset_model)
 {
     zconfig_t *config_template = NULL;
+    string template_file = "";
 
     if ((asset_subtype == "") || (asset_subtype == "N_A")) {
         zsys_debug ("Asset subtype is not available");
@@ -119,13 +132,16 @@ is_asset_gpio_sensor (string asset_subtype, string asset_model)
 
     // Acquire sensor template info (type, default-state, alarm-message)
     // FIXME: open $datadir/<sensor_partnumber>.tpl
-    string template_file = string("./data/") + string(asset_model) + string(".tpl");
+    template_file = string("./data/") + string(asset_model) + string(".tpl");
+    // FIXME: simply test file existence, no zconfig_load...
     config_template = zconfig_load (template_file.c_str());
     if (!config_template) {
         zsys_debug ("Template config file %s doesn't exist!", template_file.c_str());
         zsys_debug ("Asset is not a GPIO sensor, skipping!");
     }
     else {
+        zsys_debug ("Template config file %s found!", template_file.c_str());
+        zsys_debug ("Asset is a GPIO sensor, processing!");
         return template_file;
     }
 
@@ -146,98 +162,61 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyms
     if (!self || !ftymsg) return;
     if (fty_proto_id (ftymsg) != FTY_PROTO_ASSET) return;
 
+    zconfig_t *config_template = NULL;
     const char *operation = fty_proto_operation (ftymsg);
     const char *assetname = fty_proto_name (ftymsg);
 
     zsys_debug ("%s: '%s' operation on asset '%s'", __func__, operation, assetname);
 
-/*
-    zhash_t *ext = fty_proto_ext (ftymsg);
-    zlist_t *keys = zhash_keys (ext);
-    char *key = (char *)zlist_first (keys);
-    while (key) {
-        if (strncmp ("group.", key, 6) == 0) {
-            // this is group
-            if (rule_group_exists (rule, (char *) zhash_lookup (ext, key))) {
-                zlist_destroy (&keys);
-                return 1;
-            }
-        }
-        key = (char *)zlist_next (keys);
-    }
-    zlist_destroy (&keys);
-
-    if (rule_model_exists (rule, fty_proto_ext_string (ftymsg, "model", "")))
-*/
-#if 0 
-    char* sensor_type = s_get (config_template, "type",  NULL);
-    if (sensor_type) {
-        std::cout << "\ttype: " << sensor_type << std::endl;
-        //gpi_list[sensor_num].type = sensor_type;
-    }
-    else
-         std::cout << "FAILED to read sensor type" << std::endl;
-    char* sensor_normal_state = s_get (config_template, "normal-state",  NULL);
-    if (sensor_normal_state) {
-        std::cout << "\tsensor_normal_state: " << sensor_normal_state << std::endl;
-        /*if (sensor_normal_state == string("opened"))
-            gpi_list[sensor_num].normal_state = GPIO_STATUS_OPENED;
-        else if (sensor_normal_state == string("closed"))
-            gpi_list[sensor_num].normal_state = GPIO_STATUS_CLOSED;
-        */
-        // else exception...
-    }
-#endif // #if 0
-
     const char* asset_subtype = fty_proto_ext_string (ftymsg, "subtype", "");
     const char* asset_model = fty_proto_ext_string (ftymsg, "model", "");
-    string config_template = is_asset_gpio_sensor(asset_subtype, asset_model);
+    string config_template_filename = is_asset_gpio_sensor(asset_subtype, asset_model);
 
-    // Initial addition
-    if (streq (operation, "inventory")) {
-        ;
-    }
-    // Asset deletion
-    if (streq (operation, "delete")) {
-/*
-        if (zhash_lookup (self->assets, assetname)) {
-            zhash_delete (self->assets, assetname);
-        }
-        if (zhash_lookup (self->enames, assetname)) {
-            zhash_delete (self->enames, assetname);
-        }
-        return;
-*/
-    }
-    // Asset update
-    if (streq (operation, "update")) {
-        ;
-/*
-        zlist_t *functions_for_asset = zlist_new ();
-        zlist_autofree (functions_for_asset);
-
-        rule_t *rule = (rule_t *)zhash_first (self->rules);
-        while (rule) {
-            if (is_rule_for_this_asset (rule, ftymsg)) {
-                zlist_append (functions_for_asset, (char *)rule_name (rule));
-                zsys_debug ("rule '%s' is valid for '%s'", rule_name (rule), assetname);
+    if (config_template_filename != "") {
+        // We have a GPIO sensor, process it
+        config_template = zconfig_load (config_template_filename.c_str());
+        if (config_template) {
+            // Get normal state and type from template
+            char* template_normal_state = s_get (config_template, "normal-state",  NULL);
+            char* sensor_type = s_get (config_template, "type",  NULL);
+            const char* sensor_normal_state = fty_proto_ext_string (ftymsg, "normal_state", template_normal_state);
+            const char* sensor_gpi_pin = fty_proto_ext_string (ftymsg, "gpi_number", "");
+            if (!sensor_normal_state) {
+                zsys_debug ("No sensor normal state found in template nor provided by the user!");
+                zsys_debug ("Skipping sensor");
             }
-            rule = (rule_t *)zhash_next (self->rules);
+            else if (!sensor_gpi_pin) {
+                zsys_debug ("No sensor pin provided! Skipping sensor");
+            }
+            else {
+                // Initial addition
+                if (streq (operation, "inventory")) {
+                    // FIXME: check if already monitored! + sanity on < 10...
+                    self->sensor_num++;
+                    // FIXME: add_sensor(assetname, asset_subtype, sensor_type, normal_state, gpi_number)
+                    self->gpi_list[self->sensor_num].name = strdup(assetname);
+                    self->gpi_list[self->sensor_num].part_number = asset_subtype;
+                    self->gpi_list[self->sensor_num].type = sensor_type;
+                    if (sensor_normal_state == string("opened"))
+                        self->gpi_list[self->sensor_num].normal_state = GPIO_STATUS_OPENED;
+                    else if (sensor_normal_state == string("closed"))
+                        self->gpi_list[self->sensor_num].normal_state = GPIO_STATUS_CLOSED;
+                    self->gpi_list[self->sensor_num].gpi_number = atoi(sensor_gpi_pin);
+                    zsys_debug ("Sensor %s added with\n\tmodel: %s\n\ttype:%s\n\tnormal-state: %s\n\tPin number: %s",
+                        assetname, asset_subtype, sensor_type, sensor_normal_state, sensor_gpi_pin);
+                }
+                // Asset deletion
+                if (streq (operation, "delete")) {
+                    // FIXME: del_sensor(assetname)
+                    ;
+                }
+                // Asset update
+                if (streq (operation, "update")) {
+                    // FIXME: update_sensor(assetname)
+                    ;
+                }
+            }
         }
-        if (! zlist_size (functions_for_asset)) {
-            zsys_debug ("no rule for %s", assetname);
-            zhash_delete (self->assets, assetname);
-            zlist_destroy (&functions_for_asset);
-            return;
-        }
-        zhash_update (self->assets, assetname, functions_for_asset);
-        zhash_freefn (self->assets, assetname, asset_freefn);
-        const char *ename = fty_proto_ext_string (ftymsg, "name", NULL);
-        if (ename) {
-            zhash_update (self->enames, assetname, (void *)ename);
-            zhash_freefn (self->enames, assetname, ename_freefn);
-        }
-*/
     }
 }
 

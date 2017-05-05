@@ -38,6 +38,7 @@ using namespace std;
 //  Structure to store information on a monitored GPI
 //  This includes both the template and configuration information
 
+// FIXME: replace with some zlist...
 struct _gpi_info_t {
     string name;        // sensor asset name
     string part_number; // GPI sensor part number
@@ -45,17 +46,8 @@ struct _gpi_info_t {
     int normal_state;   // opened | closed
     int current_state;  // opened | closed
     int gpi_number;     // GPI number, 1 - 10
-/*
-    char *part_number; // GPI sensor part number
-    char *type;        // GPI sensor type (door-contact, ...)
-    int normal_state;  // opened | closed
-    int current_state; // opened | closed
-    int gpi_number;    // GPI number, 1 - 10
-*/
 };
 
-// Array of monitored GPI (10 GPI on IPC3000)
-extern struct _gpi_info_t gpi_list[10];
 
 // Config file accessors
 char* s_get (zconfig_t *config, const char* key, std::string &dfl);
