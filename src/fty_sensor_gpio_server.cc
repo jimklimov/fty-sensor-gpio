@@ -79,10 +79,11 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
             zsys_debug ("Can't read GPI sensor #%i status", self->gpi_list[cur_sensor_num].gpi_number);
             continue;
         }
-        zsys_debug ("Read %s (value: %i) on GPI",
+        zsys_debug ("Read %s (value: %i) on GPI sensor #%i (%s)",
             libgpio_get_status_string(&self->gpio_lib, self->gpi_list[cur_sensor_num].current_state).c_str(),
             self->gpi_list[cur_sensor_num].current_state,
-            self->gpi_list[cur_sensor_num].gpi_number);
+            self->gpi_list[cur_sensor_num].gpi_number,
+            self->gpi_list[cur_sensor_num].name.c_str());
 
         // Check against normal status
         if (self->gpi_list[cur_sensor_num].current_state != self->gpi_list[cur_sensor_num].normal_state)
