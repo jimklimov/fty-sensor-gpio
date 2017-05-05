@@ -76,13 +76,11 @@ int main (int argc, char *argv [])
 {
     char *config_file = NULL;
     zconfig_t *config = NULL;
-//    zconfig_t *config_template = NULL;
-    char* actor_name = (char*)FTY_SENSOR_GPIO_AGENT;
+    char* actor_name = NULL;
     char* endpoint = (char*)"ipc://@/malamute";
 
     bool verbose = false;
     int argn;
-//    int sensor_num;
 
     // Parse command line
     for (argn = 1; argn < argc; argn++) {
@@ -120,7 +118,7 @@ int main (int argc, char *argv [])
             verbose = true;
         }
         endpoint = s_get (config, "malamute/endpoint", endpoint);
-        actor_name = s_get (config, "malamute/address", actor_name);
+        actor_name = s_get (config, "malamute/address", (char*)FTY_SENSOR_GPIO_AGENT);
     }
 
     if (verbose)
@@ -130,7 +128,7 @@ int main (int argc, char *argv [])
     if (getenv ("BIOS_LOG_LEVEL") && streq (getenv ("BIOS_LOG_LEVEL"), "LOG_DEBUG"))
         verbose = true;
 
-    zactor_t *server = zactor_new (fty_sensor_gpio_server, (void*) FTY_SENSOR_GPIO_AGENT);
+    zactor_t *server = zactor_new (fty_sensor_gpio_server, (void*)actor_name);
 
     if (verbose) {
         zstr_sendx (server, "VERBOSE", NULL);
@@ -157,89 +155,6 @@ int main (int argc, char *argv [])
 
 
 #if 0
-    char* actor_name = FTY_SENSOR_GPIO_AGENT; //(char*)"fty-sensor-gpio";
-    char* endpoint = (char*)"ipc://@/malamute";
-
-//    map_string_t map_txt;
-    
-
-
-    //get info from env
-/*?? NEEDED ??
-    char* srv_name  = getenv("FTY_SENSOR_GPIO_SRV_NAME");
-    char* srv_type  = getenv("FTY_SENSOR_GPIO_SRV_TYPE");
-    char* srv_stype = getenv("FTY_SENSOR_GPIO_SRV_STYPE");
-    char* srv_port  = getenv("FTY_SENSOR_GPIO_SRV_PORT");
-*/
-
-    // Parse config file
-    if(config_file) {
-        sensor_num = 0;
-        zsys_debug ("fty_sensor_gpio:LOAD: %s", config_file);
-        config = zconfig_load (config_file);
-        if (!config) {
-            zsys_error ("Failed to load config file %s: %m", config_file);
-            exit (EXIT_FAILURE);
-        }
-        // VERBOSE
-        if (streq (zconfig_get (config, "server/verbose", "false"), "true")) {
-            verbose = true;
-        }
-        endpoint = s_get (config, "malamute/endpoint", endpoint);
-        actor_name = s_get (config, "malamute/address", actor_name);
-
-        // get the sensors list to monitor
-        zconfig_t *config_sensors_list = zconfig_locate(config, "sensors");
-
-        zconfig_t *config_sensor_info = zconfig_child (config_sensors_list);
-        while (config_sensor_info) {
-            // Acquire sensor configuration info
-            // And fill our monitoring structure
-            char* sensor_name = s_get (config_sensor_info, "name",  NULL);
-            if (sensor_name) {
-                std::cout << "Sensor: " << sensor_name << std::endl;
-                gpi_list[sensor_num].name = sensor_name;
-            }
-            char* sensor_partnumber = s_get (config_sensor_info, "part-number",  NULL);
-            if (sensor_partnumber) {
-                std::cout << "\tPart number: " << sensor_partnumber << std::endl;
-                gpi_list[sensor_num].part_number = strdup(sensor_partnumber);
-            }
-            char* sensor_port = s_get (config_sensor_info, "port",  NULL);
-            if (sensor_port) {
-                std::cout << "\tPort: " << sensor_port << std::endl;
-                gpi_list[sensor_num].gpi_number = std::stoi(sensor_port);
-            }
-
-            // Acquire sensor template info (type, default-state, alarm-message)
-            // FIXME: open datadir/<sensor_partnumber>.tpl
-            string template_file = string("./data/") + string(sensor_partnumber) + string(".tpl");
-            config_template = zconfig_load (template_file.c_str());
-            if (!config_template) {
-                zsys_error ("Failed to load template config file %s: %m", template_file.c_str());
-                exit (EXIT_FAILURE);
-            }
-            char* sensor_type = s_get (config_template, "type",  NULL);
-            if (sensor_type) {
-                std::cout << "\ttype: " << sensor_type << std::endl;
-                gpi_list[sensor_num].type = sensor_type;
-            }
-            else
-                 std::cout << "FAILED to read sensor type" << std::endl;
-            char* sensor_normal_state = s_get (config_template, "normal-state",  NULL);
-            if (sensor_normal_state) {
-                std::cout << "\tsensor_normal_state: " << sensor_normal_state << std::endl;
-                if (sensor_normal_state == string("opened"))
-                    gpi_list[sensor_num].normal_state = GPIO_STATUS_OPENED;
-                else if (sensor_normal_state == string("closed"))
-                    gpi_list[sensor_num].normal_state = GPIO_STATUS_CLOSED;
-                // else exception...
-            }
-            // Get info of the next sensor
-            config_sensor_info = zconfig_next (config_sensor_info);
-            sensor_num++;
-        }
-    }
 
 //sensors
 //    1
@@ -252,94 +167,25 @@ int main (int argc, char *argv [])
     libgpio_t *self = libgpio_new ();
     assert (self);
 
-// subscribe to ASSETS  and get the list of device.type=sensor
-// name='epdu-62'
-
-    mlm_client_t *client = mlm_client_new ();
-    if (client == NULL) {
-        zsys_error ("mlm_client_new () failed.");
-        return -1;
-    }
-
-    int rv = mlm_client_connect (client, endpoint, 1000, actor_name);
-    if (rv == -1) {
-        mlm_client_destroy (&client);
-        zsys_error (
-                "mlm_client_connect (endpoint = '%s', timeout = '%d', address = '%s') failed.",
-                endpoint, 1000, actor_name);
-        return -1;
-    } 
-
-    rv = mlm_client_set_consumer (client, FTY_PROTO_STREAM_ASSETS, ".*");
-    if (rv == -1) {
-        mlm_client_destroy (&client);
-        zsys_error (
-                "mlm_client_set_consumer (stream = '%s', pattern = '%s') failed.",
-                FTY_PROTO_STREAM_ASSETS, ".*");
-        return -1;
-    }
-
-
     // Loop on all sensors
-    while (!zsys_interrupted) {
-        // FIXME: check for new assets of type=sensor and get ext. attribute
-        // for 'model'
-        // Then check if we have this 'model' in the catalog (data/<model>.tpl)
-        // If so, get the port (GPI pin) and add to gpi_list[]
+    for (sensor_num = 0; sensor_num < GPI_MAX_NUM; sensor_num++) {
+        if (gpi_list[sensor_num].name == "")
+            continue;
 
-        zmsg_t *message = mlm_client_recv (client);
-        //zmsg_t *message = fty_proto_recv_nowait (client);
-//        char *message = zstr_recv (client);
-        if (message) {            
-            fty_proto_t *protocol_message = fty_proto_decode (&message);
-            if (protocol_message == NULL) {
-                zsys_error ("fty_proto_decode () failed. Received message could not be parsed.");
-                continue; //return -1;
-            }
-            // Since we are subscribed to FTY_PROTO_STREAM_ASSETS,
-            // received message should be FTY_PROTO_ASSET message 
-            if (fty_proto_id (protocol_message) != FTY_PROTO_ASSET) {
-                zsys_error (
-                        "Received message is not expected FTY_PROTO_ASSET id, but: '%d'.",
-                        fty_proto_id (protocol_message));
-                fty_proto_destroy (&protocol_message);
-                continue; //return -1;
-            }
-
-//            puts (message);
-            zsys_debug ("got an FTY_PROTO_ASSET message %s (type: %s, op: %s)",
-                fty_proto_name (protocol_message),
-                fty_proto_type (protocol_message),
-                fty_proto_operation (protocol_message));
-            zsys_debug ("Device type: %s", fty_proto_ext_string (protocol_message, "device.type", NULL));
-            // model
-            free (message);
+        // Get the current sensor status
+        gpi_list[sensor_num].current_state = libgpio_read(&self, gpi_list[sensor_num].gpi_number);
+        if (gpi_list[sensor_num].current_state == GPIO_STATUS_UNKNOWN) {
+            cout << "Can't read GPI sensor #" << gpi_list[sensor_num].gpi_number << " status"  << std::endl;
+            continue;
         }
-        else {
-            puts ("no message");
-            //break;
-        }
+        cout << "Read " << libgpio_get_status_string(&self, gpi_list[sensor_num].current_state);
+        cout << " (value: "  << gpi_list[sensor_num].current_state << ") on GPI #" << gpi_list[sensor_num].gpi_number << std::endl;
 
-
-        for (sensor_num = 0; sensor_num < GPI_MAX_NUM; sensor_num++) {
-            if (gpi_list[sensor_num].name == "")
-                continue;
-
-            // Get the current sensor status
-            gpi_list[sensor_num].current_state = libgpio_read(&self, gpi_list[sensor_num].gpi_number);
-            if (gpi_list[sensor_num].current_state == GPIO_STATUS_UNKNOWN) {
-                cout << "Can't read GPI sensor #" << gpi_list[sensor_num].gpi_number << " status"  << std::endl;
-                continue;
-            }
-            cout << "Read " << libgpio_get_status_string(&self, gpi_list[sensor_num].current_state);
-            cout << " (value: "  << gpi_list[sensor_num].current_state << ") on GPI #" << gpi_list[sensor_num].gpi_number << std::endl;
-
-            // Check against normal status
-            if (gpi_list[sensor_num].current_state != gpi_list[sensor_num].normal_state)
-                cout << "ALARM: state changed" << std::endl;
-        }
-        sleep(2);
+        // Check against normal status
+        if (gpi_list[sensor_num].current_state != gpi_list[sensor_num].normal_state)
+            cout << "ALARM: state changed" << std::endl;
     }
+    sleep(2);
 
     libgpio_destroy (&self);
 

@@ -74,9 +74,9 @@ fty_sensor_gpio_server_new (const char* name)
     self->sensor_num = 0;
 
     for (int i = 0; i < 10; i++) {
-        self->gpi_list[i].name = "";
-        self->gpi_list[i].part_number = "";
-        self->gpi_list[i].type = "";
+//        self->gpi_list[i].name = "";
+//        self->gpi_list[i].part_number = "";
+//        self->gpi_list[i].type = "";
         self->gpi_list[i].normal_state = GPIO_STATUS_UNKNOWN;
         self->gpi_list[i].current_state = GPIO_STATUS_UNKNOWN;
         self->gpi_list[i].gpi_number = -1;
@@ -169,6 +169,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyms
     zsys_debug ("%s: '%s' operation on asset '%s'", __func__, operation, assetname);
 
     const char* asset_subtype = fty_proto_ext_string (ftymsg, "subtype", "");
+        // FIXME: fallback to "device.type"?
     const char* asset_model = fty_proto_ext_string (ftymsg, "model", "");
     string config_template_filename = is_asset_gpio_sensor(asset_subtype, asset_model);
 
@@ -244,8 +245,6 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
     fty_sensor_gpio_server_t *self = fty_sensor_gpio_server_new(name);
     assert (self);
 
-//    mlm_client_t *client = mlm_client_new ();
-//    zpoller_t *poller = zpoller_new (pipe, mlm_client_msgpipe (client), NULL);
     zpoller_t *poller = zpoller_new (pipe, mlm_client_msgpipe (self->mlm), NULL);
     assert (poller);
 
@@ -309,7 +308,6 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
             if (is_fty_proto (msg)) {
                 fty_proto_t *fmsg = fty_proto_decode (&msg);
                 if (fty_proto_id (fmsg) == FTY_PROTO_ASSET) {
-                    zsys_debug ("%s: received FTY_PROTO_ASSET msg", __func__);
                     fty_sensor_gpio_handle_asset (self, fmsg);
                 }
                 /*if (fty_proto_id (fmsg) == FTY_PROTO_METRIC) {
@@ -319,64 +317,6 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
             } else if (streq (mlm_client_command (self->mlm), "MAILBOX DELIVER")) {
                 // someone is addressing us directly
             }
-#if 0
-         else
-             if (which == mlm_client_msgpipe (client)) {
-                 //TODO: implement actor interface
-                 zmsg_t *message = mlm_client_recv (client);
-                 if (!message)
-                    continue;
-
-                 char *command = zmsg_popstr (message);
-                 if (!command) {
-                    zmsg_destroy (&message);
-                    zsys_warning ("Empty command.");
-                    continue;
-                 }
-zsys_info ("Received command %s", command);
-/*
-                 if (!streq(command, "INFO") && !streq(command, "INFO-TEST")) {
-                    zsys_warning ("fty-sensor-gpio: Received unexpected command '%s'", command);
-                    zmsg_t *reply = zmsg_new ();
-                    zmsg_addstr(reply, "ERROR");
-                    mlm_client_sendto (client, mlm_client_sender (client), "info", NULL, 1000, &reply);
-                    zstr_free (&command);
-                    zmsg_destroy (&message);
-                    continue;
-                     
-                 } else {
-                    zmsg_t *reply = zmsg_new ();
-                    char *zuuid = zmsg_popstr (message);
-                    fty_info_t *self;
-                    if (streq(command, "INFO")) {
-                        self = fty_info_new ();
-                    }
-                    if (streq(command, "INFO-TEST")) {
-                        self = fty_info_test_new ();
- 
-                    }
-                    //prepare replied msg content
-                    zmsg_addstrf (reply, "%s", zuuid);
-                    zhash_insert(self->infos, INFO_UUID, self->uuid);
-                    zhash_insert(self->infos, INFO_HOSTNAME, self->hostname);
-                    zhash_insert(self->infos, INFO_NAME, self->name);
-                    zhash_insert(self->infos, INFO_PRODUCT_NAME, self->product_name);
-                    zhash_insert(self->infos, INFO_LOCATION, self->location);
-                    zhash_insert(self->infos, INFO_VERSION, self->version);
-                    zhash_insert(self->infos, INFO_REST_ROOT, self->rest_root);
-                    zhash_insert(self->infos, INFO_REST_PORT, self->rest_port);
-                    zframe_t * frame_infos = zhash_pack(self->infos);
-                    zmsg_append (reply, &frame_infos);
-               
-                    mlm_client_sendto (client, mlm_client_sender (client), "info", NULL, 1000, &reply);
-                    zstr_free (&zuuid);
-                    fty_info_destroy (&self);
-                }
-*/
-                zstr_free (&command);
-                zmsg_destroy (&message);
-//             }
-#endif //#if 0
         }
     }
     zpoller_destroy (&poller);
