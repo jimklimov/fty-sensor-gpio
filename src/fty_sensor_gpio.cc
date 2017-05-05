@@ -141,6 +141,7 @@ int main (int argc, char *argv [])
     zstr_sendx (server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);
 /*
+    // Setup an update event message every 2 seconds, to check GPI status
     zloop_t *gpio_status_update = zloop_new();
     zloop_timer (gpio_status_update, 2 * 1000, 0, s_update_event, server);
     zloop_start (gpio_status_update);
@@ -153,6 +154,8 @@ int main (int argc, char *argv [])
 
     zactor_destroy (&server);
     return 0;
+
+
 #if 0
     char* actor_name = FTY_SENSOR_GPIO_AGENT; //(char*)"fty-sensor-gpio";
     char* endpoint = (char*)"ipc://@/malamute";

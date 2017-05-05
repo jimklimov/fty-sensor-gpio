@@ -84,6 +84,8 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
     if (*self_p) {
         fty_sensor_gpio_server_t *self = *self_p;
         //  Free class properties here
+        mlm_client_destroy (&self->mlm);
+        free(self->name);
         //  Free object itself
         free (self);
         *self_p = NULL;
@@ -236,8 +238,9 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
     fty_sensor_gpio_server_t *self = fty_sensor_gpio_server_new(name);
     assert (self);
 
-    mlm_client_t *client = mlm_client_new ();
-    zpoller_t *poller = zpoller_new (pipe, mlm_client_msgpipe (client), NULL);
+//    mlm_client_t *client = mlm_client_new ();
+//    zpoller_t *poller = zpoller_new (pipe, mlm_client_msgpipe (client), NULL);
+    zpoller_t *poller = zpoller_new (pipe, mlm_client_msgpipe (self->mlm), NULL);
     assert (poller);
 
     zsock_signal (pipe, 0); 
@@ -371,7 +374,7 @@ zsys_info ("Received command %s", command);
         }
     }
     zpoller_destroy (&poller);
-    mlm_client_destroy (&client);
+    mlm_client_destroy (&self->mlm);
 }
 
 //  --------------------------------------------------------------------------
