@@ -63,14 +63,13 @@ usage(){
 
 }
 
-/*
+// Send an update request over the MQ to check for GPIO status
 static int
 s_update_event (zloop_t *loop, int timer_id, void *output)
 {
     zstr_send (output, "UPDATE");
     return 0;
 }
-*/
 
 int main (int argc, char *argv [])
 {
@@ -138,58 +137,13 @@ int main (int argc, char *argv [])
     zstr_sendx (server, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
     zstr_sendx (server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);
-/*
+
     // Setup an update event message every 2 seconds, to check GPI status
     zloop_t *gpio_status_update = zloop_new();
     zloop_timer (gpio_status_update, 2 * 1000, 0, s_update_event, server);
     zloop_start (gpio_status_update);
-    zloop_destroy (&gpio_status_update);
-*/
-    while (!zsys_interrupted) {
-        zmsg_t *msg = zactor_recv (server);
-        zmsg_destroy (&msg);
-    }
 
+    zloop_destroy (&gpio_status_update);
     zactor_destroy (&server);
     return 0;
-
-
-#if 0
-
-//sensors
-//    1
-//        name          = 1
-//        part-number   = DCS001
-//        port          = 1
-//    2
-//        ...
-
-    libgpio_t *self = libgpio_new ();
-    assert (self);
-
-    // Loop on all sensors
-    for (sensor_num = 0; sensor_num < GPI_MAX_NUM; sensor_num++) {
-        if (gpi_list[sensor_num].name == "")
-            continue;
-
-        // Get the current sensor status
-        gpi_list[sensor_num].current_state = libgpio_read(&self, gpi_list[sensor_num].gpi_number);
-        if (gpi_list[sensor_num].current_state == GPIO_STATUS_UNKNOWN) {
-            cout << "Can't read GPI sensor #" << gpi_list[sensor_num].gpi_number << " status"  << std::endl;
-            continue;
-        }
-        cout << "Read " << libgpio_get_status_string(&self, gpi_list[sensor_num].current_state);
-        cout << " (value: "  << gpi_list[sensor_num].current_state << ") on GPI #" << gpi_list[sensor_num].gpi_number << std::endl;
-
-        // Check against normal status
-        if (gpi_list[sensor_num].current_state != gpi_list[sensor_num].normal_state)
-            cout << "ALARM: state changed" << std::endl;
-    }
-    sleep(2);
-
-    libgpio_destroy (&self);
-
-
-    return 0;
-#endif // #if 0
 }

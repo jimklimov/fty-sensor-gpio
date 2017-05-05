@@ -36,6 +36,7 @@ struct _fty_sensor_gpio_server_t {
     mlm_client_t       *mlm;         // malamute client
     int                sensor_num;   // number of sensors monitored in gpi_list
     struct _gpi_info_t gpi_list[10]; // Array of monitored GPI (10 GPI on IPC3000)
+    libgpio_t          *gpio_lib;    // GPIO library handle
 };
 
 // TODO: get from config
@@ -61,6 +62,35 @@ s_get (zconfig_t *config, const char* key, char*dfl) {
 }
 
 //  --------------------------------------------------------------------------
+//  Check GPIO status and generate alarms if needed
+
+static void
+s_check_gpio_status(fty_sensor_gpio_server_t *self)
+{
+
+    if(!mlm_client_connected(self->mlm))
+        return;
+
+    // Loop on all sensors
+    for (int cur_sensor_num = 0; cur_sensor_num <= self->sensor_num; cur_sensor_num++) {
+        // Get the current sensor status
+        self->gpi_list[cur_sensor_num].current_state = libgpio_read(&self->gpio_lib, self->gpi_list[cur_sensor_num].gpi_number);
+        if (self->gpi_list[cur_sensor_num].current_state == GPIO_STATUS_UNKNOWN) {
+            zsys_debug ("Can't read GPI sensor #%i status", self->gpi_list[cur_sensor_num].gpi_number);
+            continue;
+        }
+        zsys_debug ("Read %s (value: %i) on GPI",
+            libgpio_get_status_string(&self->gpio_lib, self->gpi_list[cur_sensor_num].current_state).c_str(),
+            self->gpi_list[cur_sensor_num].current_state,
+            self->gpi_list[cur_sensor_num].gpi_number);
+
+        // Check against normal status
+        if (self->gpi_list[cur_sensor_num].current_state != self->gpi_list[cur_sensor_num].normal_state)
+            zsys_debug ("ALARM: state changed");
+    }
+}
+
+//  --------------------------------------------------------------------------
 //  Create a new fty_sensor_gpio_server
 
 fty_sensor_gpio_server_t *
@@ -82,6 +112,9 @@ fty_sensor_gpio_server_new (const char* name)
         self->gpi_list[i].gpi_number = -1;
     }
 
+    self->gpio_lib = libgpio_new ();
+    assert (self->gpio_lib);
+
     return self;
 }
 
@@ -98,6 +131,8 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
         //  Free class properties here
         mlm_client_destroy (&self->mlm);
         free(self->name);
+        libgpio_destroy (&self->gpio_lib);
+
         //  Free object itself
         free (self);
         *self_p = NULL;
@@ -191,8 +226,8 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyms
             }
             else {
                 // Initial addition
-                if (streq (operation, "inventory")) {
-                    // FIXME: check if already monitored! + sanity on < 10...
+                if ( (streq (operation, "inventory")) ||  (streq (operation, "create")) ) {
+                    // FIXME: check if already monitored! + sanity on < 10... AND pin not already declared
                     self->sensor_num++;
                     // FIXME: add_sensor(assetname, asset_subtype, sensor_type, normal_state, gpi_number)
                     self->gpi_list[self->sensor_num].name = strdup(assetname);
@@ -296,9 +331,12 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     zstr_free (&stream);
                     zstr_free (&pattern);
                 }
-                else
+                else if (streq (cmd, "UPDATE")) {
+                    s_check_gpio_status(self);
+                }
+                else {
                     zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
-
+                }
                 zstr_free (&cmd);
             }
             zmsg_destroy (&msg);
