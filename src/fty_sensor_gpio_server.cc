@@ -72,6 +72,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
 
     if (self->sensors_count == 0)
         zsys_debug ("No sensors monitored");
+        return;
 
     if(!mlm_client_connected(self->mlm))
         return;
