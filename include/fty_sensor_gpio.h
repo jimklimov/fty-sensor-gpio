@@ -34,18 +34,20 @@ using namespace std;
 
 //  Add your own public definitions here, if you need them
 #define FTY_SENSOR_GPIO_AGENT "fty-sensor-gpio"
+#define DEFAULT_POLL_INTERVAL 2000
 
 //  Structure to store information on a monitored GPI
 //  This includes both the template and configuration information
 
 // FIXME: replace with some zlist...
-struct _gpi_info_t {
+struct _gpx_info_t {
     string name;        // sensor asset name
     string part_number; // GPI sensor part number
     string type;        // GPI sensor type (door-contact, ...)
     int normal_state;   // opened | closed
     int current_state;  // opened | closed
-    int gpi_number;     // GPI number, 1 - 10
+    int gpx_number;     // GPI number, 1 - 10 (FIXME: GPO)
+    int gpx_direction;      // GPIn or GPOut
 };
 
 

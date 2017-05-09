@@ -28,9 +28,6 @@
 
 #include "fty_sensor_gpio_classes.h"
 
-// Array of monitored GPI (10 GPI on IPC3000)
-struct _gpi_info_t gpi_list[10];
-
 // TODO:
 // 2) fty-sensor-gpio starts
 // 2.1) fty-sensor-gpio read its configuration file (/etc/fty-sensor-gpio/fty-sensor-gpio.conf)
@@ -75,9 +72,10 @@ int main (int argc, char *argv [])
 {
     char *config_file = NULL;
     zconfig_t *config = NULL;
-    char* actor_name = NULL;
+    char* actor_name = (char*)FTY_SENSOR_GPIO_AGENT;
     char* endpoint = (char*)"ipc://@/malamute";
-
+    char* str_poll_interval = NULL;
+    int poll_interval = DEFAULT_POLL_INTERVAL;
     bool verbose = false;
     int argn;
 
@@ -116,12 +114,15 @@ int main (int argc, char *argv [])
         if (streq (zconfig_get (config, "server/verbose", "false"), "true")) {
             verbose = true;
         }
+        // Polling interval
+        str_poll_interval = s_get (config, "server/poll_interval", NULL);
+        if (str_poll_interval) {
+            poll_interval = atoi(str_poll_interval);
+        }
+        zsys_debug ("Polling interval set to %i", poll_interval);
         endpoint = s_get (config, "malamute/endpoint", endpoint);
-        actor_name = s_get (config, "malamute/address", (char*)FTY_SENSOR_GPIO_AGENT);
+        actor_name = s_get (config, "malamute/address", actor_name);
     }
-
-    if (verbose)
-        zsys_info ("fty_sensor_gpio - started");
 
     // check env verbose
     if (getenv ("BIOS_LOG_LEVEL") && streq (getenv ("BIOS_LOG_LEVEL"), "LOG_DEBUG"))
@@ -131,7 +132,7 @@ int main (int argc, char *argv [])
 
     if (verbose) {
         zstr_sendx (server, "VERBOSE", NULL);
-        zsys_info ("fty_sensor_gpio - Agent which manages GPI sensors and GPO devices");
+        zsys_info ("%s - Agent which manages GPI sensors and GPO devices", actor_name);
     }
 
     zstr_sendx (server, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
@@ -140,7 +141,7 @@ int main (int argc, char *argv [])
 
     // Setup an update event message every 2 seconds, to check GPI status
     zloop_t *gpio_status_update = zloop_new();
-    zloop_timer (gpio_status_update, 2 * 1000, 0, s_update_event, server);
+    zloop_timer (gpio_status_update, poll_interval, 0, s_update_event, server);
     zloop_start (gpio_status_update);
 
     zloop_destroy (&gpio_status_update);

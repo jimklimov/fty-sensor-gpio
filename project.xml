@@ -26,7 +26,7 @@
     </use>
 
     <!--class name = "fty_sensor_gpio_server">Actor</class-->
-    <class name = "libgpio" stable = "1">General Purpose Input/Output lib</class>
+    <class name = "libgpio" stable = "1">General Purpose Input/Output (GPIO) sensors library</class>
     <class name = "fty-sensor-gpio-server">42ITy GPIO server</class>
 
     <main name = "fty-sensor-gpio" service = "1">Manage GPI sensors and GPO devices</main>

@@ -1,5 +1,5 @@
 /*  =========================================================================
-    libgpio - General Purpose Input/Output lib
+    libgpio - General Purpose Input/Output (GPIO) sensors library
 
     Copyright (C) 2014 - 2017 Eaton                                        
                                                                            
@@ -53,12 +53,12 @@ FTY_SENSOR_GPIO_EXPORT libgpio_t *
 //  @interface
 //  Read a GPI or GPO status
 FTY_SENSOR_GPIO_EXPORT int
-    libgpio_read (libgpio_t **self_p, int pin);
+    libgpio_read (libgpio_t **self_p, int GPx_number, int direction=GPIO_DIRECTION_IN);
 
 //  @interface
 //  Write a GPO (to enable or disable it)
 FTY_SENSOR_GPIO_EXPORT int
-    libgpio_write (libgpio_t **self_p, int pin, int value);
+    libgpio_write (libgpio_t **self_p, int GPO_number, int value);
 
 //  @interface
 //  Get the textual name for a status

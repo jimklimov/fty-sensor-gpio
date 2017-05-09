@@ -1,5 +1,5 @@
 /*  =========================================================================
-    libgpio - General Purpose Input/Output lib
+    libgpio - General Purpose Input/Output (GPIO) sensors library
 
     Copyright (C) 2014 - 2017 Eaton                                        
                                                                            
@@ -21,7 +21,7 @@
 
 /*
 @header
-    libgpio - General Purpose Input/Output lib
+    libgpio - General Purpose Input/Output (GPIO) sensors library
 @discuss
 @end
 */
@@ -31,7 +31,7 @@
 //  Structure of our class
 
 struct _libgpio_t {
-    int filler;     //  Declare class properties here
+    int gpio_base_index;
 };
 
 //  Private functions forward declarations
@@ -50,21 +50,22 @@ libgpio_new (void)
     libgpio_t *self = (libgpio_t *) zmalloc (sizeof (libgpio_t));
     assert (self);
     //  Initialize class properties here
+    self->gpio_base_index = GPIO_BASE_INDEX;
+
     return self;
 }
 
 //  --------------------------------------------------------------------------
 //  Read a GPI or GPO status
 int
-libgpio_read (libgpio_t **self_p, int pin)
+libgpio_read (libgpio_t **self_p, int GPx_number, int direction)
 {
     char path[GPIO_VALUE_MAX];
     char value_str[3];
     int fd;
-    int direction = GPIO_DIRECTION_IN; // FIXME: autodetection for GPIO_DIRECTION_OUT
 
     // GPI pin has -1 offset, i.e. GPI 1 is pin 0
-    pin--;
+    int pin = GPx_number - 1;
 
     // Enable the desired GPIO
     if (libgpio_export(pin) == -1)
@@ -98,12 +99,15 @@ libgpio_read (libgpio_t **self_p, int pin)
 //  --------------------------------------------------------------------------
 //  Write a GPO (to enable or disable it)
 int
-libgpio_write (libgpio_t **self_p, int pin, int value)
+libgpio_write (libgpio_t **self_p, int GPO_number, int value)
 {
     static const char s_values_str[] = "01";
     char path[GPIO_VALUE_MAX];
     int fd;
     int retval = 0;
+
+    // FIXME: GPO pin MAY also have -1 offset, i.e. GPO 1 is pin 0
+    int pin = GPO_number; // - 1;
 
     snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + GPIO_BASE_INDEX);
     fd = open(path, O_WRONLY);
@@ -138,7 +142,7 @@ libgpio_get_status_string (libgpio_t **self_p, int value)
             break;
         case GPIO_STATUS_UNKNOWN:
         default:
-            status_str = "";
+            status_str = ""; // FIXME: return "unknown"?
     }
     return status_str;
 }
