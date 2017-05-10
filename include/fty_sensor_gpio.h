@@ -41,13 +41,13 @@ using namespace std;
 
 // FIXME: replace with some zlist...
 struct _gpx_info_t {
-    string name;        // sensor asset name
-    string part_number; // GPI sensor part number
-    string type;        // GPI sensor type (door-contact, ...)
+    char* name;         // sensor asset name
+    char* part_number;  // GPI sensor part number
+    char* type;         // GPI sensor type (door-contact, ...)
     int normal_state;   // opened | closed
     int current_state;  // opened | closed
     int gpx_number;     // GPI number, 1 - 10 (FIXME: GPO)
-    int gpx_direction;      // GPIn or GPOut
+    int gpx_direction;  // GPIn or GPOut
 };
 
 

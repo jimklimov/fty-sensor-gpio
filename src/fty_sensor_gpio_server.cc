@@ -70,12 +70,12 @@ void publish_status (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
 
     zsys_debug ("Publishing GPIO sensor %i (%s) status",
         self->gpx_list[sensor_num].gpx_number,
-        self->gpx_list[sensor_num].name.c_str());
+        self->gpx_list[sensor_num].name);
         zsys_debug ("Read %s (value: %i) on GPx sensor #%i (%s)",
             libgpio_get_status_string(&self->gpio_lib, self->gpx_list[sensor_num].current_state).c_str(),
             self->gpx_list[sensor_num].current_state,
             self->gpx_list[sensor_num].gpx_number,
-            self->gpx_list[sensor_num].name.c_str());
+            self->gpx_list[sensor_num].name);
 
 //    if (! _temperature.empty()) {
 /*
@@ -152,7 +152,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
             libgpio_get_status_string(&self->gpio_lib, self->gpx_list[cur_sensor_num].current_state).c_str(),
             self->gpx_list[cur_sensor_num].current_state,
             self->gpx_list[cur_sensor_num].gpx_number,
-            self->gpx_list[cur_sensor_num].name.c_str());
+            self->gpx_list[cur_sensor_num].name);
 
         publish_status (self, cur_sensor_num, 300);
 
@@ -265,9 +265,9 @@ fty_sensor_gpio_server_new (const char* name)
     self->verbose = false;
 
     for (int i = 0; i < 10; i++) {
-//        self->gpx_list[i].name = "";
-//        self->gpx_list[i].part_number = "";
-//        self->gpx_list[i].type = "";
+        self->gpx_list[i].name = NULL;
+        self->gpx_list[i].part_number = NULL;
+        self->gpx_list[i].type = NULL;
         self->gpx_list[i].normal_state = GPIO_STATUS_UNKNOWN;
         self->gpx_list[i].current_state = GPIO_STATUS_UNKNOWN;
         self->gpx_list[i].gpx_number = -1;
@@ -317,9 +317,9 @@ add_sensor(fty_sensor_gpio_server_t *self, const char* assetname, const char* as
     zlistx_add_end (gpx_list, (void *) "average.temperature@Curie");
 #endif // #if 0
     self->sensors_count++;
-    self->gpx_list[self->sensors_count].name = assetname;
-    self->gpx_list[self->sensors_count].part_number = asset_subtype;
-    self->gpx_list[self->sensors_count].type = sensor_type;
+    self->gpx_list[self->sensors_count].name = strdup(assetname);
+    self->gpx_list[self->sensors_count].part_number = strdup(asset_subtype);
+    self->gpx_list[self->sensors_count].type = strdup(sensor_type);
     if ( streq (sensor_normal_state, "opened" ) )
         self->gpx_list[self->sensors_count].normal_state = GPIO_STATUS_OPENED;
     else if ( streq (sensor_normal_state, "closed") )
@@ -450,7 +450,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
         ||  (streq (operation, "create"))
         ||  (streq (operation, "update")) ) {
 
-        zsys_debug ("%s sensor %s added with\n\tmodel: %s\n\ttype:%s\n\tnormal-state: %s\n\tPin number: %s",
+        zsys_debug ("%s sensor %s added with\n\tmodel: %s\n\ttype: %s\n\tnormal-state: %s\n\tPin number: %s",
             sensor_gpx_direction, assetname, asset_model, //asset_subtype,
             sensor_type, sensor_normal_state, sensor_gpx_number);
 
