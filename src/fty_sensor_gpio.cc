@@ -137,6 +137,7 @@ int main (int argc, char *argv [])
 
     zstr_sendx (server, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
     zstr_sendx (server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
+    zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS, NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);
 
     // Setup an update event message every 2 seconds, to check GPI status

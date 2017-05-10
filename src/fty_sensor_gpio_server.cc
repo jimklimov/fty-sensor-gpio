@@ -67,7 +67,6 @@ s_get (zconfig_t *config, const char* key, const char*dfl) {
 
 void publish_status (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
 {
-
     zsys_debug ("Publishing GPIO sensor %i (%s) status",
         self->gpx_list[sensor_num].gpx_number,
         self->gpx_list[sensor_num].name);
@@ -133,10 +132,10 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
 {
     zsys_debug ("%s", __func__);
 
-    if (self->sensors_count == 0)
+    if (self->sensors_count == 0) {
         zsys_debug ("No sensors monitored");
         return;
-
+    }
     if(!mlm_client_connected(self->mlm))
         return;
 
@@ -148,7 +147,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
             zsys_debug ("Can't read GPI sensor #%i status", self->gpx_list[cur_sensor_num].gpx_number);
             continue;
         }
-        zsys_debug ("Read %s (value: %i) on GPx sensor #%i (%s)",
+        zsys_debug ("Read '%s' (value: %i) on GPx sensor #%i (%s)",
             libgpio_get_status_string(&self->gpio_lib, self->gpx_list[cur_sensor_num].current_state).c_str(),
             self->gpx_list[cur_sensor_num].current_state,
             self->gpx_list[cur_sensor_num].gpx_number,
@@ -316,7 +315,6 @@ add_sensor(fty_sensor_gpio_server_t *self, const char* assetname, const char* as
 
     zlistx_add_end (gpx_list, (void *) "average.temperature@Curie");
 #endif // #if 0
-    self->sensors_count++;
     self->gpx_list[self->sensors_count].name = strdup(assetname);
     self->gpx_list[self->sensors_count].part_number = strdup(asset_subtype);
     self->gpx_list[self->sensors_count].type = strdup(sensor_type);
@@ -329,6 +327,8 @@ add_sensor(fty_sensor_gpio_server_t *self, const char* assetname, const char* as
         self->gpx_list[self->sensors_count].gpx_direction = GPIO_DIRECTION_OUT;
     else
         self->gpx_list[self->sensors_count].gpx_direction = GPIO_DIRECTION_IN;
+
+    self->sensors_count++;
 
     zsys_debug ("%s sensor %s added with\n\tmodel: %s\n\ttype:%s\n\tnormal-state: %s\n\tPin number: %s",
         sensor_gpx_direction, assetname, asset_subtype,
@@ -450,10 +450,6 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
         ||  (streq (operation, "create"))
         ||  (streq (operation, "update")) ) {
 
-        zsys_debug ("%s sensor %s added with\n\tmodel: %s\n\ttype: %s\n\tnormal-state: %s\n\tPin number: %s",
-            sensor_gpx_direction, assetname, asset_model, //asset_subtype,
-            sensor_type, sensor_normal_state, sensor_gpx_number);
-
         add_sensor( self, assetname, asset_model, //asset_subtype,
                     sensor_type, sensor_normal_state,
                     sensor_gpx_number, sensor_gpx_direction);
@@ -511,7 +507,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     int r = mlm_client_connect (self->mlm, endpoint, 5000, self->name);
                     if (r == -1)
                         zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
-                    zsys_debug("fty-gpio-sensor-server: CONNECT %s/%s",endpoint,self->name);
+                    zsys_debug("fty-gpio-sensor-server: CONNECT %s/%s", endpoint, self->name);
                     zstr_free (&endpoint);
                 }
                 else if (streq (cmd, "PRODUCER")) {
