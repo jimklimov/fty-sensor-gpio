@@ -94,7 +94,7 @@ std::string Sensor::topicSuffix () const
 */
         zhash_t *aux = zhash_new ();
         zhash_autofree (aux);
-        char* port = NULL;
+        char* port = (char*)malloc(5);
         sprintf(port, "GPI%i", self->gpx_list[sensor_num].gpx_number);
         zhash_insert (aux, "port", (void*) port);
         string msg_type = string("status.") + port;
@@ -118,6 +118,7 @@ std::string Sensor::topicSuffix () const
                 zsys_debug("failed to send measurement %s result %" PRIi32, topic.c_str(), r);
             zmsg_destroy (&msg);
         }
+        free(port);
 
 //    }
 }
@@ -330,9 +331,9 @@ add_sensor(fty_sensor_gpio_server_t *self, const char* assetname, const char* as
 
     self->sensors_count++;
 
-    zsys_debug ("%s sensor %s added with\n\tmodel: %s\n\ttype:%s\n\tnormal-state: %s\n\tPin number: %s",
+    zsys_debug ("%s sensor %s added with\n\tmodel: %s\n\ttype:%s\n\tnormal-state: %s\n\tPin number: %s\n\tlocation: %s",
         sensor_gpx_direction, assetname, asset_subtype,
-        sensor_type, sensor_normal_state, sensor_gpx_number);
+        sensor_type, sensor_normal_state, sensor_gpx_number, sensor_location);
 
     return 0;
 }
