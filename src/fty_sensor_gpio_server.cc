@@ -43,7 +43,7 @@ struct _fty_sensor_gpio_server_t {
 // TODO: get from config
 #define TIMEOUT_MS -1   //wait infinitelly
 
-// FIXME: why do we need that?
+// FIXME: why do we need that? zconfig_get should already do this, no?
 char*
 s_get (zconfig_t *config, const char* key, std::string &dfl) {
     assert (config);
@@ -60,6 +60,69 @@ s_get (zconfig_t *config, const char* key, char*dfl) {
     if (!ret || streq (ret, ""))
         return dfl;
     return ret;
+}
+
+//  --------------------------------------------------------------------------
+//  Publish GPIO status of the pointed sensor
+
+void publish (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
+{
+
+    zsys_debug ("Publishing GPIO sensor %i (%s) status",
+        self->gpx_list[sensor_num].gpx_number,
+        self->gpx_list[sensor_num].name.c_str());
+        zsys_debug ("Read %s (value: %i) on GPx sensor #%i (%s)",
+            libgpio_get_status_string(&self->gpio_lib, self->gpx_list[sensor_num].current_state).c_str(),
+            self->gpx_list[sensor_num].current_state,
+            self->gpx_list[sensor_num].gpx_number,
+            self->gpx_list[sensor_num].name.c_str());
+
+//    if (! _temperature.empty()) {
+/*
+--------------------------------------------------------------------------------
+stream=_METRICS_SENSOR
+sender=agent-sensor-gpio@rackcontroller-3
+subject=status.GPIx@rackcontroller-3
+D: 17-03-23 13:14:11 FTY_PROTO_METRIC:
+D: 17-03-23 13:14:11     aux=
+D: 17-03-23 13:14:11         port=GPIx
+D: 17-03-23 13:14:11     time=1490274851
+D: 17-03-23 13:14:11     ttl=300
+D: 17-03-23 13:14:11     type='status.GPIx'
+D: 17-03-23 13:14:11     name='rackcontroller-3' => or name (assetname)?
+D: 17-03-23 13:14:11     value='closed'
+D: 17-03-23 13:14:11     unit=''
+--------------------------------------------------------------------------------
+
+std::string Sensor::topicSuffix () const
+{
+        return "." + port() + "@" + _location;
+*/
+        zhash_t *aux = zhash_new ();
+        zhash_autofree (aux);
+        string port = "GPI" + self->gpx_list[sensor_num].gpx_number;
+        string _location = "";
+        zhash_insert (aux, "port", (void*) port.c_str());
+        zmsg_t *msg = fty_proto_encode_metric (
+            aux,
+            time (NULL),
+            ttl,
+            ("status." + port).c_str (),
+            "", //_location.c_str (),
+            libgpio_get_status_string(&self->gpio_lib, self->gpx_list[sensor_num].current_state).c_str(),
+            "");
+        zhash_destroy (&aux);
+        if (msg) {
+            std::string topic = string("status.") + port + string("@") + _location; //topicSuffix(); // 
+//            log_debug ("sending new temperature for element_src = '%s', value = '%s'",
+//                       _location.c_str (), _temperature.c_str ());
+            int r = mlm_client_send (self->mlm, topic.c_str (), &msg);
+            if( r != 0 )
+                zsys_debug("failed to send measurement %s result %" PRIi32, topic.c_str(), r);
+            zmsg_destroy (&msg);
+        }
+
+//    }
 }
 
 //  --------------------------------------------------------------------------
@@ -90,6 +153,8 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
             self->gpx_list[cur_sensor_num].current_state,
             self->gpx_list[cur_sensor_num].gpx_number,
             self->gpx_list[cur_sensor_num].name.c_str());
+
+        publish (self, cur_sensor_num, 300);
 
         // Check against normal state
         if (self->gpx_list[cur_sensor_num].current_state != self->gpx_list[cur_sensor_num].normal_state)
@@ -311,11 +376,11 @@ is_asset_gpio_sensor (string asset_subtype, string asset_model)
     if (!template_file) {
         zsys_debug ("Template config file %s doesn't exist!", template_filename.c_str());
         zsys_debug ("Asset is not a GPIO sensor, skipping!");
-        fclose(template_file);
     }
     else {
         zsys_debug ("Template config file %s found!", template_filename.c_str());
         zsys_debug ("Asset is a GPIO sensor, processing!");
+        fclose(template_file);
         return template_filename;
     }
 
