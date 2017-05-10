@@ -70,11 +70,6 @@ void publish_status (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
     zsys_debug ("Publishing GPIO sensor %i (%s) status",
         self->gpx_list[sensor_num].gpx_number,
         self->gpx_list[sensor_num].name);
-        zsys_debug ("Read %s (value: %i) on GPx sensor #%i (%s)",
-            libgpio_get_status_string(&self->gpio_lib, self->gpx_list[sensor_num].current_state).c_str(),
-            self->gpx_list[sensor_num].current_state,
-            self->gpx_list[sensor_num].gpx_number,
-            self->gpx_list[sensor_num].name);
 
 //    if (! _temperature.empty()) {
 /*
@@ -102,6 +97,7 @@ std::string Sensor::topicSuffix () const
         string port = "GPI" + self->gpx_list[sensor_num].gpx_number;
         string _location = "";
         zhash_insert (aux, "port", (void*) port.c_str());
+
         zmsg_t *msg = fty_proto_encode_metric (
             aux,
             time (NULL),
@@ -140,7 +136,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
         return;
 
     // Loop on all sensors
-    for (int cur_sensor_num = 0; cur_sensor_num <= self->sensors_count; cur_sensor_num++) {
+    for (int cur_sensor_num = 0; cur_sensor_num < self->sensors_count; cur_sensor_num++) {
         // Get the current sensor status
         self->gpx_list[cur_sensor_num].current_state = libgpio_read(&self->gpio_lib, self->gpx_list[cur_sensor_num].gpx_number);
         if (self->gpx_list[cur_sensor_num].current_state == GPIO_STATUS_UNKNOWN) {
