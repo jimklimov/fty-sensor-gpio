@@ -431,6 +431,10 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
     const char *sensor_gpx_direction = s_get (config_template, "gpx-direction", "");
     sensor_gpx_direction = fty_proto_ext_string (ftymessage, "gpx_direction", sensor_gpx_direction);
 
+// name,type,sub_type,location,status,priority,model,gpi_number,normal_state
+// GPIO-Sensor1,device,sensor,IPC1,active,P1,DCS001,1,
+// GPIO-Sensor2,device,sensor,IPC1,active,P1,DCS001,2,opened
+
     // Sanity checks
     if (streq (sensor_normal_state, "")) {
         zsys_debug ("No sensor normal state found in template nor provided by the user!");
@@ -447,10 +451,10 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
         ||  (streq (operation, "update")) ) {
 
         zsys_debug ("%s sensor %s added with\n\tmodel: %s\n\ttype:%s\n\tnormal-state: %s\n\tPin number: %s",
-            sensor_gpx_direction, assetname, asset_subtype,
+            sensor_gpx_direction, assetname, asset_model, //asset_subtype,
             sensor_type, sensor_normal_state, sensor_gpx_number);
 
-        add_sensor( self, assetname, asset_subtype,
+        add_sensor( self, assetname, asset_model, //asset_subtype,
                     sensor_type, sensor_normal_state,
                     sensor_gpx_number, sensor_gpx_direction);
     }
