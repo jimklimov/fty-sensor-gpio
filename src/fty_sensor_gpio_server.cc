@@ -65,7 +65,7 @@ s_get (zconfig_t *config, const char* key, char*dfl) {
 //  --------------------------------------------------------------------------
 //  Publish GPIO status of the pointed sensor
 
-void publish (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
+void publish_status (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
 {
 
     zsys_debug ("Publishing GPIO sensor %i (%s) status",
@@ -154,7 +154,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
             self->gpx_list[cur_sensor_num].gpx_number,
             self->gpx_list[cur_sensor_num].name.c_str());
 
-        publish (self, cur_sensor_num, 300);
+        publish_status (self, cur_sensor_num, 300);
 
         // Check against normal state
         if (self->gpx_list[cur_sensor_num].current_state != self->gpx_list[cur_sensor_num].normal_state)
@@ -324,7 +324,7 @@ add_sensor(fty_sensor_gpio_server_t *self, string assetname, string asset_subtyp
     else if (sensor_normal_state == string("closed"))
         self->gpx_list[self->sensors_count].normal_state = GPIO_STATUS_CLOSED;
     self->gpx_list[self->sensors_count].gpx_number = atoi(sensor_gpx_number.c_str());
-    if ( (sensor_gpx_direction != "") && (sensor_gpx_direction == string("GPO")))
+    if (sensor_gpx_direction == string("GPO"))
         self->gpx_list[self->sensors_count].gpx_direction = GPIO_DIRECTION_OUT;
     else
         self->gpx_list[self->sensors_count].gpx_direction = GPIO_DIRECTION_IN;
@@ -421,13 +421,14 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
         return;
     }
     // Get static info from template
-    string sensor_type = s_get (config_template, "type",  NULL);
+    string sensor_type = "unknown";
+    sensor_type = s_get (config_template, "type", sensor_type);
     // Get from user config
-    string sensor_gpx_number = fty_proto_ext_string (ftymessage, "gpx_number", "");
+    string sensor_gpx_number = fty_proto_ext_string (ftymessage, "gpx_number", sensor_gpx_number.c_str());
     // Get normal state and direction from user config, or fallback to template values
-    string sensor_normal_state = s_get (config_template, "normal-state",  NULL);
+    string sensor_normal_state = s_get (config_template, "normal-state", sensor_normal_state);
     sensor_normal_state = fty_proto_ext_string (ftymessage, "normal_state", sensor_normal_state.c_str());
-    string sensor_gpx_direction = s_get (config_template, "gpx_direction", NULL);
+    string sensor_gpx_direction = s_get (config_template, "gpx_direction", sensor_gpx_direction);
     sensor_gpx_direction = fty_proto_ext_string (ftymessage, "gpx_direction", sensor_gpx_direction.c_str());
 
     // Sanity checks
