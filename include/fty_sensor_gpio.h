@@ -52,8 +52,8 @@ struct _gpx_info_t {
 
 
 // Config file accessors
-char* s_get (zconfig_t *config, const char* key, std::string &dfl);
-char* s_get (zconfig_t *config, const char* key, char*dfl);
+const char* s_get (zconfig_t *config, const char* key, std::string &dfl);
+const char* s_get (zconfig_t *config, const char* key, const char*dfl);
 
 
 #endif

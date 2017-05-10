@@ -44,7 +44,7 @@ struct _fty_sensor_gpio_server_t {
 #define TIMEOUT_MS -1   //wait infinitelly
 
 // FIXME: why do we need that? zconfig_get should already do this, no?
-char*
+const char*
 s_get (zconfig_t *config, const char* key, std::string &dfl) {
     assert (config);
     char *ret = zconfig_get (config, key, dfl.c_str());
@@ -53,8 +53,8 @@ s_get (zconfig_t *config, const char* key, std::string &dfl) {
     return ret;
 }
 
-char*
-s_get (zconfig_t *config, const char* key, char*dfl) {
+const char*
+s_get (zconfig_t *config, const char* key, const char*dfl) {
     assert (config);
     char *ret = zconfig_get (config, key, dfl);
     if (!ret || streq (ret, ""))
@@ -303,8 +303,9 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
 
 static int
 //fty_sensor_gpio_server_
-add_sensor(fty_sensor_gpio_server_t *self, string assetname, string asset_subtype, string sensor_type,
-    string sensor_normal_state, string sensor_gpx_number, string sensor_gpx_direction="GPI")
+add_sensor(fty_sensor_gpio_server_t *self, const char* assetname, const char* asset_subtype,
+    const char* sensor_type, const char* sensor_normal_state, const char* sensor_gpx_number,
+    const char* sensor_gpx_direction="GPI")
 {
     // FIXME: check if already monitored! + sanity on < 10... AND pin not already declared
 #if 0
@@ -319,19 +320,19 @@ add_sensor(fty_sensor_gpio_server_t *self, string assetname, string asset_subtyp
     self->gpx_list[self->sensors_count].name = assetname;
     self->gpx_list[self->sensors_count].part_number = asset_subtype;
     self->gpx_list[self->sensors_count].type = sensor_type;
-    if (sensor_normal_state == string("opened"))
+    if ( streq (sensor_normal_state, "opened" ) )
         self->gpx_list[self->sensors_count].normal_state = GPIO_STATUS_OPENED;
-    else if (sensor_normal_state == string("closed"))
+    else if ( streq (sensor_normal_state, "closed") )
         self->gpx_list[self->sensors_count].normal_state = GPIO_STATUS_CLOSED;
-    self->gpx_list[self->sensors_count].gpx_number = atoi(sensor_gpx_number.c_str());
-    if (sensor_gpx_direction == string("GPO"))
+    self->gpx_list[self->sensors_count].gpx_number = atoi(sensor_gpx_number);
+    if ( streq (sensor_gpx_direction, "GPO" ) )
         self->gpx_list[self->sensors_count].gpx_direction = GPIO_DIRECTION_OUT;
     else
         self->gpx_list[self->sensors_count].gpx_direction = GPIO_DIRECTION_IN;
 
     zsys_debug ("%s sensor %s added with\n\tmodel: %s\n\ttype:%s\n\tnormal-state: %s\n\tPin number: %s",
-        sensor_gpx_direction.c_str(), assetname.c_str(), asset_subtype.c_str(),
-        sensor_type.c_str(), sensor_normal_state.c_str(), sensor_gpx_number.c_str());
+        sensor_gpx_direction, assetname, asset_subtype,
+        sensor_type, sensor_normal_state, sensor_gpx_number);
 
     return 0;
 }
@@ -403,13 +404,13 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
 
     zconfig_t *config_template = NULL;
     const char* operation = fty_proto_operation (ftymessage);
-    string assetname = fty_proto_name (ftymessage);
+    const char* assetname = fty_proto_name (ftymessage);
 
-    zsys_debug ("%s: '%s' operation on asset '%s'", __func__, operation, assetname.c_str());
+    zsys_debug ("%s: '%s' operation on asset '%s'", __func__, operation, assetname);
 
-    string asset_subtype = fty_proto_ext_string (ftymessage, "subtype", "");
+    const char* asset_subtype = fty_proto_ext_string (ftymessage, "subtype", "");
         // FIXME: fallback to "device.type"?
-    string asset_model = fty_proto_ext_string (ftymessage, "model", "");
+    const char* asset_model = fty_proto_ext_string (ftymessage, "model", "");
     string config_template_filename = is_asset_gpio_sensor(asset_subtype, asset_model);
     if (config_template_filename == "") {
         return;
@@ -421,23 +422,22 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
         return;
     }
     // Get static info from template
-    string sensor_type = "unknown";
-    sensor_type = s_get (config_template, "type", sensor_type);
+    const char *sensor_type = s_get (config_template, "type", "");
     // Get from user config
-    string sensor_gpx_number = fty_proto_ext_string (ftymessage, "gpx_number", sensor_gpx_number.c_str());
+    const char *sensor_gpx_number = fty_proto_ext_string (ftymessage, "gpx_number", "");
     // Get normal state and direction from user config, or fallback to template values
-    string sensor_normal_state = s_get (config_template, "normal-state", sensor_normal_state);
-    sensor_normal_state = fty_proto_ext_string (ftymessage, "normal_state", sensor_normal_state.c_str());
-    string sensor_gpx_direction = s_get (config_template, "gpx_direction", sensor_gpx_direction);
-    sensor_gpx_direction = fty_proto_ext_string (ftymessage, "gpx_direction", sensor_gpx_direction.c_str());
+    const char *sensor_normal_state = s_get (config_template, "normal-state", "");
+    sensor_normal_state = fty_proto_ext_string (ftymessage, "normal_state", sensor_normal_state);
+    const char *sensor_gpx_direction = s_get (config_template, "gpx-direction", "");
+    sensor_gpx_direction = fty_proto_ext_string (ftymessage, "gpx_direction", sensor_gpx_direction);
 
     // Sanity checks
-    if (sensor_normal_state == "") {
+    if (streq (sensor_normal_state, "")) {
         zsys_debug ("No sensor normal state found in template nor provided by the user!");
         zsys_debug ("Skipping sensor");
         return;
     }
-    if (sensor_gpx_number == "") {
+    if (streq (sensor_gpx_number, "")) {
         zsys_debug ("No sensor pin provided! Skipping sensor");
         return;
     }
@@ -445,6 +445,11 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
     if ( (streq (operation, "inventory"))
         ||  (streq (operation, "create"))
         ||  (streq (operation, "update")) ) {
+
+        zsys_debug ("%s sensor %s added with\n\tmodel: %s\n\ttype:%s\n\tnormal-state: %s\n\tPin number: %s",
+            sensor_gpx_direction, assetname, asset_subtype,
+            sensor_type, sensor_normal_state, sensor_gpx_number);
+
         add_sensor( self, assetname, asset_subtype,
                     sensor_type, sensor_normal_state,
                     sensor_gpx_number, sensor_gpx_direction);

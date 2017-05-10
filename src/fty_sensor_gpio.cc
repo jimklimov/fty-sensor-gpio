@@ -72,9 +72,9 @@ int main (int argc, char *argv [])
 {
     char *config_file = NULL;
     zconfig_t *config = NULL;
-    char* actor_name = (char*)FTY_SENSOR_GPIO_AGENT;
-    char* endpoint = (char*)"ipc://@/malamute";
-    char* str_poll_interval = NULL;
+    const char* actor_name = (char*)FTY_SENSOR_GPIO_AGENT;
+    const char* endpoint = (char*)"ipc://@/malamute";
+    const char* str_poll_interval = NULL;
     int poll_interval = DEFAULT_POLL_INTERVAL;
     bool verbose = false;
     int argn;
@@ -115,7 +115,7 @@ int main (int argc, char *argv [])
             verbose = true;
         }
         // Polling interval
-        str_poll_interval = s_get (config, "server/poll_interval", NULL);
+        str_poll_interval = s_get (config, "server/poll_interval", "-1");
         if (str_poll_interval) {
             poll_interval = atoi(str_poll_interval);
         }
