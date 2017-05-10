@@ -44,6 +44,7 @@ struct _gpx_info_t {
     char* name;         // sensor asset name
     char* part_number;  // GPI sensor part number
     char* type;         // GPI sensor type (door-contact, ...)
+    char* location;     // Parent name, to which the GPIO is attached
     int normal_state;   // opened | closed
     int current_state;  // opened | closed
     int gpx_number;     // GPI number, 1 - 10 (FIXME: GPO)

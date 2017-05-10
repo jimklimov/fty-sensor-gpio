@@ -94,21 +94,23 @@ std::string Sensor::topicSuffix () const
 */
         zhash_t *aux = zhash_new ();
         zhash_autofree (aux);
-        string port = "GPI" + self->gpx_list[sensor_num].gpx_number;
-        string _location = "";
-        zhash_insert (aux, "port", (void*) port.c_str());
+        char* port = NULL;
+        sprintf(port, "GPI%i", self->gpx_list[sensor_num].gpx_number);
+        zhash_insert (aux, "port", (void*) port);
+        string msg_type = string("status.") + port;
+        zsys_debug ("Port = %s, type %s", port, msg_type.c_str());
 
         zmsg_t *msg = fty_proto_encode_metric (
             aux,
             time (NULL),
             ttl,
-            ("status." + port).c_str (),
-            "", //_location.c_str (),
+            msg_type.c_str (),
+            self->gpx_list[sensor_num].location,
             libgpio_get_status_string(&self->gpio_lib, self->gpx_list[sensor_num].current_state).c_str(),
             "");
         zhash_destroy (&aux);
         if (msg) {
-            std::string topic = string("status.") + port + string("@") + _location; //topicSuffix(); // 
+            std::string topic = string("status.") + port + string("@") + self->gpx_list[sensor_num].location; //topicSuffix(); // 
 //            log_debug ("sending new temperature for element_src = '%s', value = '%s'",
 //                       _location.c_str (), _temperature.c_str ());
             int r = mlm_client_send (self->mlm, topic.c_str (), &msg);
@@ -263,6 +265,7 @@ fty_sensor_gpio_server_new (const char* name)
         self->gpx_list[i].name = NULL;
         self->gpx_list[i].part_number = NULL;
         self->gpx_list[i].type = NULL;
+        self->gpx_list[i].location = NULL;
         self->gpx_list[i].normal_state = GPIO_STATUS_UNKNOWN;
         self->gpx_list[i].current_state = GPIO_STATUS_UNKNOWN;
         self->gpx_list[i].gpx_number = -1;
@@ -300,7 +303,7 @@ static int
 //fty_sensor_gpio_server_
 add_sensor(fty_sensor_gpio_server_t *self, const char* assetname, const char* asset_subtype,
     const char* sensor_type, const char* sensor_normal_state, const char* sensor_gpx_number,
-    const char* sensor_gpx_direction="GPI")
+    const char* sensor_gpx_direction, const char* sensor_location)
 {
     // FIXME: check if already monitored! + sanity on < 10... AND pin not already declared
 #if 0
@@ -323,6 +326,7 @@ add_sensor(fty_sensor_gpio_server_t *self, const char* assetname, const char* as
         self->gpx_list[self->sensors_count].gpx_direction = GPIO_DIRECTION_OUT;
     else
         self->gpx_list[self->sensors_count].gpx_direction = GPIO_DIRECTION_IN;
+    self->gpx_list[self->sensors_count].location = strdup(sensor_location);
 
     self->sensors_count++;
 
@@ -424,8 +428,9 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
     // Get normal state and direction from user config, or fallback to template values
     const char *sensor_normal_state = s_get (config_template, "normal-state", "");
     sensor_normal_state = fty_proto_ext_string (ftymessage, "normal_state", sensor_normal_state);
-    const char *sensor_gpx_direction = s_get (config_template, "gpx-direction", "");
+    const char *sensor_gpx_direction = s_get (config_template, "gpx-direction", "GPI");
     sensor_gpx_direction = fty_proto_ext_string (ftymessage, "gpx_direction", sensor_gpx_direction);
+    const char *sensor_location = fty_proto_ext_string (ftymessage, "location", "");
 
 // name,type,sub_type,location,status,priority,model,gpi_number,normal_state
 // GPIO-Sensor1,device,sensor,IPC1,active,P1,DCS001,1,
@@ -448,7 +453,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
 
         add_sensor( self, assetname, asset_model, //asset_subtype,
                     sensor_type, sensor_normal_state,
-                    sensor_gpx_number, sensor_gpx_direction);
+                    sensor_gpx_number, sensor_gpx_direction, sensor_location);
     }
     // Asset deletion
     if (streq (operation, "delete")) {
