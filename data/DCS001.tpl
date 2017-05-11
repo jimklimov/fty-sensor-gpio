@@ -3,4 +3,4 @@ type           = door-contact-sensor
 normal-state   = closed
 gpx-direction  = GPI
 alarm-severity = WARNING
-alarm-message  = Door $name has been $status
+alarm-message  = Door has been $status

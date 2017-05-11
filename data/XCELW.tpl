@@ -3,4 +3,4 @@ type           = pir-motion-detector
 normal-state   = opened?
 gpx-direction  = GPI
 alarm-severity = WARNING
-alarm-message  = Motion detected on $name
+alarm-message  = Motion detected
