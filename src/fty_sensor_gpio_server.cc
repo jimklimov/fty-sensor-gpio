@@ -128,7 +128,7 @@ void publish_alert (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl
 
     std::string rule = string(sensor->type) + ".state_change@" + sensor->asset_name;
 
-    zsys_debug("%s: publishing alert %s", __func__, rule.c_str ());
+    zsys_debug("%s: publishing alert %s with description:\n%s", __func__, rule.c_str (), description);
     zmsg_t *message = fty_proto_encode_alert(
         NULL,                            // aux
         time (NULL),                     // timestamp
