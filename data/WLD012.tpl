@@ -1,4 +1,6 @@
-part-number: WLD012
-type: water-leak-detector
-normal-state: opened?
-alarm-message: water-leak-detector sensor closed
+part-number    = WLD012
+type           = water-leak-detector
+normal-state   = opened
+gpx-direction  = GPI
+alarm-severity = WARNING
+alarm-message  = Water leak detected on $name

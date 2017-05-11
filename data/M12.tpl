@@ -1,4 +1,6 @@
-part-number   = M12
-type          = smoke-detector
-normal-state  = opened
-alarm-message = water-leak sensor closed
+part-number    = M12
+type           = smoke-detector
+normal-state   = opened
+gpx-direction  = GPI
+alarm-severity = WARNING
+alarm-message  = Smoke detected on $name
