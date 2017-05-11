@@ -575,6 +575,17 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     zsys_debug ("fty_sensor_gpio: setting PRODUCER on %s", stream);
                     zstr_free (&stream);
                 }
+                else if (streq (cmd, "ALERT-CONNECT")) {
+                    char *endpoint = zmsg_popstr (message);
+                     if (!endpoint)
+                        zsys_error ("%s:\tMissing endpoint", self->name);
+                    assert (endpoint);
+                    int r = mlm_client_connect (self->alert, endpoint, 5000, self->name);
+                    if (r == -1)
+                        zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
+                    zsys_debug("fty-gpio-sensor-server: ALERT-CONNECT %s/%s", endpoint, self->name);
+                    zstr_free (&endpoint);
+                }
                 else if (streq (cmd, "ALERT-PRODUCER")) {
                     char *stream = zmsg_popstr (message);
                     assert (stream);
