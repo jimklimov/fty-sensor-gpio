@@ -87,7 +87,7 @@ void publish_alert (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl
     // FIXME: adapt alarm message
     // $name $status $parent_name...
 
-    std::string rule = string(sensor->type) + "@" + sensor->ext_name;
+    std::string rule = string(sensor->type) + ".state_change@" + sensor->asset_name;
 
     zsys_debug("%s: publishing alert %s", __func__, rule.c_str ());
     zmsg_t *message = fty_proto_encode_alert(
