@@ -35,15 +35,21 @@ struct _fty_sensor_gpio_server_t {
     char               *name;         // actor name
     mlm_client_t       *mlm;          // malamute client
     mlm_client_t       *alert;        // malamute client for alerts stream
-    int                sensors_count; // number of sensors monitored in gpx_list
-    struct _gpx_info_t gpx_list[15];  // Array of monitored GPx (FIXME: 10xGPI / 5xGPO on IPC3000)
-//FIXME    zlistx_t *         gpx_list;      // List of monitored GPx (FIXME: 10xGPI / 5xGPO on IPC3000)
+//    int                sensors_count; // number of sensors monitored in gpx_list
+//    struct _gpx_info_t gpx_list[15];  // Array of monitored GPx (FIXME: 10xGPI / 5xGPO on IPC3000)
+    zlistx_t *         gpx_list;      // List of monitored GPx (10xGPI / 5xGPO on IPC3000)
     libgpio_t          *gpio_lib;     // GPIO library handle
 };
 
 // TODO: get from config
 #define TIMEOUT_MS -1   //wait infinitelly
 
+// Forward functions declaration
+static void sensor_free(void **item);
+static void *sensor_dup(const void *item);
+static int sensor_cmp(const void *item1, const void *item2);
+
+// Configuration accessors
 // FIXME: why do we need that? zconfig_get should already do this, no?
 const char*
 s_get (zconfig_t *config, const char* key, std::string &dfl) {
@@ -66,22 +72,22 @@ s_get (zconfig_t *config, const char* key, const char*dfl) {
 //  --------------------------------------------------------------------------
 //  Publish an alert for the pointed GPIO sensor
 
-void publish_alert (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
+void publish_alert (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl)
 {
     zsys_debug ("Publishing GPIO sensor %i (%s) alert",
-        self->gpx_list[sensor_num].gpx_number,
-        self->gpx_list[sensor_num].asset_name);
+        sensor->gpx_number,
+        sensor->asset_name);
 
     // FIXME: ...
     const char *state = "ACTIVE", *severity = "WARNING";
     char* description = (char*)malloc(128);
-    sprintf(description, self->gpx_list[sensor_num].alarm_message,
-        self->gpx_list[sensor_num].ext_name);
+    sprintf(description, sensor->alarm_message,
+        sensor->ext_name);
 
     // FIXME: adapt alarm message
     // $name $status $parent_name...
 
-    std::string rule = string(self->gpx_list[sensor_num].type) + "@" + self->gpx_list[sensor_num].ext_name;
+    std::string rule = string(sensor->type) + "@" + sensor->ext_name;
 
     zsys_debug("%s: publishing alert %s", __func__, rule.c_str ());
     zmsg_t *message = fty_proto_encode_alert(
@@ -89,13 +95,13 @@ void publish_alert (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
         time (NULL),                     // timestamp
         ttl,
         rule.c_str (),                   // rule
-        self->gpx_list[sensor_num].asset_name, // element
+        sensor->asset_name, // element
         state,                           // state
         severity,                        // severity
         description,                     // description
         ""                               // action ?email
     );
-    std::string topic = rule + "/" + severity + "@" + self->gpx_list[sensor_num].asset_name;
+    std::string topic = rule + "/" + severity + "@" + sensor->asset_name;
     if (message) {
         int r = mlm_client_send (self->alert, topic.c_str (), &message);
         if( r != 0 )
@@ -107,11 +113,11 @@ void publish_alert (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
 //  --------------------------------------------------------------------------
 //  Publish status of the pointed GPIO sensor
 
-void publish_status (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
+void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl)
 {
     zsys_debug ("Publishing GPIO sensor %i (%s) status",
-        self->gpx_list[sensor_num].gpx_number,
-        self->gpx_list[sensor_num].asset_name);
+        sensor->gpx_number,
+        sensor->asset_name);
 
 //    if (! _temperature.empty()) {
 /*
@@ -137,7 +143,7 @@ std::string Sensor::topicSuffix () const
         zhash_t *aux = zhash_new ();
         zhash_autofree (aux);
         char* port = (char*)malloc(5);
-        sprintf(port, "GPI%i", self->gpx_list[sensor_num].gpx_number);
+        sprintf(port, "GPI%i", sensor->gpx_number);
         zhash_insert (aux, "port", (void*) port);
         string msg_type = string("status.") + port;
         zsys_debug ("Port = %s, type %s", port, msg_type.c_str());
@@ -147,12 +153,12 @@ std::string Sensor::topicSuffix () const
             time (NULL),
             ttl,
             msg_type.c_str (),
-            self->gpx_list[sensor_num].location,
-            libgpio_get_status_string(&self->gpio_lib, self->gpx_list[sensor_num].current_state).c_str(),
+            sensor->location,
+            libgpio_get_status_string(&self->gpio_lib, sensor->current_state).c_str(),
             "");
         zhash_destroy (&aux);
         if (msg) {
-            std::string topic = string("status.") + port + string("@") + self->gpx_list[sensor_num].location; //topicSuffix(); // 
+            std::string topic = string("status.") + port + string("@") + sensor->location; //topicSuffix(); // 
 //            log_debug ("sending new temperature for element_src = '%s', value = '%s'",
 //                       _location.c_str (), _temperature.c_str ());
             int r = mlm_client_send (self->mlm, topic.c_str (), &msg);
@@ -173,7 +179,11 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
 {
     zsys_debug ("%s", __func__);
 
-    if (self->sensors_count == 0) {
+    // number of sensors monitored in gpx_list
+    int sensors_count = zlistx_size (self->gpx_list);
+    _gpx_info_t *gpx_info = NULL;
+
+    if (sensors_count == 0) {
         zsys_debug ("No sensors monitored");
         return;
     }
@@ -181,26 +191,30 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
         return;
 
     // Loop on all sensors
-    for (int cur_sensor_num = 0; cur_sensor_num < self->sensors_count; cur_sensor_num++) {
+    for (int cur_sensor_num = 0; cur_sensor_num < sensors_count; cur_sensor_num++) {
+        // Acquire the current sensor
+        gpx_info = (_gpx_info_t *)zlistx_first (self->gpx_list);
+
         // Get the current sensor status
-        self->gpx_list[cur_sensor_num].current_state = libgpio_read(&self->gpio_lib, self->gpx_list[cur_sensor_num].gpx_number);
-        if (self->gpx_list[cur_sensor_num].current_state == GPIO_STATUS_UNKNOWN) {
-            zsys_debug ("Can't read GPI sensor #%i status", self->gpx_list[cur_sensor_num].gpx_number);
+        gpx_info->current_state = libgpio_read(&self->gpio_lib, gpx_info->gpx_number);
+        if (gpx_info->current_state == GPIO_STATUS_UNKNOWN) {
+            zsys_debug ("Can't read GPI sensor #%i status", gpx_info->gpx_number);
             continue;
         }
         zsys_debug ("Read '%s' (value: %i) on GPx sensor #%i (%s)",
-            libgpio_get_status_string(&self->gpio_lib, self->gpx_list[cur_sensor_num].current_state).c_str(),
-            self->gpx_list[cur_sensor_num].current_state,
-            self->gpx_list[cur_sensor_num].gpx_number,
-            self->gpx_list[cur_sensor_num].asset_name);
+            libgpio_get_status_string(&self->gpio_lib, gpx_info->current_state).c_str(),
+            gpx_info->current_state, gpx_info->gpx_number, gpx_info->asset_name);
 
-        publish_status (self, cur_sensor_num, 300);
+        publish_status (self, gpx_info, 300);
 
         // Check against normal state
-        if (self->gpx_list[cur_sensor_num].current_state != self->gpx_list[cur_sensor_num].normal_state)
+        if (gpx_info->current_state != gpx_info->normal_state) {
             zsys_debug ("ALARM: state changed");
             // FIXME: do not repeat alarm?! so maybe flag in self
-            publish_alert(self, cur_sensor_num, 300);
+            publish_alert (self, gpx_info, 300);
+        }
+
+        gpx_info = (_gpx_info_t *)zlistx_next (self->gpx_list);
     }
 }
 
@@ -303,10 +317,18 @@ fty_sensor_gpio_server_new (const char* name)
     self->mlm  = mlm_client_new();
     self->alert  = mlm_client_new();
     self->name = strdup(name);
-    self->sensors_count = 0;
+//    self->sensors_count = 0;
     self->verbose = false;
 
-    for (int i = 0; i < 10; i++) {
+    // Declare our zlist for GPIOs tracking
+    self->gpx_list = zlistx_new ();
+    assert (self->gpx_list);
+    // Declare zlist item handlers
+    zlistx_set_duplicator (self->gpx_list, (czmq_duplicator *) sensor_dup);
+    zlistx_set_destructor (self->gpx_list, (czmq_destructor *) sensor_free);
+    zlistx_set_comparator (self->gpx_list, (czmq_comparator *) sensor_cmp);
+
+/*    for (int i = 0; i < 10; i++) {
         self->gpx_list[i].asset_name = NULL;
         self->gpx_list[i].ext_name = NULL;
         self->gpx_list[i].part_number = NULL;
@@ -317,7 +339,7 @@ fty_sensor_gpio_server_new (const char* name)
         self->gpx_list[i].gpx_number = -1;
         self->gpx_list[i].gpx_direction = GPIO_DIRECTION_IN; // Default to GPI
     }
-
+*/
     self->gpio_lib = libgpio_new ();
     assert (self->gpio_lib);
 
@@ -337,6 +359,8 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
         //  Free class properties here
         mlm_client_destroy (&self->mlm);
         mlm_client_destroy (&self->alert);
+        zlistx_purge (self->gpx_list);
+        zlistx_destroy (&self->gpx_list);
         free(self->name);
         libgpio_destroy (&self->gpio_lib);
 
@@ -344,6 +368,55 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
         free (self);
         *self_p = NULL;
     }
+}
+
+//  -- destroy an item
+//typedef void (czmq_destructor) (void **item);
+void sensor_free(void **item)
+{
+    _gpx_info_t *gpx_info = (_gpx_info_t *)*item;
+
+    if (!gpx_info)
+        return;
+
+    if (gpx_info->asset_name)
+        free(gpx_info->asset_name);
+
+    if (gpx_info->ext_name)
+        free(gpx_info->ext_name);
+
+    if (gpx_info->part_number)
+        free(gpx_info->part_number);
+
+    if (gpx_info->type)
+        free(gpx_info->type);
+
+    if (gpx_info->location)
+        free(gpx_info->location);
+    
+    free(gpx_info);
+}
+
+//  -- duplicate an item
+//typedef void *(czmq_duplicator) (const void *item);
+static void *sensor_dup(const void *item)
+{
+    // Simply return item itself
+    return (void*)item;
+}
+
+//  - compare two items, for sorting
+//typedef int (czmq_comparator) (const void *item1, const void *item2);
+static int sensor_cmp(const void *item1, const void *item2)
+{
+    _gpx_info_t *gpx_info1 = (_gpx_info_t *)item1;
+    _gpx_info_t *gpx_info2 = (_gpx_info_t *)item2;
+    
+    // Compare on asset_name
+    if ( streq(gpx_info1->asset_name, gpx_info2->asset_name) )
+        return 0;
+    else
+        return 1;
 }
 
 static int
@@ -356,22 +429,33 @@ add_sensor(fty_sensor_gpio_server_t *self,
     const char* sensor_alarm_message)
 {
     // FIXME: check if already monitored! + sanity on < 10... AND pin not already declared
-#if 0
-    zlistx_t *gpx_list = zlistx_new ();
-    assert (list);
-    zlistx_set_duplicator (gpx_list, (czmq_duplicator *) sensor_dup);
-    zlistx_set_destructor (gpx_list, (czmq_destructor *) sensor_free);
-    zlistx_set_comparator (gpx_list, (czmq_comparator *) sensor_cmp);
 
-//  -- destroy an item
-//typedef void (czmq_destructor) (void **item);
-//  -- duplicate an item
-//typedef void *(czmq_duplicator) (const void *item);
-//  - compare two items, for sorting
-//typedef int (czmq_comparator) (const void *item1, const void *item2);
+    _gpx_info_t *gpx_info = (_gpx_info_t *)malloc(sizeof(_gpx_info_t));
+    if (!gpx_info)
+        return 1;
 
-    zlistx_add_end (gpx_list, (void *) "average.temperature@Curie");
-#endif // #if 0
+    gpx_info->asset_name = strdup(assetname);
+    gpx_info->ext_name = strdup(extname);
+    gpx_info->part_number = strdup(asset_subtype);
+    gpx_info->type = strdup(sensor_type);
+    if ( streq (sensor_normal_state, "opened" ) )
+        gpx_info->normal_state = GPIO_STATUS_OPENED;
+    else if ( streq (sensor_normal_state, "closed") )
+        gpx_info->normal_state = GPIO_STATUS_CLOSED;
+    gpx_info->gpx_number = atoi(sensor_gpx_number);
+    if ( streq (sensor_gpx_direction, "GPO" ) )
+        gpx_info->gpx_direction = GPIO_DIRECTION_OUT;
+    else
+        gpx_info->gpx_direction = GPIO_DIRECTION_IN;
+    gpx_info->location = strdup(sensor_location);
+    gpx_info->alarm_message = strdup(sensor_alarm_message);
+//    gpx_info->alarm_severity = strdup(sensor_alarm_severity);
+
+    if (zlistx_find (self->gpx_list, (void *) gpx_info));
+        zlistx_add_end (self->gpx_list, (void *) gpx_info);
+        // else: check for updating
+    // Don't free gpx_info, it will be done a TERM time
+/*
     self->gpx_list[self->sensors_count].asset_name = strdup(assetname);
     self->gpx_list[self->sensors_count].ext_name = strdup(extname);
     self->gpx_list[self->sensors_count].part_number = strdup(asset_subtype);
@@ -389,7 +473,7 @@ add_sensor(fty_sensor_gpio_server_t *self,
     self->gpx_list[self->sensors_count].alarm_message = strdup(sensor_alarm_message);
 
     self->sensors_count++;
-
+*/
     zsys_debug ("%s sensor '%s' (%s) added with\n\tmodel: %s\n\ttype:%s \
     \n\tnormal-state: %s\n\tPin number: %s\n\tlocation: %s\n\talarm-message: %s",
         sensor_gpx_direction, extname, assetname, asset_subtype,
@@ -400,7 +484,7 @@ add_sensor(fty_sensor_gpio_server_t *self,
 }
 
 static int
-delete_sensor(string assetname)
+delete_sensor(const char* assetname)
 {
     return 0;
 }

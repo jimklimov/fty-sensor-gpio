@@ -40,7 +40,7 @@ using namespace std;
 //  This includes both the template and configuration information
 
 // FIXME: replace with some zlist...
-struct _gpx_info_t {
+typedef struct _gpx_info_s {
     char* ext_name;      // sensor name
     char* asset_name;    // sensor asset name
     char* part_number;   // GPI sensor part number
@@ -51,8 +51,8 @@ struct _gpx_info_t {
     int gpx_number;      // GPI number, 1 - 10 (FIXME: GPO)
     int gpx_direction;   // GPIn or GPOut
     char* alarm_message; // Alert message to publish
-};
-
+} _gpx_info_t;
+ 
 
 // Config file accessors
 const char* s_get (zconfig_t *config, const char* key, std::string &dfl);
