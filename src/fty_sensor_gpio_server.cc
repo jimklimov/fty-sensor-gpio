@@ -502,7 +502,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
         ||  (streq (operation, "create"))
         ||  (streq (operation, "update")) ) {
 
-        add_sensor( self, assetname, asset_model, extname, //asset_subtype,
+        add_sensor( self, assetname, extname, asset_model,
                     sensor_type, sensor_normal_state,
                     sensor_gpx_number, sensor_gpx_direction,
                     sensor_location, sensor_alarm_message);
