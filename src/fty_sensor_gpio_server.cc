@@ -187,13 +187,17 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
         zsys_debug ("No sensors monitored");
         return;
     }
+    else
+        zsys_debug ("%i sensor(s) monitored", sensors_count);
+
     if(!mlm_client_connected(self->mlm))
         return;
 
+    // Acquire the current sensor
+    gpx_info = (_gpx_info_t *)zlistx_first (self->gpx_list);
+
     // Loop on all sensors
     for (int cur_sensor_num = 0; cur_sensor_num < sensors_count; cur_sensor_num++) {
-        // Acquire the current sensor
-        gpx_info = (_gpx_info_t *)zlistx_first (self->gpx_list);
 
         // Get the current sensor status
         gpx_info->current_state = libgpio_read(&self->gpio_lib, gpx_info->gpx_number);
