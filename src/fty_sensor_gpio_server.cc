@@ -419,20 +419,49 @@ static int sensor_cmp(const void *item1, const void *item2)
         return 1;
 }
 
+// Create a new empty structure
+static
+_gpx_info_t *sensor_new()
+{
+    _gpx_info_t *gpx_info = (_gpx_info_t *)malloc(sizeof(_gpx_info_t));
+    if (!gpx_info) {
+        zsys_debug ("ERROR: Can't allocate gpx_info!");
+        return NULL;
+    }
+
+    gpx_info->asset_name = NULL;
+    gpx_info->ext_name = NULL;
+    gpx_info->part_number = NULL;
+    gpx_info->type = NULL;
+    gpx_info->location = NULL;
+    gpx_info->normal_state = GPIO_STATUS_UNKNOWN;
+    gpx_info->current_state = GPIO_STATUS_UNKNOWN;
+    gpx_info->gpx_number = -1;
+    gpx_info->gpx_direction = GPIO_DIRECTION_IN; // Default to GPI
+    gpx_info->alarm_message = NULL;
+    gpx_info->alarm_severity = NULL;
+
+    return gpx_info;
+}
+
+/*static int
+add_sensor(fty_sensor_gpio_server_t *self, string config_template_filename, fty_proto_t *ftymessage)
+*/
 static int
-//fty_sensor_gpio_server_
 add_sensor(fty_sensor_gpio_server_t *self,
     const char* assetname, const char* extname,
     const char* asset_subtype, const char* sensor_type,
     const char* sensor_normal_state, const char* sensor_gpx_number,
     const char* sensor_gpx_direction, const char* sensor_location,
-    const char* sensor_alarm_message)
+    const char* sensor_alarm_message, const char* sensor_alarm_severity)
 {
-    // FIXME: check if already monitored! + sanity on < 10... AND pin not already declared
+    // FIXME: check if already monitored! + sanity on < 10... AND pin not already declared/used
 
-    _gpx_info_t *gpx_info = (_gpx_info_t *)malloc(sizeof(_gpx_info_t));
-    if (!gpx_info)
+    _gpx_info_t *gpx_info = sensor_new();
+    if (!gpx_info) {
+        zsys_debug ("ERROR: Can't allocate gpx_info!");
         return 1;
+    }
 
     gpx_info->asset_name = strdup(assetname);
     gpx_info->ext_name = strdup(extname);
@@ -449,43 +478,45 @@ add_sensor(fty_sensor_gpio_server_t *self,
         gpx_info->gpx_direction = GPIO_DIRECTION_IN;
     gpx_info->location = strdup(sensor_location);
     gpx_info->alarm_message = strdup(sensor_alarm_message);
-//    gpx_info->alarm_severity = strdup(sensor_alarm_severity);
+    gpx_info->alarm_severity = strdup(sensor_alarm_severity);
 
-    if (zlistx_find (self->gpx_list, (void *) gpx_info));
+    if (zlistx_find (self->gpx_list, (void *) gpx_info) == NULL)
         zlistx_add_end (self->gpx_list, (void *) gpx_info);
-        // else: check for updating
+        // else: check for updating fields
     // Don't free gpx_info, it will be done a TERM time
-/*
-    self->gpx_list[self->sensors_count].asset_name = strdup(assetname);
-    self->gpx_list[self->sensors_count].ext_name = strdup(extname);
-    self->gpx_list[self->sensors_count].part_number = strdup(asset_subtype);
-    self->gpx_list[self->sensors_count].type = strdup(sensor_type);
-    if ( streq (sensor_normal_state, "opened" ) )
-        self->gpx_list[self->sensors_count].normal_state = GPIO_STATUS_OPENED;
-    else if ( streq (sensor_normal_state, "closed") )
-        self->gpx_list[self->sensors_count].normal_state = GPIO_STATUS_CLOSED;
-    self->gpx_list[self->sensors_count].gpx_number = atoi(sensor_gpx_number);
-    if ( streq (sensor_gpx_direction, "GPO" ) )
-        self->gpx_list[self->sensors_count].gpx_direction = GPIO_DIRECTION_OUT;
-    else
-        self->gpx_list[self->sensors_count].gpx_direction = GPIO_DIRECTION_IN;
-    self->gpx_list[self->sensors_count].location = strdup(sensor_location);
-    self->gpx_list[self->sensors_count].alarm_message = strdup(sensor_alarm_message);
 
-    self->sensors_count++;
-*/
     zsys_debug ("%s sensor '%s' (%s) added with\n\tmodel: %s\n\ttype:%s \
-    \n\tnormal-state: %s\n\tPin number: %s\n\tlocation: %s\n\talarm-message: %s",
+    \n\tnormal-state: %s\n\tPin number: %s\n\tlocation: %s \
+    \n\talarm-message: %s\n\talarm-severity: %s",
         sensor_gpx_direction, extname, assetname, asset_subtype,
         sensor_type, sensor_normal_state, sensor_gpx_number, sensor_location,
-        sensor_alarm_message);
+        sensor_alarm_message, sensor_alarm_severity);
 
     return 0;
 }
 
 static int
-delete_sensor(const char* assetname)
+delete_sensor(fty_sensor_gpio_server_t *self, const char* assetname)
 {
+    _gpx_info_t *gpx_info_result = NULL;
+    _gpx_info_t *gpx_info = sensor_new();
+
+    if (gpx_info)
+        gpx_info->asset_name = strdup(assetname);
+    else {
+        zsys_debug ("ERROR: Can't allocate gpx_info!");
+        return 1;
+    }
+
+    gpx_info_result = (_gpx_info_t*)zlistx_find (self->gpx_list, (void *) gpx_info);
+    sensor_free((void**)&gpx_info);
+
+    if ( gpx_info_result == NULL )
+        return 1;
+    else {
+        zsys_debug ("Deleting '%s'", assetname);
+        zlistx_delete (self->gpx_list, (void *)gpx_info);
+    }
     return 0;
 }
 
@@ -573,16 +604,14 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
     // Get from user config
     const char *sensor_gpx_number = fty_proto_ext_string (ftymessage, "gpx_number", "");
     const char* extname = fty_proto_ext_string (ftymessage, "name", "");
-    // Get normal state and direction from user config, or fallback to template values
+    // Get normal state, direction and severity from user config, or fallback to template values
     const char *sensor_normal_state = s_get (config_template, "normal-state", "");
     sensor_normal_state = fty_proto_ext_string (ftymessage, "normal_state", sensor_normal_state);
     const char *sensor_gpx_direction = s_get (config_template, "gpx-direction", "GPI");
     sensor_gpx_direction = fty_proto_ext_string (ftymessage, "gpx_direction", sensor_gpx_direction);
     const char *sensor_location = fty_proto_ext_string (ftymessage, "location", "");
-
-// name,type,sub_type,location,status,priority,model,gpi_number,normal_state
-// GPIO-Sensor1,device,sensor,IPC1,active,P1,DCS001,1,
-// GPIO-Sensor2,device,sensor,IPC1,active,P1,DCS001,2,opened
+    const char *sensor_alarm_severity = s_get (config_template, "alarm-severity", "WARNING");
+    sensor_alarm_severity = fty_proto_ext_string (ftymessage, "alarm_severity", sensor_alarm_severity);
 
     // Sanity checks
     if (streq (sensor_normal_state, "")) {
@@ -601,12 +630,12 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
 
         add_sensor( self, assetname, extname, asset_model,
                     sensor_type, sensor_normal_state,
-                    sensor_gpx_number, sensor_gpx_direction,
-                    sensor_location, sensor_alarm_message);
+                    sensor_gpx_number, sensor_gpx_direction, sensor_location,
+                    sensor_alarm_message, sensor_alarm_severity);
     }
     // Asset deletion
     if (streq (operation, "delete")) {
-        delete_sensor(assetname);
+        delete_sensor( self, assetname);
     }
 }
 

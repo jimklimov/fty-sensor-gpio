@@ -41,16 +41,17 @@ using namespace std;
 
 // FIXME: replace with some zlist...
 typedef struct _gpx_info_s {
-    char* ext_name;      // sensor name
-    char* asset_name;    // sensor asset name
-    char* part_number;   // GPI sensor part number
-    char* type;          // GPI sensor type (door-contact, ...)
-    char* location;      // Parent name, to which the GPIO is attached
-    int normal_state;    // opened | closed
-    int current_state;   // opened | closed
-    int gpx_number;      // GPI number, 1 - 10 (FIXME: GPO)
-    int gpx_direction;   // GPIn or GPOut
-    char* alarm_message; // Alert message to publish
+    char* ext_name;       // sensor name
+    char* asset_name;     // sensor asset name
+    char* part_number;    // GPI sensor part number
+    char* type;           // GPI sensor type (door-contact, ...)
+    char* location;       // Parent name, to which the GPIO is attached
+    int normal_state;     // opened | closed
+    int current_state;    // opened | closed
+    int gpx_number;       // GPI number, 1 - 10 (FIXME: GPO)
+    int gpx_direction;    // GPIn or GPOut
+    char* alarm_message;  // Alert message to publish
+    char* alarm_severity; // Applied severity
 } _gpx_info_t;
  
 
