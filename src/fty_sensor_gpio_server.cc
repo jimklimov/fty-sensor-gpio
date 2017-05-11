@@ -34,6 +34,7 @@ struct _fty_sensor_gpio_server_t {
     bool               verbose;       // is actor verbose or not
     char               *name;         // actor name
     mlm_client_t       *mlm;          // malamute client
+    mlm_client_t       *alert;        // malamute client for alerts stream
     int                sensors_count; // number of sensors monitored in gpx_list
     struct _gpx_info_t gpx_list[15];  // Array of monitored GPx (FIXME: 10xGPI / 5xGPO on IPC3000)
 //FIXME    zlistx_t *         gpx_list;      // List of monitored GPx (FIXME: 10xGPI / 5xGPO on IPC3000)
@@ -63,13 +64,49 @@ s_get (zconfig_t *config, const char* key, const char*dfl) {
 }
 
 //  --------------------------------------------------------------------------
-//  Publish GPIO status of the pointed sensor
+//  Publish an alert for the pointed GPIO sensor
+
+void publish_alert (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
+{
+    zsys_debug ("Publishing GPIO sensor %i (%s) alert",
+        self->gpx_list[sensor_num].gpx_number,
+        self->gpx_list[sensor_num].asset_name);
+
+    // FIXME: ...
+    const char *state = "ACTIVE", *severity = "WARNING";
+    char* description = (char*)malloc(128);
+    sprintf(description, self->gpx_list[sensor_num].alarm_message,
+        self->gpx_list[sensor_num].asset_name);
+
+    std::string rule = string(self->gpx_list[sensor_num].type) + "@" + self->gpx_list[sensor_num].asset_name;
+
+    zsys_debug("%s: publishing alert %s", __func__, rule.c_str ());
+    zmsg_t *message = fty_proto_encode_alert(
+        NULL,                            // aux
+        time (NULL),                     // timestamp
+        ttl,
+        rule.c_str (),                   // rule
+        self->gpx_list[sensor_num].asset_name, // element
+        state,                           // state
+        severity,                        // severity
+        description,                     // description
+        ""                               // action ?email
+    );
+    std::string topic = rule + "/" + severity + "@" + self->gpx_list[sensor_num].asset_name;
+    if (message) {
+        mlm_client_send (self->alert, topic.c_str (), &message);
+    }
+    zmsg_destroy (&message);
+}
+
+//  --------------------------------------------------------------------------
+//  Publish status of the pointed GPIO sensor
 
 void publish_status (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
 {
     zsys_debug ("Publishing GPIO sensor %i (%s) status",
         self->gpx_list[sensor_num].gpx_number,
-        self->gpx_list[sensor_num].name);
+        self->gpx_list[sensor_num].asset_name);
 
 //    if (! _temperature.empty()) {
 /*
@@ -150,7 +187,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
             libgpio_get_status_string(&self->gpio_lib, self->gpx_list[cur_sensor_num].current_state).c_str(),
             self->gpx_list[cur_sensor_num].current_state,
             self->gpx_list[cur_sensor_num].gpx_number,
-            self->gpx_list[cur_sensor_num].name);
+            self->gpx_list[cur_sensor_num].asset_name);
 
         publish_status (self, cur_sensor_num, 300);
 
@@ -158,6 +195,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
         if (self->gpx_list[cur_sensor_num].current_state != self->gpx_list[cur_sensor_num].normal_state)
             zsys_debug ("ALARM: state changed");
             // FIXME: do not repeat alarm?! so maybe flag in self
+            publish_alert(self, cur_sensor_num, 300);
     }
 }
 
@@ -258,12 +296,14 @@ fty_sensor_gpio_server_new (const char* name)
 
     //  Initialize class properties here
     self->mlm  = mlm_client_new();
+    self->alert  = mlm_client_new();
     self->name = strdup(name);
     self->sensors_count = 0;
     self->verbose = false;
 
     for (int i = 0; i < 10; i++) {
-        self->gpx_list[i].name = NULL;
+        self->gpx_list[i].asset_name = NULL;
+        self->gpx_list[i].ext_name = NULL;
         self->gpx_list[i].part_number = NULL;
         self->gpx_list[i].type = NULL;
         self->gpx_list[i].location = NULL;
@@ -291,6 +331,7 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
         fty_sensor_gpio_server_t *self = *self_p;
         //  Free class properties here
         mlm_client_destroy (&self->mlm);
+        mlm_client_destroy (&self->alert);
         free(self->name);
         libgpio_destroy (&self->gpio_lib);
 
@@ -302,9 +343,12 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
 
 static int
 //fty_sensor_gpio_server_
-add_sensor(fty_sensor_gpio_server_t *self, const char* assetname, const char* asset_subtype,
-    const char* sensor_type, const char* sensor_normal_state, const char* sensor_gpx_number,
-    const char* sensor_gpx_direction, const char* sensor_location)
+add_sensor(fty_sensor_gpio_server_t *self,
+    const char* assetname, const char* extname,
+    const char* asset_subtype, const char* sensor_type,
+    const char* sensor_normal_state, const char* sensor_gpx_number,
+    const char* sensor_gpx_direction, const char* sensor_location,
+    const char* sensor_alarm_message)
 {
     // FIXME: check if already monitored! + sanity on < 10... AND pin not already declared
 #if 0
@@ -315,7 +359,8 @@ add_sensor(fty_sensor_gpio_server_t *self, const char* assetname, const char* as
 
     zlistx_add_end (gpx_list, (void *) "average.temperature@Curie");
 #endif // #if 0
-    self->gpx_list[self->sensors_count].name = strdup(assetname);
+    self->gpx_list[self->sensors_count].asset_name = strdup(assetname);
+    self->gpx_list[self->sensors_count].ext_name = strdup(extname);
     self->gpx_list[self->sensors_count].part_number = strdup(asset_subtype);
     self->gpx_list[self->sensors_count].type = strdup(sensor_type);
     if ( streq (sensor_normal_state, "opened" ) )
@@ -328,12 +373,15 @@ add_sensor(fty_sensor_gpio_server_t *self, const char* assetname, const char* as
     else
         self->gpx_list[self->sensors_count].gpx_direction = GPIO_DIRECTION_IN;
     self->gpx_list[self->sensors_count].location = strdup(sensor_location);
+    self->gpx_list[self->sensors_count].alarm_message = strdup(sensor_alarm_message);
 
     self->sensors_count++;
 
-    zsys_debug ("%s sensor %s added with\n\tmodel: %s\n\ttype:%s\n\tnormal-state: %s\n\tPin number: %s\n\tlocation: %s",
-        sensor_gpx_direction, assetname, asset_subtype,
-        sensor_type, sensor_normal_state, sensor_gpx_number, sensor_location);
+    zsys_debug ("%s sensor %s (%s) added with\n\tmodel: %s\n\ttype:%s \
+    \n\tnormal-state: %s\n\tPin number: %s\n\tlocation: %s\n\talarm-message: %s",
+        sensor_gpx_direction, extname, assetname, asset_subtype,
+        sensor_type, sensor_normal_state, sensor_gpx_number, sensor_location,
+        sensor_alarm_message);
 
     return 0;
 }
@@ -424,8 +472,10 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
     }
     // Get static info from template
     const char *sensor_type = s_get (config_template, "type", "");
+    const char *sensor_alarm_message = s_get (config_template, "alarm-message", "");
     // Get from user config
     const char *sensor_gpx_number = fty_proto_ext_string (ftymessage, "gpx_number", "");
+    const char* extname = fty_proto_ext_string (ftymessage, "name", "");
     // Get normal state and direction from user config, or fallback to template values
     const char *sensor_normal_state = s_get (config_template, "normal-state", "");
     sensor_normal_state = fty_proto_ext_string (ftymessage, "normal_state", sensor_normal_state);
@@ -452,9 +502,10 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
         ||  (streq (operation, "create"))
         ||  (streq (operation, "update")) ) {
 
-        add_sensor( self, assetname, asset_model, //asset_subtype,
+        add_sensor( self, assetname, asset_model, extname, //asset_subtype,
                     sensor_type, sensor_normal_state,
-                    sensor_gpx_number, sensor_gpx_direction, sensor_location);
+                    sensor_gpx_number, sensor_gpx_direction,
+                    sensor_location, sensor_alarm_message);
     }
     // Asset deletion
     if (streq (operation, "delete")) {
@@ -517,6 +568,13 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     assert (stream);
                     mlm_client_set_producer (self->mlm, stream);
                     zsys_debug ("fty_sensor_gpio: setting PRODUCER on %s", stream);
+                    zstr_free (&stream);
+                }
+                else if (streq (cmd, "ALERT-PRODUCER")) {
+                    char *stream = zmsg_popstr (message);
+                    assert (stream);
+                    mlm_client_set_producer (self->alert, stream);
+                    zsys_debug ("fty_sensor_gpio: setting ALERT-PRODUCER on %s", stream);
                     zstr_free (&stream);
                 }
                 else if (streq (cmd, "CONSUMER")) {
