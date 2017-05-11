@@ -76,12 +76,12 @@ void publish_alert (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
     const char *state = "ACTIVE", *severity = "WARNING";
     char* description = (char*)malloc(128);
     sprintf(description, self->gpx_list[sensor_num].alarm_message,
-        self->gpx_list[sensor_num].asset_name);
+        self->gpx_list[sensor_num].ext_name);
 
     // FIXME: adapt alarm message
     // $name $status $parent_name...
 
-    std::string rule = string(self->gpx_list[sensor_num].type) + "@" + self->gpx_list[sensor_num].asset_name;
+    std::string rule = string(self->gpx_list[sensor_num].type) + "@" + self->gpx_list[sensor_num].ext_name;
 
     zsys_debug("%s: publishing alert %s", __func__, rule.c_str ());
     zmsg_t *message = fty_proto_encode_alert(
@@ -358,9 +358,17 @@ add_sensor(fty_sensor_gpio_server_t *self,
     // FIXME: check if already monitored! + sanity on < 10... AND pin not already declared
 #if 0
     zlistx_t *gpx_list = zlistx_new ();
-    zlistx_set_duplicator (gpx_list, (czmq_duplicator *) strdup);
-    zlistx_set_destructor (gpx_list, (czmq_destructor *) zstr_free);
-    zlistx_set_comparator (gpx_list, (czmq_comparator *) strcmp);
+    assert (list);
+    zlistx_set_duplicator (gpx_list, (czmq_duplicator *) sensor_dup);
+    zlistx_set_destructor (gpx_list, (czmq_destructor *) sensor_free);
+    zlistx_set_comparator (gpx_list, (czmq_comparator *) sensor_cmp);
+
+//  -- destroy an item
+//typedef void (czmq_destructor) (void **item);
+//  -- duplicate an item
+//typedef void *(czmq_duplicator) (const void *item);
+//  - compare two items, for sorting
+//typedef int (czmq_comparator) (const void *item1, const void *item2);
 
     zlistx_add_end (gpx_list, (void *) "average.temperature@Curie");
 #endif // #if 0

@@ -140,9 +140,9 @@ int main (int argc, char *argv [])
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
     // 2nd stream to only publish alerts
     zstr_sendx (server, "ALERT-CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
-    zstr_sendx (server, "ALERT-PRODUCER", FTY_PROTO_STREAM_ALERTS, NULL);
+    zstr_sendx (server, "ALERT-PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);
 
-    // Setup an update event message every 2 seconds, to check GPI status
+    // Setup an update event message every x seconds, to check GPI status
     zloop_t *gpio_status_update = zloop_new();
     zloop_timer (gpio_status_update, poll_interval, 0, s_update_event, server);
     zloop_start (gpio_status_update);
