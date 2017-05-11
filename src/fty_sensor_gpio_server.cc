@@ -69,6 +69,39 @@ s_get (zconfig_t *config, const char* key, const char*dfl) {
     return ret;
 }
 
+static char*
+str_replace(const char *in, const char *pattern, const char *by)
+{
+    size_t outsize = strlen(in) + 1;
+    // TODO maybe avoid reallocing by counting the non-overlapping occurences of pattern
+    char *res = (char*)malloc(outsize);
+    // use this to iterate over the output
+    size_t resoffset = 0;
+
+    char *needle;
+    while ((needle = strstr((char *)in, (char *)pattern))) {
+        // copy everything up to the pattern
+        memcpy(res + resoffset, in, needle - in);
+        resoffset += needle - in;
+
+        // skip the pattern in the input-string
+        in = needle + strlen(pattern);
+
+        // adjust space for replacement
+        outsize = outsize - strlen(pattern) + strlen(by);
+        res = (char*)realloc(res, outsize);
+
+        // copy the pattern
+        memcpy(res + resoffset, by, strlen(by));
+        resoffset += strlen(by);
+    }
+
+    // copy the remaining input
+    strcpy(res + resoffset, in);
+
+    return res;
+}
+
 //  --------------------------------------------------------------------------
 //  Publish an alert for the pointed GPIO sensor
 
@@ -79,13 +112,19 @@ void publish_alert (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl
         sensor->asset_name);
 
     // FIXME: ...
-    const char *state = "ACTIVE", *severity = "WARNING";
+    const char *state = "ACTIVE", *severity = sensor->alarm_severity;
     char* description = (char*)malloc(128);
     sprintf(description, sensor->alarm_message,
         sensor->ext_name);
 
-    // FIXME: adapt alarm message
-    // $name $status $parent_name...
+    // Adapt alarm message if needed
+    if (strchr(sensor->alarm_message, '$')) {
+        // FIXME: other possible patterns $name $parent_name...
+        description = str_replace(sensor->alarm_message,
+                                  "$status",
+                                  libgpio_get_status_string(&self->gpio_lib, sensor->current_state).c_str());
+    }
+
 
     std::string rule = string(sensor->type) + ".state_change@" + sensor->asset_name;
 
@@ -205,9 +244,10 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
             zsys_debug ("Can't read GPI sensor #%i status", gpx_info->gpx_number);
             continue;
         }
-        zsys_debug ("Read '%s' (value: %i) on GPx sensor #%i (%s)",
+        zsys_debug ("Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
             libgpio_get_status_string(&self->gpio_lib, gpx_info->current_state).c_str(),
-            gpx_info->current_state, gpx_info->gpx_number, gpx_info->asset_name);
+            gpx_info->current_state, gpx_info->gpx_number,
+            gpx_info->ext_name, gpx_info->asset_name);
 
         publish_status (self, gpx_info, 300);
 
@@ -321,7 +361,6 @@ fty_sensor_gpio_server_new (const char* name)
     self->mlm  = mlm_client_new();
     self->alert  = mlm_client_new();
     self->name = strdup(name);
-//    self->sensors_count = 0;
     self->verbose = false;
 
     // Declare our zlist for GPIOs tracking
@@ -332,18 +371,6 @@ fty_sensor_gpio_server_new (const char* name)
     zlistx_set_destructor (self->gpx_list, (czmq_destructor *) sensor_free);
     zlistx_set_comparator (self->gpx_list, (czmq_comparator *) sensor_cmp);
 
-/*    for (int i = 0; i < 10; i++) {
-        self->gpx_list[i].asset_name = NULL;
-        self->gpx_list[i].ext_name = NULL;
-        self->gpx_list[i].part_number = NULL;
-        self->gpx_list[i].type = NULL;
-        self->gpx_list[i].location = NULL;
-        self->gpx_list[i].normal_state = GPIO_STATUS_UNKNOWN;
-        self->gpx_list[i].current_state = GPIO_STATUS_UNKNOWN;
-        self->gpx_list[i].gpx_number = -1;
-        self->gpx_list[i].gpx_direction = GPIO_DIRECTION_IN; // Default to GPI
-    }
-*/
     self->gpio_lib = libgpio_new ();
     assert (self->gpio_lib);
 
@@ -360,13 +387,14 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
     assert (self_p);
     if (*self_p) {
         fty_sensor_gpio_server_t *self = *self_p;
+
         //  Free class properties here
-        mlm_client_destroy (&self->mlm);
-        mlm_client_destroy (&self->alert);
+        libgpio_destroy (&self->gpio_lib);
         zlistx_purge (self->gpx_list);
         zlistx_destroy (&self->gpx_list);
         free(self->name);
-        libgpio_destroy (&self->gpio_lib);
+        mlm_client_destroy (&self->alert);
+        mlm_client_destroy (&self->mlm);
 
         //  Free object itself
         free (self);
@@ -374,8 +402,8 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
     }
 }
 
-//  -- destroy an item
-//typedef void (czmq_destructor) (void **item);
+//  --------------------------------------------------------------------------
+//  zlist handling -- destroy an item
 void sensor_free(void **item)
 {
     _gpx_info_t *gpx_info = (_gpx_info_t *)*item;
@@ -401,16 +429,16 @@ void sensor_free(void **item)
     free(gpx_info);
 }
 
-//  -- duplicate an item
-//typedef void *(czmq_duplicator) (const void *item);
+//  --------------------------------------------------------------------------
+//  zlist handling -- duplicate an item
 static void *sensor_dup(const void *item)
 {
     // Simply return item itself
     return (void*)item;
 }
 
-//  - compare two items, for sorting
-//typedef int (czmq_comparator) (const void *item1, const void *item2);
+//  --------------------------------------------------------------------------
+//  zlist handling - compare two items, for sorting
 static int sensor_cmp(const void *item1, const void *item2)
 {
     _gpx_info_t *gpx_info1 = (_gpx_info_t *)item1;
@@ -423,7 +451,9 @@ static int sensor_cmp(const void *item1, const void *item2)
         return 1;
 }
 
-// Create a new empty structure
+//  --------------------------------------------------------------------------
+//  Sensors handling
+//  Create a new empty structure
 static
 _gpx_info_t *sensor_new()
 {
@@ -448,6 +478,9 @@ _gpx_info_t *sensor_new()
     return gpx_info;
 }
 
+//  --------------------------------------------------------------------------
+//  Sensors handling
+//  Add a new entry to our zlist of monitored sensors
 /*static int
 add_sensor(fty_sensor_gpio_server_t *self, string config_template_filename, fty_proto_t *ftymessage)
 */
@@ -486,7 +519,11 @@ add_sensor(fty_sensor_gpio_server_t *self,
 
     if (zlistx_find (self->gpx_list, (void *) gpx_info) == NULL)
         zlistx_add_end (self->gpx_list, (void *) gpx_info);
+    else {
         // else: check for updating fields
+        zsys_debug ("Sensor '%s' is already monitored. Skipping!", assetname);
+    }
+
     // Don't free gpx_info, it will be done a TERM time
 
     zsys_debug ("%s sensor '%s' (%s) added with\n\tmodel: %s\n\ttype:%s \
@@ -499,6 +536,9 @@ add_sensor(fty_sensor_gpio_server_t *self,
     return 0;
 }
 
+//  --------------------------------------------------------------------------
+//  Sensors handling
+//  Delete an entry from our zlist of monitored sensors
 static int
 delete_sensor(fty_sensor_gpio_server_t *self, const char* assetname)
 {
