@@ -78,6 +78,9 @@ void publish_alert (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
     sprintf(description, self->gpx_list[sensor_num].alarm_message,
         self->gpx_list[sensor_num].asset_name);
 
+    // FIXME: adapt alarm message
+    // $name $status $parent_name...
+
     std::string rule = string(self->gpx_list[sensor_num].type) + "@" + self->gpx_list[sensor_num].asset_name;
 
     zsys_debug("%s: publishing alert %s", __func__, rule.c_str ());
@@ -94,7 +97,9 @@ void publish_alert (fty_sensor_gpio_server_t *self, int sensor_num, int ttl)
     );
     std::string topic = rule + "/" + severity + "@" + self->gpx_list[sensor_num].asset_name;
     if (message) {
-        mlm_client_send (self->alert, topic.c_str (), &message);
+        int r = mlm_client_send (self->alert, topic.c_str (), &message);
+        if( r != 0 )
+            zsys_debug("failed to send alert %s result %", topic.c_str(), r);
     }
     zmsg_destroy (&message);
 }
@@ -152,7 +157,7 @@ std::string Sensor::topicSuffix () const
 //                       _location.c_str (), _temperature.c_str ());
             int r = mlm_client_send (self->mlm, topic.c_str (), &msg);
             if( r != 0 )
-                zsys_debug("failed to send measurement %s result %" PRIi32, topic.c_str(), r);
+                zsys_debug("failed to send measurement %s result %", topic.c_str(), r);
             zmsg_destroy (&msg);
         }
         free(port);
@@ -377,7 +382,7 @@ add_sensor(fty_sensor_gpio_server_t *self,
 
     self->sensors_count++;
 
-    zsys_debug ("%s sensor %s (%s) added with\n\tmodel: %s\n\ttype:%s \
+    zsys_debug ("%s sensor '%s' (%s) added with\n\tmodel: %s\n\ttype:%s \
     \n\tnormal-state: %s\n\tPin number: %s\n\tlocation: %s\n\talarm-message: %s",
         sensor_gpx_direction, extname, assetname, asset_subtype,
         sensor_type, sensor_normal_state, sensor_gpx_number, sensor_location,
