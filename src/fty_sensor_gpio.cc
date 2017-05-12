@@ -29,10 +29,11 @@
 #include "fty_sensor_gpio_classes.h"
 
 // TODO:
-// * persist monitored sensors (and reload at startup)
-//     void zconfig_put (zconfig_t *self, const char *path, const char *value);
-//     int zconfig_save (zconfig_t *self, const char *filename);
+// * Add 'location' / parent.name
+//   + Asset management and update existing entries
 // * Dedicated alert actor
+// * Tests
+// * Documentation
 // * GPO handling (MAILBOX message requesting GPOx to be activated)
 // * Sensors manifest (MAILBOX message requesting the list of supported sensors
 //   and details, inc. normal state)
@@ -111,7 +112,7 @@ int main (int argc, char *argv [])
         actor_name = s_get (config, "malamute/address", actor_name);
     }
 
-    // check env verbose
+    // Check env. variables
     if (getenv ("BIOS_LOG_LEVEL") && streq (getenv ("BIOS_LOG_LEVEL"), "LOG_DEBUG"))
         verbose = true;
 

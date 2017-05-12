@@ -130,25 +130,28 @@ void save_monitored_sensor (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor)
     // Acquire the 'sensors' section
     zconfig_t *sensors_list = zconfig_locate (config_file, "sensors");
     if (sensors_list) {
-        zconfig_t *sensor_entry = zconfig_new (sensor->asset_name, sensors_list);
-        zconfig_put (sensor_entry, "ext-name", sensor->ext_name);
-        zconfig_put (sensor_entry, "part-number", sensor->part_number);
-        zconfig_put (sensor_entry, "type", sensor->type);
-        zconfig_put (sensor_entry, "location", sensor->location);
-        zconfig_put (sensor_entry, "normal-state",
-            libgpio_get_status_string(&self->gpio_lib, sensor->normal_state).c_str());
-        char str_gpx_number[3];
-        memset(str_gpx_number, 0, 3);
-        snprintf(str_gpx_number, 3, "%i", sensor->gpx_number);
-        zconfig_put (sensor_entry, "gpx-number", str_gpx_number);
-        if ( sensor->gpx_direction == GPIO_DIRECTION_OUT )
-            zconfig_put (sensor_entry, "gpx-direction", "GPO");
-        else
-            zconfig_put (sensor_entry, "gpx-direction", "GPI");
-        zconfig_put (sensor_entry, "alarm-message", sensor->alarm_message);
-        zconfig_put (sensor_entry, "alarm-severity", sensor->alarm_severity);
+        if (!zconfig_locate (sensors_list, sensor->asset_name)) {
+            zconfig_t *sensor_entry = zconfig_new (sensor->asset_name, sensors_list);
+            zconfig_put (sensor_entry, "ext-name", sensor->ext_name);
+            zconfig_put (sensor_entry, "part-number", sensor->part_number);
+            zconfig_put (sensor_entry, "type", sensor->type);
+            zconfig_put (sensor_entry, "location", sensor->location);
+            zconfig_put (sensor_entry, "normal-state",
+                libgpio_get_status_string(&self->gpio_lib, sensor->normal_state).c_str());
+            char str_gpx_number[3];
+            memset(str_gpx_number, 0, 3);
+            snprintf(str_gpx_number, 3, "%i", sensor->gpx_number);
+            zconfig_put (sensor_entry, "gpx-number", str_gpx_number);
+            if ( sensor->gpx_direction == GPIO_DIRECTION_OUT )
+                zconfig_put (sensor_entry, "gpx-direction", "GPO");
+            else
+                zconfig_put (sensor_entry, "gpx-direction", "GPI");
+            zconfig_put (sensor_entry, "alarm-message", sensor->alarm_message);
+            zconfig_put (sensor_entry, "alarm-severity", sensor->alarm_severity);
 
-        zconfig_save (config_file, self->config_file); // FIXME: test ret code
+            zconfig_save (config_file, self->config_file); // FIXME: test ret code
+        }
+        // Else check for updating entries!
     }
 }
 
