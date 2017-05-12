@@ -35,10 +35,9 @@ struct _fty_sensor_gpio_server_t {
     char               *name;         // actor name
     mlm_client_t       *mlm;          // malamute client
     mlm_client_t       *alert;        // malamute client for alerts stream
-//    int                sensors_count; // number of sensors monitored in gpx_list
-//    struct _gpx_info_t gpx_list[15];  // Array of monitored GPx (FIXME: 10xGPI / 5xGPO on IPC3000)
-    zlistx_t *         gpx_list;      // List of monitored GPx (10xGPI / 5xGPO on IPC3000)
+    zlistx_t           *gpx_list;     // List of monitored GPx (10xGPI / 5xGPO on IPC3000)
     libgpio_t          *gpio_lib;     // GPIO library handle
+    char               *config_file;  // Config filename
 };
 
 // TODO: get from config
@@ -130,15 +129,15 @@ void publish_alert (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl
 
     zsys_debug("%s: publishing alert %s with description:\n%s", __func__, rule.c_str (), description);
     zmsg_t *message = fty_proto_encode_alert(
-        NULL,                            // aux
-        time (NULL),                     // timestamp
+        NULL,               // aux
+        time (NULL),        // timestamp
         ttl,
-        rule.c_str (),                   // rule
+        rule.c_str (),      // rule
         sensor->asset_name, // element
-        state,                           // state
-        severity,                        // severity
-        description,                     // description
-        ""                               // action ?email
+        state,              // state
+        severity,           // severity
+        description,        // description
+        ""                  // action ?email
     );
     std::string topic = rule + "/" + severity + "@" + sensor->asset_name;
     if (message) {
@@ -357,11 +356,12 @@ fty_sensor_gpio_server_new (const char* name)
     fty_sensor_gpio_server_t *self = (fty_sensor_gpio_server_t *) zmalloc (sizeof (fty_sensor_gpio_server_t));
     assert (self);
 
-    //  Initialize class properties here
-    self->mlm  = mlm_client_new();
-    self->alert  = mlm_client_new();
-    self->name = strdup(name);
-    self->verbose = false;
+    //  Initialize class properties
+    self->mlm         = mlm_client_new();
+    self->alert       = mlm_client_new();
+    self->name        = strdup(name);
+    self->verbose     = false;
+    self->config_file = NULL;
 
     // Declare our zlist for GPIOs tracking
     self->gpx_list = zlistx_new ();
@@ -392,6 +392,8 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
         libgpio_destroy (&self->gpio_lib);
         zlistx_purge (self->gpx_list);
         zlistx_destroy (&self->gpx_list);
+        if (self->config_file)
+            free(self->config_file);
         free(self->name);
         mlm_client_destroy (&self->alert);
         mlm_client_destroy (&self->mlm);
@@ -559,7 +561,7 @@ delete_sensor(fty_sensor_gpio_server_t *self, const char* assetname)
         return 1;
     else {
         zsys_debug ("Deleting '%s'", assetname);
-        zlistx_delete (self->gpx_list, (void *)gpx_info);
+        zlistx_delete (self->gpx_list, (void *)gpx_info_result);
     }
     return 0;
 }
@@ -629,48 +631,49 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_server_t *self, fty_proto_t *ftyme
 
     zsys_debug ("%s: '%s' operation on asset '%s'", __func__, operation, assetname);
 
-    const char* asset_subtype = fty_proto_ext_string (ftymessage, "subtype", "");
-        // FIXME: fallback to "device.type"?
-    const char* asset_model = fty_proto_ext_string (ftymessage, "model", "");
-    string config_template_filename = is_asset_gpio_sensor(asset_subtype, asset_model);
-    if (config_template_filename == "") {
-        return;
-    }
-    // We have a GPIO sensor, process it
-    config_template = zconfig_load (config_template_filename.c_str());
-    if (!config_template) {
-        zsys_debug ("Can't load sensor template file"); // FIXME: error
-        return;
-    }
-    // Get static info from template
-    const char *sensor_type = s_get (config_template, "type", "");
-    const char *sensor_alarm_message = s_get (config_template, "alarm-message", "");
-    // Get from user config
-    const char *sensor_gpx_number = fty_proto_ext_string (ftymessage, "gpx_number", "");
-    const char* extname = fty_proto_ext_string (ftymessage, "name", "");
-    // Get normal state, direction and severity from user config, or fallback to template values
-    const char *sensor_normal_state = s_get (config_template, "normal-state", "");
-    sensor_normal_state = fty_proto_ext_string (ftymessage, "normal_state", sensor_normal_state);
-    const char *sensor_gpx_direction = s_get (config_template, "gpx-direction", "GPI");
-    sensor_gpx_direction = fty_proto_ext_string (ftymessage, "gpx_direction", sensor_gpx_direction);
-    const char *sensor_location = fty_proto_ext_string (ftymessage, "location", "");
-    const char *sensor_alarm_severity = s_get (config_template, "alarm-severity", "WARNING");
-    sensor_alarm_severity = fty_proto_ext_string (ftymessage, "alarm_severity", sensor_alarm_severity);
-
-    // Sanity checks
-    if (streq (sensor_normal_state, "")) {
-        zsys_debug ("No sensor normal state found in template nor provided by the user!");
-        zsys_debug ("Skipping sensor");
-        return;
-    }
-    if (streq (sensor_gpx_number, "")) {
-        zsys_debug ("No sensor pin provided! Skipping sensor");
-        return;
-    }
     // Initial addition , listing or udpdate
     if ( (streq (operation, "inventory"))
         ||  (streq (operation, "create"))
         ||  (streq (operation, "update")) ) {
+
+        const char* asset_subtype = fty_proto_ext_string (ftymessage, "subtype", "");
+            // FIXME: fallback to "device.type"?
+        const char* asset_model = fty_proto_ext_string (ftymessage, "model", "");
+        string config_template_filename = is_asset_gpio_sensor(asset_subtype, asset_model);
+        if (config_template_filename == "") {
+            return;
+        }
+        // We have a GPIO sensor, process it
+        config_template = zconfig_load (config_template_filename.c_str());
+        if (!config_template) {
+            zsys_debug ("Can't load sensor template file"); // FIXME: error
+            return;
+        }
+        // Get static info from template
+        const char *sensor_type = s_get (config_template, "type", "");
+        const char *sensor_alarm_message = s_get (config_template, "alarm-message", "");
+        // Get from user config
+        const char *sensor_gpx_number = fty_proto_ext_string (ftymessage, "gpx_number", "");
+        const char* extname = fty_proto_ext_string (ftymessage, "name", "");
+        // Get normal state, direction and severity from user config, or fallback to template values
+        const char *sensor_normal_state = s_get (config_template, "normal-state", "");
+        sensor_normal_state = fty_proto_ext_string (ftymessage, "normal_state", sensor_normal_state);
+        const char *sensor_gpx_direction = s_get (config_template, "gpx-direction", "GPI");
+        sensor_gpx_direction = fty_proto_ext_string (ftymessage, "gpx_direction", sensor_gpx_direction);
+        const char *sensor_location = fty_proto_ext_string (ftymessage, "location", "");
+        const char *sensor_alarm_severity = s_get (config_template, "alarm-severity", "WARNING");
+        sensor_alarm_severity = fty_proto_ext_string (ftymessage, "alarm_severity", sensor_alarm_severity);
+
+        // Sanity checks
+        if (streq (sensor_normal_state, "")) {
+            zsys_debug ("No sensor normal state found in template nor provided by the user!");
+            zsys_debug ("Skipping sensor");
+            return;
+        }
+        if (streq (sensor_gpx_number, "")) {
+            zsys_debug ("No sensor pin provided! Skipping sensor");
+            return;
+        }
 
         add_sensor( self, assetname, extname, asset_model,
                     sensor_type, sensor_normal_state,
@@ -732,6 +735,13 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                         zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
                     zsys_debug("fty-gpio-sensor-server: CONNECT %s/%s", endpoint, self->name);
                     zstr_free (&endpoint);
+                }
+                else if (streq (cmd, "CONFIG")) {
+                    char *config_filename = zmsg_popstr (message);
+                    assert (config_filename);
+                    self->config_file = strdup(config_filename);
+                    zsys_debug ("fty_sensor_gpio: setting CONFIG to %s", config_filename);
+                    zstr_free (&config_filename);
                 }
                 else if (streq (cmd, "PRODUCER")) {
                     char *stream = zmsg_popstr (message);
