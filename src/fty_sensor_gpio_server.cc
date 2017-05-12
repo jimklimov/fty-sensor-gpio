@@ -151,8 +151,11 @@ void save_monitored_sensor (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor)
 
             zconfig_save (config_file, self->config_file); // FIXME: test ret code
         }
-        // Else check for updating entries!
-    }
+        else {
+            // Else check for updating entries!
+            zsys_debug ("Sensor '%s' already present in the config file. Skipping!");
+        }
+    } // FIXME: Else, create a node for sensors!
 }
 
 //  --------------------------------------------------------------------------
