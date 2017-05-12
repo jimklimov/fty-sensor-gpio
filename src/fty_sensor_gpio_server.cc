@@ -157,7 +157,6 @@ void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int tt
         sensor->gpx_number,
         sensor->asset_name);
 
-//    if (! _temperature.empty()) {
 /*
 --------------------------------------------------------------------------------
 stream=_METRICS_SENSOR
@@ -191,12 +190,12 @@ std::string Sensor::topicSuffix () const
             time (NULL),
             ttl,
             msg_type.c_str (),
-            sensor->location,
+            sensor->asset_name, //sensor->location,
             libgpio_get_status_string(&self->gpio_lib, sensor->current_state).c_str(),
             "");
         zhash_destroy (&aux);
         if (msg) {
-            std::string topic = string("status.") + port + string("@") + sensor->location; //topicSuffix(); // 
+            std::string topic = string("status.") + port + string("@") + sensor->asset_name; //sensor->location;
 //            log_debug ("sending new temperature for element_src = '%s', value = '%s'",
 //                       _location.c_str (), _temperature.c_str ());
             int r = mlm_client_send (self->mlm, topic.c_str (), &msg);
@@ -205,8 +204,6 @@ std::string Sensor::topicSuffix () const
             zmsg_destroy (&msg);
         }
         free(port);
-
-//    }
 }
 
 //  --------------------------------------------------------------------------
@@ -256,7 +253,6 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
             // FIXME: do not repeat alarm?! so maybe flag in self
             publish_alert (self, gpx_info, 300);
         }
-
         gpx_info = (_gpx_info_t *)zlistx_next (self->gpx_list);
     }
 }
