@@ -41,8 +41,8 @@ using namespace std;
 
 // FIXME: replace with some zlist...
 typedef struct _gpx_info_s {
-    char* ext_name;       // sensor name
     char* asset_name;     // sensor asset name
+    char* ext_name;       // sensor name
     char* part_number;    // GPI sensor part number
     char* type;           // GPI sensor type (door-contact, ...)
     char* location;       // Parent name, to which the GPIO is attached

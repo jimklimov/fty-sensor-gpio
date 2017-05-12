@@ -47,6 +47,12 @@ struct _fty_sensor_gpio_server_t {
 static void sensor_free(void **item);
 static void *sensor_dup(const void *item);
 static int sensor_cmp(const void *item1, const void *item2);
+static int add_sensor(fty_sensor_gpio_server_t *self,
+    const char* assetname, const char* extname,
+    const char* asset_subtype, const char* sensor_type,
+    const char* sensor_normal_state, const char* sensor_gpx_number,
+    const char* sensor_gpx_direction, const char* sensor_location,
+    const char* sensor_alarm_message, const char* sensor_alarm_severity);
 
 // Configuration accessors
 // FIXME: why do we need that? zconfig_get should already do this, no?
@@ -99,6 +105,125 @@ str_replace(const char *in, const char *pattern, const char *by)
     strcpy(res + resoffset, in);
 
     return res;
+}
+
+//  --------------------------------------------------------------------------
+//  Save the provided GPIO sensor to the config file
+
+void save_monitored_sensor (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor)
+{
+    if (!self->config_file) {
+        zsys_debug ("%s: no configuration file provided. Skipping!", __func__);
+        return;
+    }
+
+    if (!sensor) {
+        zsys_debug ("%s: no sensor info provided to persist. Skipping!", __func__);
+        return;
+    }
+
+    zconfig_t *config_file = zconfig_load (self->config_file);
+    if (!config_file) {
+        zsys_debug ("Can't access sensors list in configuration file");
+        return;
+    }
+    // Acquire the 'sensors' section
+    zconfig_t *sensors_list = zconfig_locate (config_file, "sensors");
+    if (sensors_list) {
+        zconfig_t *sensor_entry = zconfig_new (sensor->asset_name, sensors_list);
+        zconfig_put (sensor_entry, "ext-name", sensor->ext_name);
+        zconfig_put (sensor_entry, "part-number", sensor->part_number);
+        zconfig_put (sensor_entry, "type", sensor->type);
+        zconfig_put (sensor_entry, "location", sensor->location);
+        zconfig_put (sensor_entry, "normal-state",
+            libgpio_get_status_string(&self->gpio_lib, sensor->normal_state).c_str());
+        char str_gpx_number[3];
+        memset(str_gpx_number, 0, 3);
+        snprintf(str_gpx_number, 3, "%i", sensor->gpx_number);
+        zconfig_put (sensor_entry, "gpx-number", str_gpx_number);
+        if ( sensor->gpx_direction == GPIO_DIRECTION_OUT )
+            zconfig_put (sensor_entry, "gpx-direction", "GPO");
+        else
+            zconfig_put (sensor_entry, "gpx-direction", "GPI");
+        zconfig_put (sensor_entry, "alarm-message", sensor->alarm_message);
+        zconfig_put (sensor_entry, "alarm-severity", sensor->alarm_severity);
+
+        zconfig_save (config_file, self->config_file); // FIXME: test ret code
+    }
+}
+
+//  --------------------------------------------------------------------------
+//  Delete the provided GPIO sensor from the config file
+
+void delete_monitored_sensor (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor)
+{
+    if (!self->config_file) {
+        zsys_debug ("%s: no configuration file provided. Skipping!", __func__);
+        return;
+    }
+
+    if (!sensor) {
+        zsys_debug ("%s: no sensor info provided to persist. Skipping!", __func__);
+        return;
+    }
+
+    zconfig_t *config_file = zconfig_load (self->config_file);
+    if (!config_file) {
+        zsys_debug ("Can't access sensors list in configuration file");
+        return;
+    }
+
+    // Acquire the 'sensors' section
+    zconfig_t *sensors_list = zconfig_locate (config_file, "sensors");
+    if (sensors_list) {
+        zconfig_t *sensor_entry = zconfig_locate (sensors_list, sensor->asset_name);
+        if (sensor_entry) {
+            zconfig_destroy (&sensor_entry);
+            zconfig_save (config_file, self->config_file); // FIXME: test ret code
+        }
+    }
+}
+
+//  --------------------------------------------------------------------------
+//  Load the list of monitored GPIO sensor(s) persisted in the config file
+
+void load_configured_sensors (fty_sensor_gpio_server_t *self)
+{
+    if (!self->config_file) {
+        zsys_debug ("%s: no configuration file provided. Skipping!", __func__);
+        return;
+    }
+
+    zconfig_t *config_file = zconfig_load (self->config_file);
+    if (!config_file) {
+        zsys_debug ("Can't load sensors list from configuration file");
+        return;
+    }
+
+    zconfig_t *sensors_list = zconfig_locate (config_file, "sensors");
+    if (sensors_list) {
+        zconfig_t *sensor_entry = zconfig_child (sensors_list);
+        while (sensor_entry) {
+            const char* assetname = zconfig_name (sensor_entry);
+            const char *extname = s_get (sensor_entry, "ext-name", "");
+            const char* part_number = s_get (sensor_entry, "part-number", "");
+            const char* sensor_type = s_get (sensor_entry, "type", "");
+            const char* sensor_location = s_get (sensor_entry, "location", "");
+            const char* sensor_normal_state = s_get (sensor_entry, "normal-state", "");
+            const char* sensor_gpx_number = s_get (sensor_entry, "gpx-number", "");
+            const char* sensor_gpx_direction = s_get (sensor_entry, "gpx_direction", "");
+            const char* sensor_alarm_message = s_get (sensor_entry, "alarm-message", "");
+            const char* sensor_alarm_severity = s_get (sensor_entry, "alarm-severity", "");
+
+            add_sensor( self, assetname, extname, part_number,
+                        sensor_type, sensor_normal_state,
+                        sensor_gpx_number, sensor_gpx_direction, sensor_location,
+                        sensor_alarm_message, sensor_alarm_severity);
+
+            // Get info of the next sensor
+            sensor_entry = zconfig_next (sensor_entry);
+        }
+    }
 }
 
 //  --------------------------------------------------------------------------
@@ -236,7 +361,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
 
         // Get the current sensor status
         gpx_info->current_state = libgpio_read(&self->gpio_lib, gpx_info->gpx_number);
-        if (gpx_info->current_state == GPIO_STATUS_UNKNOWN) {
+        if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
             zsys_debug ("Can't read GPI sensor #%i status", gpx_info->gpx_number);
             continue;
         }
@@ -466,8 +591,8 @@ _gpx_info_t *sensor_new()
     gpx_info->part_number = NULL;
     gpx_info->type = NULL;
     gpx_info->location = NULL;
-    gpx_info->normal_state = GPIO_STATUS_UNKNOWN;
-    gpx_info->current_state = GPIO_STATUS_UNKNOWN;
+    gpx_info->normal_state = GPIO_STATE_UNKNOWN;
+    gpx_info->current_state = GPIO_STATE_UNKNOWN;
     gpx_info->gpx_number = -1;
     gpx_info->gpx_direction = GPIO_DIRECTION_IN; // Default to GPI
     gpx_info->alarm_message = NULL;
@@ -481,6 +606,8 @@ _gpx_info_t *sensor_new()
 //  Add a new entry to our zlist of monitored sensors
 /*static int
 add_sensor(fty_sensor_gpio_server_t *self, string config_template_filename, fty_proto_t *ftymessage)
+static int
+add_sensor(fty_sensor_gpio_server_t *self, zconfig_t *sensor_config, fty_proto_t *ftymessage)
 */
 static int
 add_sensor(fty_sensor_gpio_server_t *self,
@@ -503,9 +630,9 @@ add_sensor(fty_sensor_gpio_server_t *self,
     gpx_info->part_number = strdup(asset_subtype);
     gpx_info->type = strdup(sensor_type);
     if ( streq (sensor_normal_state, "opened" ) )
-        gpx_info->normal_state = GPIO_STATUS_OPENED;
+        gpx_info->normal_state = GPIO_STATE_OPENED;
     else if ( streq (sensor_normal_state, "closed") )
-        gpx_info->normal_state = GPIO_STATUS_CLOSED;
+        gpx_info->normal_state = GPIO_STATE_CLOSED;
     gpx_info->gpx_number = atoi(sensor_gpx_number);
     if ( streq (sensor_gpx_direction, "GPO" ) )
         gpx_info->gpx_direction = GPIO_DIRECTION_OUT;
@@ -524,12 +651,15 @@ add_sensor(fty_sensor_gpio_server_t *self,
 
     // Don't free gpx_info, it will be done a TERM time
 
-    zsys_debug ("%s sensor '%s' (%s) added with\n\tmodel: %s\n\ttype:%s \
+    zsys_debug ("%s sensor '%s' (%s) added with\n\tmodel: %s\n\ttype: %s \
     \n\tnormal-state: %s\n\tPin number: %s\n\tlocation: %s \
     \n\talarm-message: %s\n\talarm-severity: %s",
         sensor_gpx_direction, extname, assetname, asset_subtype,
         sensor_type, sensor_normal_state, sensor_gpx_number, sensor_location,
         sensor_alarm_message, sensor_alarm_severity);
+
+    // Persist to config file
+    save_monitored_sensor (self, gpx_info);
 
     return 0;
 }
@@ -557,6 +687,9 @@ delete_sensor(fty_sensor_gpio_server_t *self, const char* assetname)
         return 1;
     else {
         zsys_debug ("Deleting '%s'", assetname);
+        // Delete from config file
+        delete_monitored_sensor (self, gpx_info_result);
+        // Delete from zlist
         zlistx_delete (self->gpx_list, (void *)gpx_info_result);
     }
     return 0;
@@ -693,7 +826,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
         zsys_error ("Adress for fty-sensor-gpio actor is NULL");
         return;
     }
-    
+
     fty_sensor_gpio_server_t *self = fty_sensor_gpio_server_new(name);
     assert (self);
 
@@ -738,6 +871,8 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     self->config_file = strdup(config_filename);
                     zsys_debug ("fty_sensor_gpio: setting CONFIG to %s", config_filename);
                     zstr_free (&config_filename);
+                    // Load configured sensors, if any
+                    load_configured_sensors (self);
                 }
                 else if (streq (cmd, "PRODUCER")) {
                     char *stream = zmsg_popstr (message);

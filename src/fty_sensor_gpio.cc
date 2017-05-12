@@ -29,26 +29,13 @@
 #include "fty_sensor_gpio_classes.h"
 
 // TODO:
-// 2) fty-sensor-gpio starts
-// 2.1) fty-sensor-gpio read its configuration file (/etc/fty-sensor-gpio/fty-sensor-gpio.conf)
-// 2.2) fty-sensor-gpio loads the needed templates
-// 2.3) fty-sensor-gpio main-loop
-// =>
-// 2) fty-sensor-gpio starts
-// 2.1) fty-sensor-gpio read its configuration file (/etc/fty-sensor-gpio/fty-sensor-gpio.conf)
-// 2.2) fty-sensor-gpio listen to assets listing, filtering on
-//      type=sensor and ext. attribute 'model' known in the supported catalog (data/<model>.tpl)
-//      [and parent == self IPC?!]
-// 2.3) fty-sensor-gpio loads the needed templates and add the sensor to the monitored list
-// 2.4) fty-sensor-gpio main-loop
-//     listen to asset additions as for 2.2 / 2.3
-//     read status of all configured GPI
-//     check the current status of the GPI
-//     generate an alarm on the MQ if current state != normal state, using the alarm message or code from the template
-// 
-// 
-// ??? GPO handling ??? postponed
-// can be a message on the bus requesting GPOx to be activated
+// * persist monitored sensors (and reload at startup)
+//     void zconfig_put (zconfig_t *self, const char *path, const char *value);
+//     int zconfig_save (zconfig_t *self, const char *filename);
+// * Dedicated alert actor
+// * GPO handling (MAILBOX message requesting GPOx to be activated)
+// * Sensors manifest (MAILBOX message requesting the list of supported sensors
+//   and details, inc. normal state)
 
 void
 usage(){
@@ -115,7 +102,7 @@ int main (int argc, char *argv [])
             verbose = true;
         }
         // Polling interval
-        str_poll_interval = s_get (config, "server/poll_interval", "-1");
+        str_poll_interval = s_get (config, "server/poll_interval", "2000");
         if (str_poll_interval) {
             poll_interval = atoi(str_poll_interval);
         }
@@ -138,6 +125,7 @@ int main (int argc, char *argv [])
     zstr_sendx (server, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
     zstr_sendx (server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
+    zstr_sendx (server, "CONFIG", config_file, NULL);
     // 2nd stream to only publish alerts
     zstr_sendx (server, "ALERT-CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
     zstr_sendx (server, "ALERT-PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);

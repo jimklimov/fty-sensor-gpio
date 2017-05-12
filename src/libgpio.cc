@@ -116,7 +116,7 @@ libgpio_write (libgpio_t **self_p, int GPO_number, int value)
         return(-1);
     }
 
-    if (write(fd, &s_values_str[GPIO_STATUS_CLOSED == value ? 0 : 1], 1) != 1) {
+    if (write(fd, &s_values_str[GPIO_STATE_CLOSED == value ? 0 : 1], 1) != 1) {
         fprintf(stderr, "Failed to write value!\n");
         retval = -1;
     }
@@ -134,13 +134,13 @@ libgpio_get_status_string (libgpio_t **self_p, int value)
     string status_str;
 
     switch (value) {
-        case GPIO_STATUS_CLOSED:
+        case GPIO_STATE_CLOSED:
             status_str = "closed";
             break;
-        case GPIO_STATUS_OPENED:
+        case GPIO_STATE_OPENED:
             status_str = "opened";
             break;
-        case GPIO_STATUS_UNKNOWN:
+        case GPIO_STATE_UNKNOWN:
         default:
             status_str = ""; // FIXME: return "unknown"?
     }

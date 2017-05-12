@@ -30,9 +30,9 @@
 #define GPIO_DIRECTION_OUT   1
 
 // GPIO Status value
-#define GPIO_STATUS_UNKNOWN -1
-#define GPIO_STATUS_CLOSED   0
-#define GPIO_STATUS_OPENED   1
+#define GPIO_STATE_UNKNOWN -1
+#define GPIO_STATE_CLOSED   0
+#define GPIO_STATE_OPENED   1
 
 // Defines
 #define GPIO_BUFFER_MAX      4
