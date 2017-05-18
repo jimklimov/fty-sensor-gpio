@@ -153,7 +153,8 @@ void save_monitored_sensor (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor)
         }
         else {
             // Else check for updating entries!
-            zsys_debug ("Sensor '%s' already present in the config file. Skipping!");
+            zsys_debug ("%s: Sensor '%s' already present in the config file. Skipping!",
+                __func__, sensor->asset_name);
         }
     } // FIXME: Else, create a node for sensors!
 }
@@ -206,6 +207,7 @@ void load_configured_sensors (fty_sensor_gpio_server_t *self)
         return;
     }
 
+    // FIXME: check if still present in assets since we may miss publications!
     zconfig_t *sensors_list = zconfig_locate (config_file, "sensors");
     if (sensors_list) {
         zconfig_t *sensor_entry = zconfig_child (sensors_list);
@@ -217,9 +219,11 @@ void load_configured_sensors (fty_sensor_gpio_server_t *self)
             const char* sensor_location = s_get (sensor_entry, "location", "");
             const char* sensor_normal_state = s_get (sensor_entry, "normal-state", "");
             const char* sensor_gpx_number = s_get (sensor_entry, "gpx-number", "");
-            const char* sensor_gpx_direction = s_get (sensor_entry, "gpx_direction", "");
+            const char* sensor_gpx_direction = s_get (sensor_entry, "gpx-direction", "");
             const char* sensor_alarm_message = s_get (sensor_entry, "alarm-message", "");
             const char* sensor_alarm_severity = s_get (sensor_entry, "alarm-severity", "");
+
+            zsys_debug ("%s: assetname is %s", __func__, assetname);
 
             add_sensor( self, assetname, extname, part_number,
                         sensor_type, sensor_normal_state,
@@ -653,6 +657,7 @@ add_sensor(fty_sensor_gpio_server_t *self,
     else {
         // else: check for updating fields
         zsys_debug ("Sensor '%s' is already monitored. Skipping!", assetname);
+        return 0;
     }
 
     // Don't free gpx_info, it will be done a TERM time
