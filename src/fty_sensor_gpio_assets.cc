@@ -61,6 +61,9 @@ void sensor_free(void **item)
     if (!gpx_info)
         return;
 
+    if (gpx_info->manufacturer)
+        free(gpx_info->manufacturer);
+
     if (gpx_info->asset_name)
         free(gpx_info->asset_name);
 
@@ -113,6 +116,7 @@ _gpx_info_t *sensor_new()
         return NULL;
     }
 
+    gpx_info->manufacturer = NULL;
     gpx_info->asset_name = NULL;
     gpx_info->ext_name = NULL;
     gpx_info->part_number = NULL;
@@ -138,7 +142,7 @@ add_sensor(fty_sensor_gpio_assets_t *self, zconfig_t *sensor_config, fty_proto_t
 */
 static int
 add_sensor(fty_sensor_gpio_assets_t *self,
-    const char* assetname, const char* extname,
+    const char* manufacturer, const char* assetname, const char* extname,
     const char* asset_subtype, const char* sensor_type,
     const char* sensor_normal_state, const char* sensor_gpx_number,
     const char* sensor_gpx_direction, const char* sensor_location,
@@ -152,6 +156,7 @@ add_sensor(fty_sensor_gpio_assets_t *self,
         return 1;
     }
 
+    gpx_info->manufacturer = strdup(manufacturer);
     gpx_info->asset_name = strdup(assetname);
     gpx_info->ext_name = strdup(extname);
     gpx_info->part_number = strdup(asset_subtype);
@@ -181,10 +186,10 @@ add_sensor(fty_sensor_gpio_assets_t *self,
 
     // Don't free gpx_info, it will be done a TERM time
 
-    zsys_debug ("%s sensor '%s' (%s) added with\n\tmodel: %s\n\ttype: %s \
-    \n\tnormal-state: %s\n\tPin number: %s\n\tlocation: %s \
+    zsys_debug ("%s sensor '%s' (%s) added with\n\tmanufacturer: %s\n\tmodel: %s \
+    \n\ttype: %s\n\tnormal-state: %s\n\tPin number: %s\n\tlocation: %s \
     \n\talarm-message: %s\n\talarm-severity: %s",
-        sensor_gpx_direction, extname, assetname, asset_subtype,
+        sensor_gpx_direction, manufacturer, extname, assetname, asset_subtype,
         sensor_type, sensor_normal_state, sensor_gpx_number, sensor_location,
         sensor_alarm_message, sensor_alarm_severity);
 
@@ -317,6 +322,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
             return;
         }
         // Get static info from template
+        const char *manufacturer = s_get (config_template, "manufacturer", "");
         const char *sensor_type = s_get (config_template, "type", "");
         const char *sensor_alarm_message = s_get (config_template, "alarm-message", "");
         // Get from user config
@@ -342,7 +348,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
             return;
         }
 
-        add_sensor( self, assetname, extname, asset_model,
+        add_sensor( self, manufacturer, assetname, extname, asset_model,
                     sensor_type, sensor_normal_state,
                     sensor_gpx_number, sensor_gpx_direction, sensor_location,
                     sensor_alarm_message, sensor_alarm_severity);
@@ -476,6 +482,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                         zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
                     zsys_debug("fty-gpio-sensor-assets: CONNECT %s/%s", endpoint, self->name);
                     zstr_free (&endpoint);
+                    zsock_signal (pipe, 0);
                 }
                 else if (streq (cmd, "PRODUCER")) {
                     char *stream = zmsg_popstr (message);
@@ -484,6 +491,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                     zsys_debug ("fty-gpio-sensor-assets: setting PRODUCER on %s", stream);
                     zstr_free (&stream);
                     request_sensor_assets(self);
+                    zsock_signal (pipe, 0);
                 }
                 else if (streq (cmd, "CONSUMER")) {
                     char *stream = zmsg_popstr (message);
@@ -493,6 +501,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                     zsys_debug ("fty-gpio-sensor-assets: setting CONSUMER on %s/%s", stream, pattern);
                     zstr_free (&stream);
                     zstr_free (&pattern);
+                    zsock_signal (pipe, 0);
                 }
                 else if (streq (cmd, "VERBOSE")) {
                     self->verbose = true;
