@@ -1,3 +1,4 @@
+manufacturer   = Eaton
 part-number    = WLD012
 type           = water-leak-detector
 normal-state   = opened

@@ -1,3 +1,4 @@
+manufacturer   = Eaton
 part-number    = M12
 type           = smoke-detector
 normal-state   = opened
