@@ -367,10 +367,12 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
     zmsg_addstr (msg, "GET");
     zmsg_addstr (msg, "sensor");
     int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS", NULL, 5000, &msg);
-    if (rv != 0) {
+    if (rv != 0)
         zsys_error ("%s:\tRequest sensors list failed", self->name);
-        zmsg_destroy (&msg);
-    }
+    else
+        zsys_debug ("%s:\tSensors list request sent successfully", self->name);
+
+    zmsg_destroy (&msg);
 }
 
 //  --------------------------------------------------------------------------
