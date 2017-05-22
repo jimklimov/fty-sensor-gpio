@@ -207,7 +207,7 @@ delete_sensor(fty_sensor_gpio_assets_t *self, const char* assetname)
         return 1;
     }
 
-    gpx_info_result = (_gpx_info_t*)zlistx_find (self->gpx_list, (void *) gpx_info);
+    gpx_info_result = (_gpx_info_t*)zlistx_find (_gpx_list, (void *) gpx_info);
     sensor_free((void**)&gpx_info);
 
     if ( gpx_info_result == NULL )
@@ -215,7 +215,7 @@ delete_sensor(fty_sensor_gpio_assets_t *self, const char* assetname)
     else {
         zsys_debug ("Deleting '%s'", assetname);
         // Delete from zlist
-        zlistx_delete (self->gpx_list, (void *)gpx_info_result);
+        zlistx_delete (_gpx_list, (void *)gpx_info_result);
     }
     return 0;
 }
@@ -417,8 +417,8 @@ fty_sensor_gpio_assets_destroy (fty_sensor_gpio_assets_t **self_p)
     if (*self_p) {
         fty_sensor_gpio_assets_t *self = *self_p;
         //  Free class properties here
-        zlistx_purge (self->gpx_list);
-        zlistx_destroy (&self->gpx_list);
+        zlistx_purge (_gpx_list);
+        zlistx_destroy (&_gpx_list);
         free(self->name);
         mlm_client_destroy (&self->mlm);
         //  Free object itself
