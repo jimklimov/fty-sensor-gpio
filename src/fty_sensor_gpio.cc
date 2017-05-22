@@ -29,6 +29,7 @@
 #include "fty_sensor_gpio_classes.h"
 
 // TODO:
+// * REQ fty-asset to REPUBLISH /$all (better than just listening for repub and persist!)
 // * Add 'location' / parent.name
 //   + Asset management and update existing entries
 // * Dedicated alert actor
@@ -126,9 +127,6 @@ int main (int argc, char *argv [])
     zstr_sendx (server, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
     zstr_sendx (server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
-    if(config_file) {
-        zstr_sendx (server, "CONFIG", config_file, NULL);
-    }
     // 2nd stream to only publish alerts
     zstr_sendx (server, "ALERT-CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
     zstr_sendx (server, "ALERT-PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);

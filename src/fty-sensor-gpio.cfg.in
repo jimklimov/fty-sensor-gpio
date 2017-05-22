@@ -10,5 +10,3 @@ server
 malamute
     endpoint = ipc://@/malamute                     #   Malamute endpoint
     address = fty-sensor-gpio                       #   Agent address
-
-sensors

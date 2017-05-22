@@ -40,6 +40,7 @@ all_tests [] = {
 // Tests for draft public classes:
     { "libgpio", libgpio_test },
     { "fty_sensor_gpio_server", fty_sensor_gpio_server_test },
+    { "fty_sensor_gpio_actor", fty_sensor_gpio_actor_test },
 #endif // FTY_SENSOR_GPIO_BUILD_DRAFT_API
 #ifdef FTY_SENSOR_GPIO_BUILD_DRAFT_API
     { "private_classes", fty_sensor_gpio_private_selftest },
@@ -101,7 +102,7 @@ main (int argc, char **argv)
         else
         if (streq (argv [argn], "--number")
         ||  streq (argv [argn], "-n")) {
-            puts ("2");
+            puts ("3");
             return 0;
         }
         else
@@ -110,6 +111,7 @@ main (int argc, char **argv)
             puts ("Available tests:");
             puts ("    libgpio\t\t- draft");
             puts ("    fty_sensor_gpio_server\t\t- draft");
+            puts ("    fty_sensor_gpio_actor\t\t- draft");
             puts ("    private_classes\t- draft");
             return 0;
         }

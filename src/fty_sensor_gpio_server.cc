@@ -107,134 +107,6 @@ str_replace(const char *in, const char *pattern, const char *by)
     return res;
 }
 
-//  --------------------------------------------------------------------------
-//  Save the provided GPIO sensor to the config file
-
-void save_monitored_sensor (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor)
-{
-    if (!self->config_file) {
-        zsys_debug ("%s: no configuration file provided. Skipping!", __func__);
-        return;
-    }
-
-    if (!sensor) {
-        zsys_debug ("%s: no sensor info provided to persist. Skipping!", __func__);
-        return;
-    }
-
-    zconfig_t *config_file = zconfig_load (self->config_file);
-    if (!config_file) {
-        zsys_debug ("Can't access sensors list in configuration file");
-        return;
-    }
-    // Acquire the 'sensors' section
-    zconfig_t *sensors_list = zconfig_locate (config_file, "sensors");
-    if (sensors_list) {
-        if (!zconfig_locate (sensors_list, sensor->asset_name)) {
-            zconfig_t *sensor_entry = zconfig_new (sensor->asset_name, sensors_list);
-            zconfig_put (sensor_entry, "ext-name", sensor->ext_name);
-            zconfig_put (sensor_entry, "part-number", sensor->part_number);
-            zconfig_put (sensor_entry, "type", sensor->type);
-            zconfig_put (sensor_entry, "location", sensor->location);
-            zconfig_put (sensor_entry, "normal-state",
-                libgpio_get_status_string(&self->gpio_lib, sensor->normal_state).c_str());
-            char str_gpx_number[3];
-            memset(str_gpx_number, 0, 3);
-            snprintf(str_gpx_number, 3, "%i", sensor->gpx_number);
-            zconfig_put (sensor_entry, "gpx-number", str_gpx_number);
-            if ( sensor->gpx_direction == GPIO_DIRECTION_OUT )
-                zconfig_put (sensor_entry, "gpx-direction", "GPO");
-            else
-                zconfig_put (sensor_entry, "gpx-direction", "GPI");
-            zconfig_put (sensor_entry, "alarm-message", sensor->alarm_message);
-            zconfig_put (sensor_entry, "alarm-severity", sensor->alarm_severity);
-
-            zconfig_save (config_file, self->config_file); // FIXME: test ret code
-        }
-        else {
-            // Else check for updating entries!
-            zsys_debug ("%s: Sensor '%s' already present in the config file. Skipping!",
-                __func__, sensor->asset_name);
-        }
-    } // FIXME: Else, create a node for sensors!
-}
-
-//  --------------------------------------------------------------------------
-//  Delete the provided GPIO sensor from the config file
-
-void delete_monitored_sensor (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor)
-{
-    if (!self->config_file) {
-        zsys_debug ("%s: no configuration file provided. Skipping!", __func__);
-        return;
-    }
-
-    if (!sensor) {
-        zsys_debug ("%s: no sensor info provided to persist. Skipping!", __func__);
-        return;
-    }
-
-    zconfig_t *config_file = zconfig_load (self->config_file);
-    if (!config_file) {
-        zsys_debug ("Can't access sensors list in configuration file");
-        return;
-    }
-
-    // Acquire the 'sensors' section
-    zconfig_t *sensors_list = zconfig_locate (config_file, "sensors");
-    if (sensors_list) {
-        zconfig_t *sensor_entry = zconfig_locate (sensors_list, sensor->asset_name);
-        if (sensor_entry) {
-            zconfig_destroy (&sensor_entry);
-            zconfig_save (config_file, self->config_file); // FIXME: test ret code
-        }
-    }
-}
-
-//  --------------------------------------------------------------------------
-//  Load the list of monitored GPIO sensor(s) persisted in the config file
-
-void load_configured_sensors (fty_sensor_gpio_server_t *self)
-{
-    if (!self->config_file) {
-        zsys_debug ("%s: no configuration file provided. Skipping!", __func__);
-        return;
-    }
-
-    zconfig_t *config_file = zconfig_load (self->config_file);
-    if (!config_file) {
-        zsys_debug ("Can't load sensors list from configuration file");
-        return;
-    }
-
-    // FIXME: check if still present in assets since we may miss publications!
-    zconfig_t *sensors_list = zconfig_locate (config_file, "sensors");
-    if (sensors_list) {
-        zconfig_t *sensor_entry = zconfig_child (sensors_list);
-        while (sensor_entry) {
-            const char* assetname = zconfig_name (sensor_entry);
-            const char *extname = s_get (sensor_entry, "ext-name", "");
-            const char* part_number = s_get (sensor_entry, "part-number", "");
-            const char* sensor_type = s_get (sensor_entry, "type", "");
-            const char* sensor_location = s_get (sensor_entry, "location", "");
-            const char* sensor_normal_state = s_get (sensor_entry, "normal-state", "");
-            const char* sensor_gpx_number = s_get (sensor_entry, "gpx-number", "");
-            const char* sensor_gpx_direction = s_get (sensor_entry, "gpx-direction", "");
-            const char* sensor_alarm_message = s_get (sensor_entry, "alarm-message", "");
-            const char* sensor_alarm_severity = s_get (sensor_entry, "alarm-severity", "");
-
-            zsys_debug ("%s: assetname is %s", __func__, assetname);
-
-            add_sensor( self, assetname, extname, part_number,
-                        sensor_type, sensor_normal_state,
-                        sensor_gpx_number, sensor_gpx_direction, sensor_location,
-                        sensor_alarm_message, sensor_alarm_severity);
-
-            // Get info of the next sensor
-            sensor_entry = zconfig_next (sensor_entry);
-        }
-    }
-}
 
 //  --------------------------------------------------------------------------
 //  Publish an alert for the pointed GPIO sensor
@@ -669,9 +541,6 @@ add_sensor(fty_sensor_gpio_server_t *self,
         sensor_type, sensor_normal_state, sensor_gpx_number, sensor_location,
         sensor_alarm_message, sensor_alarm_severity);
 
-    // Persist to config file
-    save_monitored_sensor (self, gpx_info);
-
     return 0;
 }
 
@@ -698,8 +567,6 @@ delete_sensor(fty_sensor_gpio_server_t *self, const char* assetname)
         return 1;
     else {
         zsys_debug ("Deleting '%s'", assetname);
-        // Delete from config file
-        delete_monitored_sensor (self, gpx_info_result);
         // Delete from zlist
         zlistx_delete (self->gpx_list, (void *)gpx_info_result);
     }
@@ -875,15 +742,6 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                         zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
                     zsys_debug("fty-gpio-sensor-server: CONNECT %s/%s", endpoint, self->name);
                     zstr_free (&endpoint);
-                }
-                else if (streq (cmd, "CONFIG")) {
-                    char *config_filename = zmsg_popstr (message);
-                    assert (config_filename);
-                    self->config_file = strdup(config_filename);
-                    zsys_debug ("fty_sensor_gpio: setting CONFIG to %s", config_filename);
-                    zstr_free (&config_filename);
-                    // Load configured sensors, if any
-                    load_configured_sensors (self);
                 }
                 else if (streq (cmd, "PRODUCER")) {
                     char *stream = zmsg_popstr (message);
