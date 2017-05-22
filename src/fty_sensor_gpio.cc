@@ -28,6 +28,8 @@
 
 #include "fty_sensor_gpio_classes.h"
 
+//zlistx_t *_gpx_list = NULL;
+
 // TODO:
 // * REQ fty-asset to REPUBLISH /$all (better than just listening for repub and persist!)
 // * Add 'location' / parent.name
@@ -48,6 +50,16 @@ usage(){
     puts ("  -e|--endpoint       malamute endpoint [ipc://@/malamute]");
 
 }
+
+//  --------------------------------------------------------------------------
+//  Return a copy of the list of monitored sensors
+#if 0
+zlistx_t *
+get_gpx_list()
+{
+    return zlistx_dup (_gpx_list); 
+}
+#endif
 
 // Send an update request over the MQ to check for GPIO status
 static int
@@ -117,19 +129,28 @@ int main (int argc, char *argv [])
     if (getenv ("BIOS_LOG_LEVEL") && streq (getenv ("BIOS_LOG_LEVEL"), "LOG_DEBUG"))
         verbose = true;
 
+    zactor_t *assets = zactor_new (fty_sensor_gpio_assets, (void*)actor_name);
     zactor_t *server = zactor_new (fty_sensor_gpio_server, (void*)actor_name);
+//    zactor_t *alerts = zactor_new (fty_sensor_gpio_alerts, (void*)actor_name);
 
     if (verbose) {
         zstr_sendx (server, "VERBOSE", NULL);
         zsys_info ("%s - Agent which manages GPI sensors and GPO devices", actor_name);
     }
 
+    // 1rst (main) stream to handle GPx polling, metrics publication and mailbox
     zstr_sendx (server, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
-    zstr_sendx (server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
+//    zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
-    // 2nd stream to only publish alerts
-    zstr_sendx (server, "ALERT-CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
-    zstr_sendx (server, "ALERT-PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);
+    
+    // 2nd stream to handle assets
+    zstr_sendx (assets, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
+    zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
+    zstr_sendx (assets, "PRODUCER", FTY_PROTO_STREAM_ASSETS, NULL);
+
+    // 3rd stream to publish and manage alerts
+//    zstr_sendx (alerts, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
+//    zstr_sendx (alerts, "PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);
 
     // Setup an update event message every x seconds, to check GPI status
     zloop_t *gpio_status_update = zloop_new();
@@ -138,5 +159,11 @@ int main (int argc, char *argv [])
 
     zloop_destroy (&gpio_status_update);
     zactor_destroy (&server);
+    zactor_destroy (&assets);
+//    zactor_destroy (&alerts);
+    
+    // FIXME:
+    // cleanup gpx_list
+    // ...
     return 0;
 }

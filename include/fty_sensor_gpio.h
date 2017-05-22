@@ -36,10 +36,13 @@ using namespace std;
 #define FTY_SENSOR_GPIO_AGENT "fty-sensor-gpio"
 #define DEFAULT_POLL_INTERVAL 2000
 
+// TODO: get from config
+#define TIMEOUT_MS -1   //wait infinitelly
+
 //  Structure to store information on a monitored GPI
 //  This includes both the template and configuration information
 
-// FIXME: replace with some zlist...
+// Structure of unitary monitored GPx
 typedef struct _gpx_info_s {
     char* asset_name;     // sensor asset name
     char* ext_name;       // sensor name
@@ -53,11 +56,12 @@ typedef struct _gpx_info_s {
     char* alarm_message;  // Alert message to publish
     char* alarm_severity; // Applied severity
 } _gpx_info_t;
- 
 
 // Config file accessors
 const char* s_get (zconfig_t *config, const char* key, std::string &dfl);
 const char* s_get (zconfig_t *config, const char* key, const char*dfl);
 
+extern zlistx_t *_gpx_list;
+extern zlistx_t * get_gpx_list();
 
 #endif

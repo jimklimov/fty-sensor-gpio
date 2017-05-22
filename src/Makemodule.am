@@ -19,7 +19,9 @@ include_HEADERS = \
 if ENABLE_DRAFTS
 include_HEADERS += \
     include/libgpio.h \
-    include/fty_sensor_gpio_server.h
+    include/fty_sensor_gpio_server.h \
+    include/fty_sensor_gpio_alerts.h \
+    include/fty_sensor_gpio_assets.h
 
 endif
 src_libfty_sensor_gpio_la_SOURCES = \
@@ -28,7 +30,9 @@ src_libfty_sensor_gpio_la_SOURCES = \
 if ENABLE_DRAFTS
 src_libfty_sensor_gpio_la_SOURCES += \
     src/libgpio.cc \
-    src/fty_sensor_gpio_server.cc
+    src/fty_sensor_gpio_server.cc \
+    src/fty_sensor_gpio_alerts.cc \
+    src/fty_sensor_gpio_assets.cc
 
 endif
 

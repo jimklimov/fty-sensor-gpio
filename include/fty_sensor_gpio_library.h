@@ -80,6 +80,10 @@ typedef struct _libgpio_t libgpio_t;
 #define LIBGPIO_T_DEFINED
 typedef struct _fty_sensor_gpio_server_t fty_sensor_gpio_server_t;
 #define FTY_SENSOR_GPIO_SERVER_T_DEFINED
+typedef struct _fty_sensor_gpio_alerts_t fty_sensor_gpio_alerts_t;
+#define FTY_SENSOR_GPIO_ALERTS_T_DEFINED
+typedef struct _fty_sensor_gpio_assets_t fty_sensor_gpio_assets_t;
+#define FTY_SENSOR_GPIO_ASSETS_T_DEFINED
 #endif // FTY_SENSOR_GPIO_BUILD_DRAFT_API
 
 
@@ -87,6 +91,8 @@ typedef struct _fty_sensor_gpio_server_t fty_sensor_gpio_server_t;
 #ifdef FTY_SENSOR_GPIO_BUILD_DRAFT_API
 #include "libgpio.h"
 #include "fty_sensor_gpio_server.h"
+#include "fty_sensor_gpio_alerts.h"
+#include "fty_sensor_gpio_assets.h"
 #endif // FTY_SENSOR_GPIO_BUILD_DRAFT_API
 
 #ifdef FTY_SENSOR_GPIO_BUILD_DRAFT_API
