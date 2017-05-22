@@ -135,18 +135,22 @@ int main (int argc, char *argv [])
 
     if (verbose) {
         zstr_sendx (server, "VERBOSE", NULL);
+        zstr_sendx (assets, "VERBOSE", NULL);
+        //zstr_sendx (alerts, "VERBOSE", NULL);
         zsys_info ("%s - Agent which manages GPI sensors and GPO devices", actor_name);
     }
 
-    // 1rst (main) stream to handle GPx polling, metrics publication and mailbox
+    // 1rst stream to handle assets
+    zstr_sendx (assets, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
+    zsock_wait (assets);
+    zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
+    zsock_wait (assets);
+    zstr_sendx (assets, "PRODUCER", FTY_PROTO_STREAM_ASSETS, NULL);
+
+    // 2nd (main) stream to handle GPx polling, metrics publication and mailbox requests
     zstr_sendx (server, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
 //    zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
-    
-    // 2nd stream to handle assets
-    zstr_sendx (assets, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
-    zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
-    zstr_sendx (assets, "PRODUCER", FTY_PROTO_STREAM_ASSETS, NULL);
 
     // 3rd stream to publish and manage alerts
 //    zstr_sendx (alerts, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT, NULL);
