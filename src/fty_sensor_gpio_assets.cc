@@ -276,6 +276,19 @@ is_asset_gpio_sensor (string asset_subtype, string asset_model)
 static void
 fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftymessage)
 {
+/* fty_asset_autoupdate.cc -> autoupdate_handle_message()
+    if (!self || !message ) return;
+
+    const char *sender = mlm_client_sender (self->client);
+    const char *subj = mlm_client_subject (self->client);
+    if (streq (sender, "asset-agent")) {
+        if (streq (subj, "ASSETS_IN_CONTAINER")) {
+            if ( self->verbose ) {
+                zsys_debug ("%s:\tGot reply with RC:", self->name);
+                zmsg_print (message);
+            }
+*/
+
     if (!self || !ftymessage) return;
     if (fty_proto_id (ftymessage) != FTY_PROTO_ASSET) return;
 
@@ -352,7 +365,6 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
         zsys_debug ("%s:\tRequest sensors list", self->name);
     zmsg_t *msg = zmsg_new ();
     zmsg_addstr (msg, "GET");
-    zmsg_addstr (msg, "");
     zmsg_addstr (msg, "sensor");
     int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS", NULL, 5000, &msg);
     if (rv != 0) {
