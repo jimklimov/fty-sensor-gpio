@@ -124,13 +124,13 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
 {
     zsys_debug ("%s_server: %s", self->name, __func__);
 
-    zmutex_lock (gpx_list_mutex);
+    pthread_mutex_lock (&gpx_list_mutex);
 
     // number of sensors monitored in gpx_list
     zlistx_t *gpx_list = get_gpx_list();
     if (!gpx_list) {
         zsys_debug ("GPx list not initialized, skipping");
-        zmutex_unlock (gpx_list_mutex);
+        pthread_mutex_unlock (&gpx_list_mutex);
         return;
     }
     int sensors_count = zlistx_size (gpx_list);
@@ -138,14 +138,14 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
 
     if (sensors_count == 0) {
         zsys_debug ("No sensors monitored");
-        zmutex_unlock (gpx_list_mutex);
+        pthread_mutex_unlock (&gpx_list_mutex);
         return;
     }
     else
         zsys_debug ("%i sensor(s) monitored", sensors_count);
 
     if(!mlm_client_connected(self->mlm)) {
-        zmutex_unlock (gpx_list_mutex);
+        pthread_mutex_unlock (&gpx_list_mutex);
         return;
     }
 
@@ -170,7 +170,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
 
         gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
     }
-    zmutex_unlock (gpx_list_mutex);
+    pthread_mutex_unlock (&gpx_list_mutex);
 }
 
 //  --------------------------------------------------------------------------

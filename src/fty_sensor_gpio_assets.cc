@@ -31,7 +31,7 @@
 // GPx list
 zlistx_t *_gpx_list = NULL;
 // GPx list protection mutex
-zmutex_t *gpx_list_mutex;
+pthread_mutex_t gpx_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 //  Structure of our class
 
@@ -179,7 +179,7 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     gpx_info->alarm_message = strdup(sensor_alarm_message);
     gpx_info->alarm_severity = strdup(sensor_alarm_severity);
 
-    zmutex_lock (gpx_list_mutex);
+    pthread_mutex_lock (&gpx_list_mutex);
 
     // Check for an already existing entry for this asset
     prev_gpx_info = (_gpx_info_t*)zlistx_find (_gpx_list, (void *) gpx_info);
@@ -189,17 +189,19 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
         if ( streq (operation, "update" ) ) {
             if (zlistx_delete (_gpx_list, (void *)prev_gpx_info) == -1) {
                 zsys_error ("Update: error deleting the previous GPx record for '%s'!", assetname);
+                pthread_mutex_unlock (&gpx_list_mutex);
                 return -1;
             }
         }
         else {
             zsys_debug ("Sensor '%s' is already monitored. Skipping!", assetname);
+            pthread_mutex_unlock (&gpx_list_mutex);
             return 0;
         }
     }
     zlistx_add_end (_gpx_list, (void *) gpx_info);
 
-    zmutex_unlock (gpx_list_mutex);
+    pthread_mutex_unlock (&gpx_list_mutex);
 
     // Don't free gpx_info, it will be done at TERM time
 
@@ -231,7 +233,7 @@ delete_sensor(fty_sensor_gpio_assets_t *self, const char* assetname)
         return 1;
     }
 
-    zmutex_lock (gpx_list_mutex);
+    pthread_mutex_lock (&gpx_list_mutex);
 
     gpx_info_result = (_gpx_info_t*)zlistx_find (_gpx_list, (void *) gpx_info);
     sensor_free((void**)&gpx_info);
@@ -244,7 +246,7 @@ delete_sensor(fty_sensor_gpio_assets_t *self, const char* assetname)
         // Delete from zlist
         zlistx_delete (_gpx_list, (void *)gpx_info_result);
     }
-    zmutex_unlock (gpx_list_mutex);
+    pthread_mutex_unlock (&gpx_list_mutex);
     return retval;
 }
 
@@ -421,8 +423,6 @@ fty_sensor_gpio_assets_new (const char* name)
     // Instanciated here and provided to all actors
     _gpx_list = zlistx_new ();
     assert (_gpx_list);
-    gpx_list_mutex = zmutex_new ();
-    assert (gpx_list_mutex);
 
     // Declare zlist item handlers
     zlistx_set_duplicator (_gpx_list, (czmq_duplicator *) sensor_dup);
@@ -445,7 +445,7 @@ fty_sensor_gpio_assets_destroy (fty_sensor_gpio_assets_t **self_p)
         //  Free class properties
         zlistx_purge (_gpx_list);
         zlistx_destroy (&_gpx_list);
-        zmutex_destroy (&gpx_list_mutex);
+        pthread_mutex_unlock (&gpx_list_mutex);
         free(self->name);
         mlm_client_destroy (&self->mlm);
         //  Free object itself

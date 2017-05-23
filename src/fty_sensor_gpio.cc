@@ -182,10 +182,7 @@ int main (int argc, char *argv [])
     zloop_destroy (&gpio_status_update);
     zactor_destroy (&server);
     zactor_destroy (&assets);
-//    zactor_destroy (&alerts);
-    
-    // FIXME:
-    // cleanup gpx_list
-    // ...
+    zactor_destroy (&alerts);
+
     return 0;
 }
