@@ -141,7 +141,7 @@ static int
 add_sensor(fty_sensor_gpio_assets_t *self, zconfig_t *sensor_config, fty_proto_t *ftymessage)
 */
 static int
-add_sensor(fty_sensor_gpio_assets_t *self,
+add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     const char* manufacturer, const char* assetname, const char* extname,
     const char* asset_subtype, const char* sensor_type,
     const char* sensor_normal_state, const char* sensor_gpx_number,
@@ -150,6 +150,7 @@ add_sensor(fty_sensor_gpio_assets_t *self,
 {
     // FIXME: check if already monitored! + sanity on < 10... AND pin not already declared/used
 
+    _gpx_info_t *prev_gpx_info = NULL;
     _gpx_info_t *gpx_info = sensor_new();
     if (!gpx_info) {
         zsys_debug ("ERROR: Can't allocate gpx_info!");
@@ -174,22 +175,30 @@ add_sensor(fty_sensor_gpio_assets_t *self,
     gpx_info->alarm_message = strdup(sensor_alarm_message);
     gpx_info->alarm_severity = strdup(sensor_alarm_severity);
 
-    //if (zlistx_find (self->gpx_list, (void *) gpx_info) == NULL)
-    if (zlistx_find (_gpx_list, (void *) gpx_info) == NULL)
-        //zlistx_add_end (self->gpx_list, (void *) gpx_info);
-        zlistx_add_end (_gpx_list, (void *) gpx_info);
-    else {
-        // else: check for updating fields
-        zsys_debug ("Sensor '%s' is already monitored. Skipping!", assetname);
-        return 0;
+    // Check for an already existing entry for this asset
+    prev_gpx_info = (_gpx_info_t*)zlistx_find (_gpx_list, (void *) gpx_info);
+
+    if ( prev_gpx_info != NULL) {
+        // In case of update, we remove the previous entry, and create a new one
+        if ( streq (operation, "update" ) ) {
+            if (zlistx_delete (_gpx_list, (void *)prev_gpx_info) == -1) {
+                zsys_error ("Update: error deleting the previous GPx record for '%s'!", assetname);
+                return -1;
+            }
+        }
+        else {
+            zsys_debug ("Sensor '%s' is already monitored. Skipping!", assetname);
+            return 0;
+        }
     }
+    zlistx_add_end (_gpx_list, (void *) gpx_info);
 
-    // Don't free gpx_info, it will be done a TERM time
+    // Don't free gpx_info, it will be done at TERM time
 
-    zsys_debug ("%s sensor '%s' (%s) added with\n\tmanufacturer: %s\n\tmodel: %s \
+    zsys_debug ("%s sensor '%s' (%s) %sd with\n\tmanufacturer: %s\n\tmodel: %s \
     \n\ttype: %s\n\tnormal-state: %s\n\tPin number: %s\n\tlocation: %s \
     \n\talarm-message: %s\n\talarm-severity: %s",
-        sensor_gpx_direction, manufacturer, extname, assetname, asset_subtype,
+        sensor_gpx_direction, extname, assetname, operation, manufacturer, asset_subtype,
         sensor_type, sensor_normal_state, sensor_gpx_number, sensor_location,
         sensor_alarm_message, sensor_alarm_severity);
 
@@ -348,7 +357,8 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
             return;
         }
 
-        add_sensor( self, manufacturer, assetname, extname, asset_model,
+        add_sensor( self, operation,
+                    manufacturer, assetname, extname, asset_model,
                     sensor_type, sensor_normal_state,
                     sensor_gpx_number, sensor_gpx_direction, sensor_location,
                     sensor_alarm_message, sensor_alarm_severity);
@@ -395,20 +405,14 @@ fty_sensor_gpio_assets_new (const char* name)
     self->verbose     = false;
     // Declare our zlist for GPIOs tracking
     // Instanciated here and provided to all actors
-#if 0
-    self->gpx_list = _gpx_list;
-    self->gpx_list = zlistx_new ();
-    assert (self->gpx_list);
-#endif
-_gpx_list = zlistx_new ();
+    _gpx_list = zlistx_new ();
+    assert (_gpx_list);
+
     // Declare zlist item handlers
     zlistx_set_duplicator (_gpx_list, (czmq_duplicator *) sensor_dup);
     zlistx_set_destructor (_gpx_list, (czmq_destructor *) sensor_free);
     zlistx_set_comparator (_gpx_list, (czmq_comparator *) sensor_cmp);
-/*    zlistx_set_duplicator (self->gpx_list, (czmq_duplicator *) sensor_dup);
-    zlistx_set_destructor (self->gpx_list, (czmq_destructor *) sensor_free);
-    zlistx_set_comparator (self->gpx_list, (czmq_comparator *) sensor_cmp);
-*/
+
     return self;
 }
 
