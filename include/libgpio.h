@@ -22,7 +22,7 @@
 #ifndef LIBGPIO_H_INCLUDED
 #define LIBGPIO_H_INCLUDED
 
-// Target at gpiochip488
+// Default target address of the GPIO chipset (gpiochip488 on IPC3000)
 #define GPIO_BASE_INDEX    488
 
 // Directions
@@ -53,17 +53,22 @@ FTY_SENSOR_GPIO_EXPORT libgpio_t *
 //  @interface
 //  Read a GPI or GPO status
 FTY_SENSOR_GPIO_EXPORT int
-    libgpio_read (libgpio_t **self_p, int GPx_number, int direction=GPIO_DIRECTION_IN);
+    libgpio_read (libgpio_t *self_p, int GPx_number, int direction=GPIO_DIRECTION_IN);
 
 //  @interface
 //  Write a GPO (to enable or disable it)
 FTY_SENSOR_GPIO_EXPORT int
-    libgpio_write (libgpio_t **self_p, int GPO_number, int value);
+    libgpio_write (libgpio_t *self_p, int GPO_number, int value);
 
 //  @interface
 //  Get the textual name for a status
 FTY_SENSOR_GPIO_EXPORT string
-    libgpio_get_status_string (libgpio_t **self_p, int value);
+    libgpio_get_status_string (int value);
+
+//  @interface
+//  Set the target address of the GPIO chipset
+FTY_SENSOR_GPIO_EXPORT void
+    libgpio_set_gpio_base_index (libgpio_t *self, int GPx_base_index);
 
 //  Destroy the libgpio
 FTY_SENSOR_GPIO_EXPORT void

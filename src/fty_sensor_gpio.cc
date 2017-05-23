@@ -84,6 +84,7 @@ int main (int argc, char *argv [])
     const char* endpoint = (char*)"ipc://@/malamute";
     const char* str_poll_interval = NULL;
     int poll_interval = DEFAULT_POLL_INTERVAL;
+    const char* gpio_base_index = NULL;
     bool verbose = false;
     int argn;
 
@@ -112,7 +113,7 @@ int main (int argc, char *argv [])
 
     // Parse config file
     if(config_file) {
-        zsys_debug ("fty_sensor_gpio:LOAD: %s", config_file);
+        zsys_debug ("fty_sensor_gpio: loading configuration file '%s'", config_file);
         config = zconfig_load (config_file);
         if (!config) {
             zsys_error ("Failed to load config file %s: %m", config_file);
@@ -127,6 +128,9 @@ int main (int argc, char *argv [])
         if (str_poll_interval) {
             poll_interval = atoi(str_poll_interval);
         }
+        // Target address of the GPIO chipset
+        gpio_base_index = s_get (config, "hardware/gpio_base_index", "-1");
+
         zsys_debug ("Polling interval set to %i", poll_interval);
         endpoint = s_get (config, "malamute/endpoint", endpoint);
         actor_name = s_get (config, "malamute/address", actor_name);
@@ -157,6 +161,10 @@ int main (int argc, char *argv [])
     zstr_sendx (server, "CONNECT", endpoint, NULL);
 //    zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
+    if (!streq(gpio_base_index, "-1")) {
+        zsys_debug ("Target address of the GPIO chipset set to %s", gpio_base_index);
+        zstr_sendx (server, "GPIO_CHIP_ADDRESS", gpio_base_index, NULL);
+    }
 
     // 3rd stream to publish and manage alerts
 //    zstr_sendx (alerts, "CONNECT", endpoint, NULL);

@@ -37,7 +37,7 @@ using namespace std;
 #define DEFAULT_POLL_INTERVAL 2000
 
 // TODO: get from config
-#define TIMEOUT_MS -1   //wait infinitelly
+#define TIMEOUT_MS -1   //wait infinitely
 
 //  Structure to store information on a monitored GPI
 //  This includes both the template and configuration information

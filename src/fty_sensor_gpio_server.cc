@@ -114,7 +114,7 @@ void publish_alert (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl
         // FIXME: other possible patterns $name $parent_name...
         description = str_replace(sensor->alarm_message,
                                   "$status",
-                                  libgpio_get_status_string(&self->gpio_lib, sensor->current_state).c_str());
+                                  libgpio_get_status_string(sensor->current_state).c_str());
     }
 
 
@@ -184,7 +184,7 @@ std::string Sensor::topicSuffix () const
             ttl,
             msg_type.c_str (),
             sensor->asset_name, //sensor->location,
-            libgpio_get_status_string(&self->gpio_lib, sensor->current_state).c_str(),
+            libgpio_get_status_string(sensor->current_state).c_str(),
             "");
         zhash_destroy (&aux);
         if (msg) {
@@ -233,13 +233,13 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
     for (int cur_sensor_num = 0; cur_sensor_num < sensors_count; cur_sensor_num++) {
 
         // Get the current sensor status
-        gpx_info->current_state = libgpio_read(&self->gpio_lib, gpx_info->gpx_number);
+        gpx_info->current_state = libgpio_read(self->gpio_lib, gpx_info->gpx_number);
         if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
             zsys_debug ("Can't read GPI sensor #%i status", gpx_info->gpx_number);
             continue;
         }
         zsys_debug ("Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
-            libgpio_get_status_string(&self->gpio_lib, gpx_info->current_state).c_str(),
+            libgpio_get_status_string(gpx_info->current_state).c_str(),
             gpx_info->current_state, gpx_info->gpx_number,
             gpx_info->ext_name, gpx_info->asset_name);
 
@@ -478,6 +478,12 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                 }
                 else if (streq (cmd, "UPDATE")) {
                     s_check_gpio_status(self);
+                }
+                else if (streq (cmd, "GPIO_CHIP_ADDRESS")) {
+                    char *str_gpio_base_index = zmsg_popstr (message);
+                    int gpio_base_index = atoi(str_gpio_base_index);
+                    libgpio_set_gpio_base_index (self->gpio_lib, gpio_base_index);
+                    zsys_debug ("fty_sensor_gpio: GPIO_CHIP_ADDRESS=%i", gpio_base_index);
                 }
                 else {
                     zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);

@@ -1,12 +1,15 @@
 #   fty-sensor-gpio configuration
 
 server
-    poll_interval = 2000     #   Interval between sensors state check, msec
-    timeout = 10000          #   Client connection timeout, msec
-    background = 0           #   Run as background process
-    workdir = .              #   Working directory for daemon
-    verbose = 0              #   Do verbose logging of activity?
+    poll_interval = 2000        #   Interval between sensors state check, msec
+    timeout = 10000             #   Client connection timeout, msec
+    background = 0              #   Run as background process
+    workdir = .                 #   Working directory for daemon
+    verbose = 0                 #   Do verbose logging of activity?
 
 malamute
-    endpoint = ipc://@/malamute                     #   Malamute endpoint
-    address = fty-sensor-gpio                       #   Agent address
+    endpoint = ipc://@/malamute #   Malamute endpoint
+    address = fty-sensor-gpio   #   Agent address
+
+hardware
+    gpio_base_index = 488       #   Target address of the GPIO chipset (gpiochip488)

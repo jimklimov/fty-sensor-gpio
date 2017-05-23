@@ -36,9 +36,9 @@ struct _libgpio_t {
 
 //  Private functions forward declarations
 
-static int libgpio_export(int pin);
-static int libgpio_unexport(int pin);
-static int libgpio_set_direction(int pin, int dir);
+static int libgpio_export(libgpio_t *self, int pin);
+static int libgpio_unexport(libgpio_t *self, int pin);
+static int libgpio_set_direction(libgpio_t *self, int pin, int dir);
 
 
 //  --------------------------------------------------------------------------
@@ -56,9 +56,18 @@ libgpio_new (void)
 }
 
 //  --------------------------------------------------------------------------
+//  Set the target address of the GPIO chipset
+void
+libgpio_set_gpio_base_index (libgpio_t *self, int GPx_base_index)
+{
+    zsys_debug ("%s: setting address to %i", __func__, GPx_base_index);
+    self->gpio_base_index = GPx_base_index;
+}
+
+//  --------------------------------------------------------------------------
 //  Read a GPI or GPO status
 int
-libgpio_read (libgpio_t **self_p, int GPx_number, int direction)
+libgpio_read (libgpio_t *self, int GPx_number, int direction)
 {
     char path[GPIO_VALUE_MAX];
     char value_str[3];
@@ -68,29 +77,29 @@ libgpio_read (libgpio_t **self_p, int GPx_number, int direction)
     int pin = GPx_number - 1;
 
     // Enable the desired GPIO
-    if (libgpio_export(pin) == -1)
+    if (libgpio_export(self, pin) == -1)
         return -1;
 
     // Set its direction
-    if (libgpio_set_direction(pin, direction) == -1)
+    if (libgpio_set_direction(self, pin, direction) == -1)
         return -1;
 
-    snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + GPIO_BASE_INDEX);
+    snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + self->gpio_base_index);
     fd = open(path, O_RDONLY);
     if (fd == -1) {
-        fprintf(stderr, "Failed to open gpio value for reading!\n");
+        zsys_error("Failed to open gpio value for reading!");
         return -1;
     }
 
     if (read(fd, value_str, 3) == -1) {
-        fprintf(stderr, "Failed to read value!\n");
+        zsys_error("Failed to read value!");
         close(fd);
         return -1;
     }
 
     close(fd);
 
-    if (libgpio_unexport(pin) == -1) {
+    if (libgpio_unexport(self, pin) == -1) {
         return -1;
     }
 
@@ -99,7 +108,7 @@ libgpio_read (libgpio_t **self_p, int GPx_number, int direction)
 //  --------------------------------------------------------------------------
 //  Write a GPO (to enable or disable it)
 int
-libgpio_write (libgpio_t **self_p, int GPO_number, int value)
+libgpio_write (libgpio_t *self, int GPO_number, int value)
 {
     static const char s_values_str[] = "01";
     char path[GPIO_VALUE_MAX];
@@ -109,15 +118,15 @@ libgpio_write (libgpio_t **self_p, int GPO_number, int value)
     // FIXME: GPO pin MAY also have -1 offset, i.e. GPO 1 is pin 0
     int pin = GPO_number; // - 1;
 
-    snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + GPIO_BASE_INDEX);
+    snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + self->gpio_base_index);
     fd = open(path, O_WRONLY);
     if (fd == -1) {
-        fprintf(stderr, "Failed to open gpio value for writing!\n");
+        zsys_error("Failed to open gpio value for writing!");
         return(-1);
     }
 
     if (write(fd, &s_values_str[GPIO_STATE_CLOSED == value ? 0 : 1], 1) != 1) {
-        fprintf(stderr, "Failed to write value!\n");
+        zsys_error("Failed to write value!");
         retval = -1;
     }
 
@@ -129,7 +138,7 @@ libgpio_write (libgpio_t **self_p, int GPO_number, int value)
 //  --------------------------------------------------------------------------
 //  Get the textual name for a status
 string
-libgpio_get_status_string (libgpio_t **self_p, int value)
+libgpio_get_status_string (int value)
 {
     string status_str;
 
@@ -202,7 +211,7 @@ libgpio_test (bool verbose)
 //  --------------------------------------------------------------------------
 //  Set the current GPIO pin to act on
 
-int libgpio_export(int pin)
+int libgpio_export(libgpio_t *self, int pin)
 {
     char buffer[GPIO_BUFFER_MAX];
     ssize_t bytes_written;
@@ -211,11 +220,11 @@ int libgpio_export(int pin)
 
     fd = open("/sys/class/gpio/export", O_WRONLY);
     if (fd == -1) {
-        fprintf(stderr, "Failed to open export for writing!\n");
+        zsys_error("Failed to open export for writing!");
         return -1;
     }
 
-    bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin + GPIO_BASE_INDEX);
+    bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin + self->gpio_base_index);
     if (write(fd, buffer, bytes_written) < bytes_written) {
         retval = -1;
     }
@@ -227,7 +236,7 @@ int libgpio_export(int pin)
 //  --------------------------------------------------------------------------
 //  Unset the current GPIO pin to act on
 
-int libgpio_unexport(int pin)
+int libgpio_unexport(libgpio_t *self, int pin)
 {
     char buffer[GPIO_BUFFER_MAX];
     ssize_t bytes_written;
@@ -236,11 +245,11 @@ int libgpio_unexport(int pin)
 
     fd = open("/sys/class/gpio/unexport", O_WRONLY);
     if (fd == -1) {
-      fprintf(stderr, "Failed to open unexport for writing!\n");
+      zsys_error("Failed to open unexport for writing!");
       return -1;
     }
 
-    bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin + GPIO_BASE_INDEX);
+    bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin + self->gpio_base_index);
     if (write(fd, buffer, bytes_written) < bytes_written) {
         retval = -1;
     }
@@ -253,7 +262,7 @@ int libgpio_unexport(int pin)
 //  --------------------------------------------------------------------------
 //  Set the current GPIO direction to 'in' (read) or 'out' (write)
 
-int libgpio_set_direction(int pin, int direction)
+int libgpio_set_direction(libgpio_t *self, int pin, int direction)
 {
     static const char s_directions_str[]  = "in\0out";
     int retval = 0;
@@ -261,16 +270,16 @@ int libgpio_set_direction(int pin, int direction)
     char path[GPIO_DIRECTION_MAX];
     int fd;
 
-    snprintf(path, GPIO_DIRECTION_MAX, "/sys/class/gpio/gpio%d/direction", pin + GPIO_BASE_INDEX);
+    snprintf(path, GPIO_DIRECTION_MAX, "/sys/class/gpio/gpio%d/direction", pin + self->gpio_base_index);
     fd = open(path, O_WRONLY);
     if (fd == -1) {
-        fprintf(stderr, "Failed to open gpio direction for writing!\n");
+        zsys_error("Failed to open gpio direction for writing!");
         return -1;
     }
 
     if (write(fd, &s_directions_str[GPIO_DIRECTION_IN == direction ? 0 : 3],
       GPIO_DIRECTION_IN == direction ? 2 : 3) == -1) {
-        fprintf(stderr, "Failed to set direction!\n");
+        zsys_error("Failed to set direction!");
         retval = -1;
     }
 
