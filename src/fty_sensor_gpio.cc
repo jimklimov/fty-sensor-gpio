@@ -34,12 +34,19 @@
 // * REQ fty-asset to REPUBLISH /$all (better than just listening for repub and persist!)
 // * Add 'location' / parent.name
 //   + Asset management and update existing entries
+// * Add 'int last_state' to '_gpx_info_t' and only publish state change?
+//   (i.e. last_state != current_state)
+// * Dynamic extension of the manifest: if it's a sensor but unknown, lively
+//   create a manifest file? Check with PO...
 // * Dedicated alert actor
+// * config file default path (when installed)
 // * Tests
 // * Documentation
-// * GPO handling (MAILBOX message requesting GPOx to be activated)
-// * Sensors manifest (MAILBOX message requesting the list of supported sensors
-//   and details, inc. normal state)
+// * MAILBOX REQ handling:
+// ** GPO handling (MAILBOX message requesting GPOx to be activated)
+// ** Sensors manifest (MAILBOX message requesting the list of supported sensors
+//    and details, inc. normal state)
+// * cleanup, final cppcheck, ...
 
 void
 usage(){
