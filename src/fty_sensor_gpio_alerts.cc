@@ -125,7 +125,7 @@ void publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl
 static void
 s_check_gpio_status(fty_sensor_gpio_alerts_t *self)
 {
-    zsys_debug ("%s", __func__);
+    zsys_debug ("%s_alerts: %s", self->name, __func__);
 
     // number of sensors monitored in gpx_list
     zlistx_t *gpx_list = get_gpx_list();
@@ -235,7 +235,7 @@ fty_sensor_gpio_alerts(zsock_t *pipe, void *args)
                     char *stream = zmsg_popstr (message);
                     assert (stream);
                     mlm_client_set_producer (self->mlm, stream);
-                    zsys_debug ("fty_sensor_gpio: setting PRODUCER on %s", stream);
+                    zsys_debug ("fty-gpio-sensor-alerts: setting PRODUCER on %s", stream);
                     zstr_free (&stream);
                 }
                 else if (streq (cmd, "CONSUMER")) {
@@ -243,7 +243,7 @@ fty_sensor_gpio_alerts(zsock_t *pipe, void *args)
                     char *pattern = zmsg_popstr (message);
                     assert (stream && pattern);
                     mlm_client_set_consumer (self->mlm, stream, pattern);
-                    zsys_debug ("fty_sensor_gpio: setting CONSUMER on %s/%s", stream, pattern);
+                    zsys_debug ("fty-gpio-sensor-alerts: setting CONSUMER on %s/%s", stream, pattern);
                     zstr_free (&stream);
                     zstr_free (&pattern);
                 }

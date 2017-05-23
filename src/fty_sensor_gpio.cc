@@ -144,9 +144,9 @@ int main (int argc, char *argv [])
     if (getenv ("BIOS_LOG_LEVEL") && streq (getenv ("BIOS_LOG_LEVEL"), "LOG_DEBUG"))
         verbose = true;
 
-    zactor_t *assets = zactor_new (fty_sensor_gpio_assets, (void*)"gpio-assets"); //actor_name);
+    zactor_t *assets = zactor_new (fty_sensor_gpio_assets, (void*)"gpio-assets");
     zactor_t *server = zactor_new (fty_sensor_gpio_server, (void*)actor_name);
-    zactor_t *alerts = zactor_new (fty_sensor_gpio_alerts, (void*)actor_name);
+    zactor_t *alerts = zactor_new (fty_sensor_gpio_alerts, (void*)"gpio-alerts");
 
     if (verbose) {
         zstr_sendx (server, "VERBOSE", NULL);

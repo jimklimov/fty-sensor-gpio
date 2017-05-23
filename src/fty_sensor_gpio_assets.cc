@@ -28,9 +28,12 @@
 
 #include "fty_sensor_gpio_classes.h"
 
-//  Structure of our class
-
+// GPx list
 zlistx_t *_gpx_list = NULL;
+// GPx list protection mutex
+zmutex_t *gpx_list_mutex;
+
+//  Structure of our class
 
 struct _fty_sensor_gpio_assets_t {
     bool               verbose;       // is actor verbose or not
@@ -148,7 +151,8 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     const char* sensor_gpx_direction, const char* sensor_location,
     const char* sensor_alarm_message, const char* sensor_alarm_severity)
 {
-    // FIXME: check if already monitored! + sanity on < 10... AND pin not already declared/used
+    // FIXME:
+    // * check if already monitored! + sanity on < 10... AND pin not already declared/used
 
     _gpx_info_t *prev_gpx_info = NULL;
     _gpx_info_t *gpx_info = sensor_new();
@@ -175,6 +179,8 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     gpx_info->alarm_message = strdup(sensor_alarm_message);
     gpx_info->alarm_severity = strdup(sensor_alarm_severity);
 
+    zmutex_lock (gpx_list_mutex);
+
     // Check for an already existing entry for this asset
     prev_gpx_info = (_gpx_info_t*)zlistx_find (_gpx_list, (void *) gpx_info);
 
@@ -192,6 +198,8 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
         }
     }
     zlistx_add_end (_gpx_list, (void *) gpx_info);
+
+    zmutex_unlock (gpx_list_mutex);
 
     // Don't free gpx_info, it will be done at TERM time
 
@@ -211,6 +219,8 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
 static int
 delete_sensor(fty_sensor_gpio_assets_t *self, const char* assetname)
 {
+    int retval = 0;
+
     _gpx_info_t *gpx_info_result = NULL;
     _gpx_info_t *gpx_info = sensor_new();
 
@@ -221,17 +231,21 @@ delete_sensor(fty_sensor_gpio_assets_t *self, const char* assetname)
         return 1;
     }
 
+    zmutex_lock (gpx_list_mutex);
+
     gpx_info_result = (_gpx_info_t*)zlistx_find (_gpx_list, (void *) gpx_info);
     sensor_free((void**)&gpx_info);
 
-    if ( gpx_info_result == NULL )
-        return 1;
+    if ( gpx_info_result == NULL ) {
+        retval = 1;
+    }
     else {
         zsys_debug ("Deleting '%s'", assetname);
         // Delete from zlist
         zlistx_delete (_gpx_list, (void *)gpx_info_result);
     }
-    return 0;
+    zmutex_unlock (gpx_list_mutex);
+    return retval;
 }
 
 //  --------------------------------------------------------------------------
@@ -407,6 +421,8 @@ fty_sensor_gpio_assets_new (const char* name)
     // Instanciated here and provided to all actors
     _gpx_list = zlistx_new ();
     assert (_gpx_list);
+    gpx_list_mutex = zmutex_new ();
+    assert (gpx_list_mutex);
 
     // Declare zlist item handlers
     zlistx_set_duplicator (_gpx_list, (czmq_duplicator *) sensor_dup);
@@ -429,6 +445,7 @@ fty_sensor_gpio_assets_destroy (fty_sensor_gpio_assets_t **self_p)
         //  Free class properties
         zlistx_purge (_gpx_list);
         zlistx_destroy (&_gpx_list);
+        zmutex_destroy (&gpx_list_mutex);
         free(self->name);
         mlm_client_destroy (&self->mlm);
         //  Free object itself

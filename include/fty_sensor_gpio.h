@@ -62,7 +62,9 @@ typedef struct _gpx_info_s {
 const char* s_get (zconfig_t *config, const char* key, std::string &dfl);
 const char* s_get (zconfig_t *config, const char* key, const char*dfl);
 
+// Implemented in assets actor
 extern zlistx_t *_gpx_list;
 extern zlistx_t * get_gpx_list();
+extern zmutex_t *gpx_list_mutex;
 
 #endif
