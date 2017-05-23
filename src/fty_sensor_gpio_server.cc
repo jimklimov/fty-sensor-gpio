@@ -34,10 +34,7 @@ struct _fty_sensor_gpio_server_t {
     bool               verbose;       // is actor verbose or not
     char               *name;         // actor name
     mlm_client_t       *mlm;          // malamute client
-    mlm_client_t       *alert;        // malamute client for alerts stream
-//    zlistx_t           *gpx_list;     // List of monitored GPx _gpx_info_t (10xGPI / 5xGPO on IPC3000)
     libgpio_t          *gpio_lib;     // GPIO library handle
-    char               *config_file;  // Config filename
 };
 
 // Configuration accessors
@@ -60,95 +57,13 @@ s_get (zconfig_t *config, const char* key, const char*dfl) {
     return ret;
 }
 
-static char*
-str_replace(const char *in, const char *pattern, const char *by)
-{
-    size_t outsize = strlen(in) + 1;
-    // TODO maybe avoid reallocing by counting the non-overlapping occurences of pattern
-    char *res = (char*)malloc(outsize);
-    // use this to iterate over the output
-    size_t resoffset = 0;
-
-    char *needle;
-    while ((needle = strstr((char *)in, (char *)pattern))) {
-        // copy everything up to the pattern
-        memcpy(res + resoffset, in, needle - in);
-        resoffset += needle - in;
-
-        // skip the pattern in the input-string
-        in = needle + strlen(pattern);
-
-        // adjust space for replacement
-        outsize = outsize - strlen(pattern) + strlen(by);
-        res = (char*)realloc(res, outsize);
-
-        // copy the pattern
-        memcpy(res + resoffset, by, strlen(by));
-        resoffset += strlen(by);
-    }
-
-    // copy the remaining input
-    strcpy(res + resoffset, in);
-
-    return res;
-}
-
-
-//  --------------------------------------------------------------------------
-//  Publish an alert for the pointed GPIO sensor
-
-void publish_alert (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl)
-{
-    zsys_debug ("Publishing GPIO sensor %i (%s) alert",
-        sensor->gpx_number,
-        sensor->asset_name);
-
-    // FIXME: ...
-    const char *state = "ACTIVE", *severity = sensor->alarm_severity;
-    char* description = (char*)malloc(128);
-    sprintf(description, sensor->alarm_message,
-        sensor->ext_name);
-
-    // Adapt alarm message if needed
-    if (strchr(sensor->alarm_message, '$')) {
-        // FIXME: other possible patterns $name $parent_name...
-        description = str_replace(sensor->alarm_message,
-                                  "$status",
-                                  libgpio_get_status_string(sensor->current_state).c_str());
-    }
-
-
-    std::string rule = string(sensor->type) + ".state_change@" + sensor->asset_name;
-
-    zsys_debug("%s: publishing alert %s with description:\n%s", __func__, rule.c_str (), description);
-    zmsg_t *message = fty_proto_encode_alert(
-        NULL,               // aux
-        time (NULL),        // timestamp
-        ttl,
-        rule.c_str (),      // rule
-        sensor->asset_name, // element
-        state,              // state
-        severity,           // severity
-        description,        // description
-        ""                  // action ?email
-    );
-    std::string topic = rule + "/" + severity + "@" + sensor->asset_name;
-    if (message) {
-        int r = mlm_client_send (self->alert, topic.c_str (), &message);
-        if( r != 0 )
-            zsys_debug("failed to send alert %s result %", topic.c_str(), r);
-    }
-    zmsg_destroy (&message);
-}
-
 //  --------------------------------------------------------------------------
 //  Publish status of the pointed GPIO sensor
 
 void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl)
 {
     zsys_debug ("Publishing GPIO sensor %i (%s) status",
-        sensor->gpx_number,
-        sensor->asset_name);
+        sensor->gpx_number, sensor->asset_name);
 
 /*
 --------------------------------------------------------------------------------
@@ -176,7 +91,6 @@ std::string Sensor::topicSuffix () const
         sprintf(port, "GPI%i", sensor->gpx_number);
         zhash_insert (aux, "port", (void*) port);
         string msg_type = string("status.") + port;
-        zsys_debug ("Port = %s, type %s", port, msg_type.c_str());
 
         zmsg_t *msg = fty_proto_encode_metric (
             aux,
@@ -189,8 +103,11 @@ std::string Sensor::topicSuffix () const
         zhash_destroy (&aux);
         if (msg) {
             std::string topic = string("status.") + port + string("@") + sensor->asset_name; //sensor->location;
-//            log_debug ("sending new temperature for element_src = '%s', value = '%s'",
-//                       _location.c_str (), _temperature.c_str ());
+
+            zsys_debug ("\tPort: %s, type: %s, status: %s",
+                port, msg_type.c_str(),
+                libgpio_get_status_string(sensor->current_state).c_str());
+
             int r = mlm_client_send (self->mlm, topic.c_str (), &msg);
             if( r != 0 )
                 zsys_debug("failed to send measurement %s result %", topic.c_str(), r);
@@ -245,12 +162,6 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
 
         publish_status (self, gpx_info, 300);
 
-        // Check against normal state
-        if (gpx_info->current_state != gpx_info->normal_state) {
-            zsys_debug ("ALARM: state changed");
-            // FIXME: do not repeat alarm?! so maybe flag in self
-            publish_alert (self, gpx_info, 300);
-        }
         gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
     }
 }
@@ -352,10 +263,8 @@ fty_sensor_gpio_server_new (const char* name)
 
     //  Initialize class properties
     self->mlm         = mlm_client_new();
-    self->alert       = mlm_client_new();
     self->name        = strdup(name);
     self->verbose     = false;
-    self->config_file = NULL;
 
     self->gpio_lib = libgpio_new ();
     assert (self->gpio_lib);
@@ -374,12 +283,9 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
     if (*self_p) {
         fty_sensor_gpio_server_t *self = *self_p;
 
-        //  Free class properties here
+        //  Free class properties
         libgpio_destroy (&self->gpio_lib);
-        if (self->config_file)
-            free(self->config_file);
         free(self->name);
-        mlm_client_destroy (&self->alert);
         mlm_client_destroy (&self->mlm);
 
         //  Free object itself
@@ -445,24 +351,6 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     zsys_debug ("fty_sensor_gpio: setting PRODUCER on %s", stream);
                     zstr_free (&stream);
                 }
-                else if (streq (cmd, "ALERT-CONNECT")) {
-                    char *endpoint = zmsg_popstr (message);
-                     if (!endpoint)
-                        zsys_error ("%s:\tMissing endpoint", self->name);
-                    assert (endpoint);
-                    int r = mlm_client_connect (self->alert, endpoint, 5000, self->name);
-                    if (r == -1)
-                        zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
-                    zsys_debug("fty-gpio-sensor-server: ALERT-CONNECT %s/%s", endpoint, self->name);
-                    zstr_free (&endpoint);
-                }
-                else if (streq (cmd, "ALERT-PRODUCER")) {
-                    char *stream = zmsg_popstr (message);
-                    assert (stream);
-                    mlm_client_set_producer (self->alert, stream);
-                    zsys_debug ("fty_sensor_gpio: setting ALERT-PRODUCER on %s", stream);
-                    zstr_free (&stream);
-                }
                 else if (streq (cmd, "CONSUMER")) {
                     char *stream = zmsg_popstr (message);
                     char *pattern = zmsg_popstr (message);
@@ -494,20 +382,17 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
         }
         else if (which == mlm_client_msgpipe (self->mlm)) {
             zmsg_t *message = mlm_client_recv (self->mlm);
-            if (is_fty_proto (message)) {
+            if (streq (mlm_client_command (self->mlm), "MAILBOX DELIVER")) {
                 // FIXME: to be removed?
-                fty_proto_t *fmessage = fty_proto_decode (&message);
-                //if (fty_proto_id (fmessage) == FTY_PROTO_ASSET) {
-                //    fty_sensor_gpio_handle_asset (self, fmessage);
-                //}
-                fty_proto_destroy (&fmessage);
+                //s_handle_stream (self, message);
             } else if (streq (mlm_client_command (self->mlm), "MAILBOX DELIVER")) {
                 // someone is addressing us directly
-                // FIXME: can be requested for
+                // FIXME: can be requested for:
                 // * sensors manifest (pn, type, normal status) by UI
-                // * what else?
+                // * GPO interacting
                 s_handle_mailbox(self, message);
             }
+            zmsg_destroy (&message);
         }
     }
     zpoller_destroy (&poller);

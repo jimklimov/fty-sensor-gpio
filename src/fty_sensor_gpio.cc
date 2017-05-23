@@ -31,7 +31,6 @@
 //zlistx_t *_gpx_list = NULL;
 
 // TODO:
-// * REQ fty-asset to REPUBLISH /$all (better than just listening for repub and persist!)
 // * Add 'location' / parent.name
 //   + Asset management and update existing entries
 // * Add 'int last_state' to '_gpx_info_t' and only publish state change?
@@ -47,6 +46,9 @@
 // ** Sensors manifest (MAILBOX message requesting the list of supported sensors
 //    and details, inc. normal state)
 // * cleanup, final cppcheck, ...
+// NEED TESTING:
+// * REQ fty-asset to REPUBLISH /$all (better than just listening for repub and persist!)
+
 
 void
 usage(){
@@ -68,7 +70,7 @@ get_gpx_list()
 }
 #endif
 
-// Send an update request over the MQ to check for GPIO status
+// Send an update request over the MQ to check for GPIO status & alerts
 static int
 s_update_event (zloop_t *loop, int timer_id, void *output)
 {
@@ -106,6 +108,8 @@ int main (int argc, char *argv [])
             ++argn;
         }
         else {
+            // FIXME: as per the systemd service file, the config file
+            // is provided as the default arg without '-c'!
             printf ("Unknown option: %s\n", argv [argn]);
             return 1;
         }
@@ -142,17 +146,16 @@ int main (int argc, char *argv [])
 
     zactor_t *assets = zactor_new (fty_sensor_gpio_assets, (void*)"gpio-assets"); //actor_name);
     zactor_t *server = zactor_new (fty_sensor_gpio_server, (void*)actor_name);
-//    zactor_t *alerts = zactor_new (fty_sensor_gpio_alerts, (void*)actor_name);
+    zactor_t *alerts = zactor_new (fty_sensor_gpio_alerts, (void*)actor_name);
 
     if (verbose) {
         zstr_sendx (server, "VERBOSE", NULL);
         zstr_sendx (assets, "VERBOSE", NULL);
-        //zstr_sendx (alerts, "VERBOSE", NULL);
+        zstr_sendx (alerts, "VERBOSE", NULL);
         zsys_info ("%s - Agent which manages GPI sensors and GPO devices", actor_name);
     }
 
     // 1rst stream to handle assets
-    //zstr_sendx (assets, "CONNECT", "ipc://@/malamute", FTY_SENSOR_GPIO_AGENT"-assets", NULL);
     zstr_sendx (assets, "CONNECT", endpoint, NULL);
     zstr_sendx (assets, "PRODUCER", FTY_PROTO_STREAM_ASSETS, NULL);
     zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
@@ -167,12 +170,13 @@ int main (int argc, char *argv [])
     }
 
     // 3rd stream to publish and manage alerts
-//    zstr_sendx (alerts, "CONNECT", endpoint, NULL);
-//    zstr_sendx (alerts, "PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);
+    zstr_sendx (alerts, "CONNECT", endpoint, NULL);
+    zstr_sendx (alerts, "PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);
 
-    // Setup an update event message every x seconds, to check GPI status
+    // Setup an update event message every x seconds, to check GPI status & alerts
     zloop_t *gpio_status_update = zloop_new();
     zloop_timer (gpio_status_update, poll_interval, 0, s_update_event, server);
+    zloop_timer (gpio_status_update, poll_interval, 0, s_update_event, alerts);
     zloop_start (gpio_status_update);
 
     zloop_destroy (&gpio_status_update);

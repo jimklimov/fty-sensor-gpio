@@ -399,7 +399,7 @@ fty_sensor_gpio_assets_new (const char* name)
 {
     fty_sensor_gpio_assets_t *self = (fty_sensor_gpio_assets_t *) zmalloc (sizeof (fty_sensor_gpio_assets_t));
     assert (self);
-    //  Initialize class properties here
+    //  Initialize class properties
     self->mlm         = mlm_client_new();
     self->name        = strdup(name);
     self->verbose     = false;
@@ -426,7 +426,7 @@ fty_sensor_gpio_assets_destroy (fty_sensor_gpio_assets_t **self_p)
     assert (self_p);
     if (*self_p) {
         fty_sensor_gpio_assets_t *self = *self_p;
-        //  Free class properties here
+        //  Free class properties
         zlistx_purge (_gpx_list);
         zlistx_destroy (&_gpx_list);
         free(self->name);
@@ -445,7 +445,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
 {
     char *name = (char *)args;
     if (!name) {
-        zsys_error ("Adress for fty-sensor-gpio actor is NULL");
+        zsys_error ("Adress for fty-sensor-gpio-assets actor is NULL");
         return;
     }
 
@@ -538,6 +538,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                 // * what else?
                 //s_handle_mailbox(self, message);
             }
+            zmsg_destroy (&message);
         }
     }
     zpoller_destroy (&poller);
