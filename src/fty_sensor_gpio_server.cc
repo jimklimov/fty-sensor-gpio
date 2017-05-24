@@ -375,10 +375,10 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     s_check_gpio_status(self);
                 }
                 else if (streq (cmd, "GPIO_CHIP_ADDRESS")) {
-                    char *str_gpio_base_index = zmsg_popstr (message);
-                    int gpio_base_index = atoi(str_gpio_base_index);
-                    libgpio_set_gpio_base_index (self->gpio_lib, gpio_base_index);
-                    zsys_debug ("fty_sensor_gpio: GPIO_CHIP_ADDRESS=%i", gpio_base_index);
+                    char *str_gpio_base_address = zmsg_popstr (message);
+                    int gpio_base_address = atoi(str_gpio_base_address);
+                    libgpio_set_gpio_base_address (self->gpio_lib, gpio_base_address);
+                    zsys_debug ("fty_sensor_gpio: GPIO_CHIP_ADDRESS=%i", gpio_base_address);
                 }
                 else {
                     zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);

@@ -68,7 +68,7 @@ FTY_SENSOR_GPIO_EXPORT string
 //  @interface
 //  Set the target address of the GPIO chipset
 FTY_SENSOR_GPIO_EXPORT void
-    libgpio_set_gpio_base_index (libgpio_t *self, int GPx_base_index);
+    libgpio_set_gpio_base_address (libgpio_t *self, int GPx_base_index);
 
 //  Destroy the libgpio
 FTY_SENSOR_GPIO_EXPORT void

@@ -31,7 +31,7 @@
 //  Structure of our class
 
 struct _libgpio_t {
-    int gpio_base_index;
+    int gpio_base_address;
 };
 
 //  Private functions forward declarations
@@ -50,7 +50,7 @@ libgpio_new (void)
     libgpio_t *self = (libgpio_t *) zmalloc (sizeof (libgpio_t));
     assert (self);
     //  Initialize class properties here
-    self->gpio_base_index = GPIO_BASE_INDEX;
+    self->gpio_base_address = GPIO_BASE_INDEX;
 
     return self;
 }
@@ -58,10 +58,10 @@ libgpio_new (void)
 //  --------------------------------------------------------------------------
 //  Set the target address of the GPIO chipset
 void
-libgpio_set_gpio_base_index (libgpio_t *self, int GPx_base_index)
+libgpio_set_gpio_base_address (libgpio_t *self, int GPx_base_index)
 {
     zsys_debug ("%s: setting address to %i", __func__, GPx_base_index);
-    self->gpio_base_index = GPx_base_index;
+    self->gpio_base_address = GPx_base_index;
 }
 
 //  --------------------------------------------------------------------------
@@ -84,7 +84,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     if (libgpio_set_direction(self, pin, direction) == -1)
         return -1;
 
-    snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + self->gpio_base_index);
+    snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + self->gpio_base_address);
     fd = open(path, O_RDONLY);
     if (fd == -1) {
         zsys_error("Failed to open gpio value for reading!");
@@ -118,7 +118,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     // FIXME: GPO pin MAY also have -1 offset, i.e. GPO 1 is pin 0
     int pin = GPO_number; // - 1;
 
-    snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + self->gpio_base_index);
+    snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + self->gpio_base_address);
     fd = open(path, O_WRONLY);
     if (fd == -1) {
         zsys_error("Failed to open gpio value for writing!");
@@ -224,7 +224,7 @@ int libgpio_export(libgpio_t *self, int pin)
         return -1;
     }
 
-    bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin + self->gpio_base_index);
+    bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin + self->gpio_base_address);
     if (write(fd, buffer, bytes_written) < bytes_written) {
         retval = -1;
     }
@@ -249,7 +249,7 @@ int libgpio_unexport(libgpio_t *self, int pin)
       return -1;
     }
 
-    bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin + self->gpio_base_index);
+    bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin + self->gpio_base_address);
     if (write(fd, buffer, bytes_written) < bytes_written) {
         retval = -1;
     }
@@ -270,7 +270,7 @@ int libgpio_set_direction(libgpio_t *self, int pin, int direction)
     char path[GPIO_DIRECTION_MAX];
     int fd;
 
-    snprintf(path, GPIO_DIRECTION_MAX, "/sys/class/gpio/gpio%d/direction", pin + self->gpio_base_index);
+    snprintf(path, GPIO_DIRECTION_MAX, "/sys/class/gpio/gpio%d/direction", pin + self->gpio_base_address);
     fd = open(path, O_WRONLY);
     if (fd == -1) {
         zsys_error("Failed to open gpio direction for writing!");

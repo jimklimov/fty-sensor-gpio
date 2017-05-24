@@ -12,4 +12,4 @@ malamute
     address = fty-sensor-gpio   #   Agent address
 
 hardware
-    gpio_base_index = 488       #   Target address of the GPIO chipset (gpiochip488)
+    gpio_base_address = 488     #   Target address of the GPIO chipset (gpiochip488)

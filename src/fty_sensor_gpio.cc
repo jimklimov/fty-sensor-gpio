@@ -45,7 +45,7 @@
 // ** GPO handling (MAILBOX message requesting GPOx to be activated)
 // ** Sensors manifest (MAILBOX message requesting the list of supported sensors
 //    and details, inc. normal state)
-// * cleanup, final cppcheck, ...
+// * cleanup, final cppcheck, fix all FIXMEs...
 // NEED TESTING:
 // * REQ fty-asset to REPUBLISH /$all (better than just listening for repub and persist!)
 
@@ -86,7 +86,7 @@ int main (int argc, char *argv [])
     const char* endpoint = (char*)"ipc://@/malamute";
     const char* str_poll_interval = NULL;
     int poll_interval = DEFAULT_POLL_INTERVAL;
-    const char* gpio_base_index = NULL;
+    const char* gpio_base_address = NULL;
     bool verbose = false;
     int argn;
 
@@ -133,7 +133,7 @@ int main (int argc, char *argv [])
             poll_interval = atoi(str_poll_interval);
         }
         // Target address of the GPIO chipset
-        gpio_base_index = s_get (config, "hardware/gpio_base_index", "-1");
+        gpio_base_address = s_get (config, "hardware/gpio_base_address", "-1");
 
         zsys_debug ("Polling interval set to %i", poll_interval);
         endpoint = s_get (config, "malamute/endpoint", endpoint);
@@ -164,9 +164,9 @@ int main (int argc, char *argv [])
     zstr_sendx (server, "CONNECT", endpoint, NULL);
 //    zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
-    if (!streq(gpio_base_index, "-1")) {
-        zsys_debug ("Target address of the GPIO chipset set to %s", gpio_base_index);
-        zstr_sendx (server, "GPIO_CHIP_ADDRESS", gpio_base_index, NULL);
+    if (!streq(gpio_base_address, "-1")) {
+        zsys_debug ("Target address of the GPIO chipset set to %s", gpio_base_address);
+        zstr_sendx (server, "GPIO_CHIP_ADDRESS", gpio_base_address, NULL);
     }
 
     // 3rd stream to publish and manage alerts
