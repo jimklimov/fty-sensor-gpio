@@ -537,9 +537,6 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
         }
         else if (which == mlm_client_msgpipe (self->mlm)) {
             zmsg_t *message = mlm_client_recv (self->mlm);
-            zsys_debug ("===> Got a reply");
-            zmsg_print (message);
-            //autoupdate_handle_message (self, message);
             if (is_fty_proto (message)) {
                 fty_proto_t *fmessage = fty_proto_decode (&message);
                 if (fty_proto_id (fmessage) == FTY_PROTO_ASSET) {
