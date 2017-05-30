@@ -77,7 +77,7 @@ str_replace(const char *in, const char *pattern, const char *by)
 
 void publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl)
 {
-    zsys_debug ("Publishing GPIO sensor %i (%s) alert",
+    my_zsys_debug (self->verbose, "Publishing GPIO sensor %i (%s) alert",
         sensor->gpx_number,
         sensor->asset_name);
 
@@ -98,7 +98,7 @@ void publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl
 
     std::string rule = string(sensor->type) + ".state_change@" + sensor->asset_name;
 
-    zsys_debug("%s: publishing alert %s with description:\n%s", __func__, rule.c_str (), description);
+    my_zsys_debug (self->verbose, "%s: publishing alert %s with description:\n%s", __func__, rule.c_str (), description);
     zmsg_t *message = fty_proto_encode_alert(
         NULL,               // aux
         time (NULL),        // timestamp
@@ -114,7 +114,7 @@ void publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl
     if (message) {
         int r = mlm_client_send (self->mlm, topic.c_str (), &message);
         if( r != 0 )
-            zsys_debug("failed to send alert %s result %", topic.c_str(), r);
+            my_zsys_debug (self->verbose, "failed to send alert %s result %", topic.c_str(), r);
     }
     zmsg_destroy (&message);
 }
@@ -125,23 +125,23 @@ void publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl
 static void
 s_check_gpio_status(fty_sensor_gpio_alerts_t *self)
 {
-    zsys_debug ("%s_alerts: %s", self->name, __func__);
+    my_zsys_debug (self->verbose, "%s_alerts: %s", self->name, __func__);
 
     // number of sensors monitored in gpx_list
     zlistx_t *gpx_list = get_gpx_list(self->verbose);
     if (!gpx_list) {
-        zsys_debug ("GPx list not initialized, skipping");
+        my_zsys_debug (self->verbose, "GPx list not initialized, skipping");
         return;
     }
     int sensors_count = zlistx_size (gpx_list);
     _gpx_info_t *gpx_info = NULL;
 
     if (sensors_count == 0) {
-        zsys_debug ("No sensors monitored");
+        my_zsys_debug (self->verbose, "No sensors monitored");
         return;
     }
     else
-        zsys_debug ("%i sensor(s) monitored", sensors_count);
+        my_zsys_debug (self->verbose, "%i sensor(s) monitored", sensors_count);
 
     if(!mlm_client_connected(self->mlm))
         return;
@@ -159,7 +159,7 @@ s_check_gpio_status(fty_sensor_gpio_alerts_t *self)
         if (gpx_info->current_state != GPIO_STATE_UNKNOWN) {
             // Check against normal state
             if (gpx_info->current_state != gpx_info->normal_state) {
-                zsys_debug ("ALARM: state changed");
+                my_zsys_debug (self->verbose, "ALARM: state changed");
                 // FIXME: do not repeat alarm?! so maybe flag in self
                 publish_alert (self, gpx_info, 300);
             }
@@ -216,7 +216,7 @@ fty_sensor_gpio_alerts(zsock_t *pipe, void *args)
         if (which == pipe) {
             zmsg_t *message = zmsg_recv (pipe);
             char *cmd = zmsg_popstr (message);
-            zsys_debug ("fty_sensor_gpio: received command %s", cmd);
+            my_zsys_debug (self->verbose, "fty_sensor_gpio: received command %s", cmd);
             if (cmd) {
                 if (streq (cmd, "$TERM")) {
                     zstr_free (&cmd);
@@ -231,14 +231,14 @@ fty_sensor_gpio_alerts(zsock_t *pipe, void *args)
                     int r = mlm_client_connect (self->mlm, endpoint, 5000, self->name);
                     if (r == -1)
                         zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
-                    zsys_debug("fty-gpio-sensor-alerts: CONNECT %s/%s", endpoint, self->name);
+                    my_zsys_debug (self->verbose, "fty-gpio-sensor-alerts: CONNECT %s/%s", endpoint, self->name);
                     zstr_free (&endpoint);
                 }
                 else if (streq (cmd, "PRODUCER")) {
                     char *stream = zmsg_popstr (message);
                     assert (stream);
                     mlm_client_set_producer (self->mlm, stream);
-                    zsys_debug ("fty-gpio-sensor-alerts: setting PRODUCER on %s", stream);
+                    my_zsys_debug (self->verbose, "fty-gpio-sensor-alerts: setting PRODUCER on %s", stream);
                     zstr_free (&stream);
                 }
                 else if (streq (cmd, "CONSUMER")) {
@@ -246,13 +246,13 @@ fty_sensor_gpio_alerts(zsock_t *pipe, void *args)
                     char *pattern = zmsg_popstr (message);
                     assert (stream && pattern);
                     mlm_client_set_consumer (self->mlm, stream, pattern);
-                    zsys_debug ("fty-gpio-sensor-alerts: setting CONSUMER on %s/%s", stream, pattern);
+                    my_zsys_debug (self->verbose, "fty-gpio-sensor-alerts: setting CONSUMER on %s/%s", stream, pattern);
                     zstr_free (&stream);
                     zstr_free (&pattern);
                 }
                 else if (streq (cmd, "VERBOSE")) {
                     self->verbose = true;
-                    zsys_debug ("fty_sensor_gpio: VERBOSE=true");
+                    my_zsys_debug (self->verbose, "fty_sensor_gpio: VERBOSE=true");
                 }
                 else if (streq (cmd, "UPDATE")) {
                     s_check_gpio_status(self);
