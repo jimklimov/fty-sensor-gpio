@@ -23,6 +23,17 @@
 @header
     fty_sensor_gpio_server - Actor
 @discuss
+     GPIO PROTOCOL
+
+     ------------------------------------------------------------------------
+    ## GPO_INTERACTION
+
+    REQ:
+        subject: "GPO_INTERACTION"
+        Message is a multipart string message
+
+        /asset/action              - apply action (open | close) on asset
+
 @end
 */
 
@@ -58,33 +69,97 @@ s_get (zconfig_t *config, const char* key, const char*dfl) {
 }
 
 //  --------------------------------------------------------------------------
+//  Helper function to replace strings
+
+static char*
+str_replace(const char *in, const char *pattern, const char *by)
+{
+    size_t outsize = strlen(in) + 1;
+    // TODO maybe avoid reallocing by counting the non-overlapping occurences of pattern
+    char *res = (char*)malloc(outsize);
+    // use this to iterate over the output
+    size_t resoffset = 0;
+
+    char *needle;
+    while ((needle = strstr((char *)in, (char *)pattern))) {
+        // copy everything up to the pattern
+        memcpy(res + resoffset, in, needle - in);
+        resoffset += needle - in;
+
+        // skip the pattern in the input-string
+        in = needle + strlen(pattern);
+
+        // adjust space for replacement
+        outsize = outsize - strlen(pattern) + strlen(by);
+        res = (char*)realloc(res, outsize);
+
+        // copy the pattern
+        memcpy(res + resoffset, by, strlen(by));
+        resoffset += strlen(by);
+    }
+
+    // copy the remaining input
+    strcpy(res + resoffset, in);
+
+    return res;
+}
+
+//  --------------------------------------------------------------------------
+//  Publish an alert for the pointed GPIO sensor
+
+void publish_alert (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl)
+{
+    my_zsys_debug (self->verbose, "Publishing GPIO sensor %i (%s) alert",
+        sensor->gpx_number,
+        sensor->asset_name);
+
+    // FIXME: ...
+    const char *state = "ACTIVE", *severity = sensor->alarm_severity;
+    char* description = (char*)malloc(128);
+    sprintf(description, sensor->alarm_message,
+        sensor->ext_name);
+
+    // Adapt alarm message if needed
+    if (strchr(sensor->alarm_message, '$')) {
+        // FIXME: other possible patterns $name $parent_name...
+        description = str_replace(sensor->alarm_message,
+                                  "$status",
+                                  libgpio_get_status_string(sensor->current_state).c_str());
+    }
+
+
+    std::string rule = string(sensor->type) + ".state_change@" + sensor->asset_name;
+
+    my_zsys_debug(self->verbose, "%s: publishing alert %s with description:\n%s",
+        __func__, rule.c_str (), description);
+    zmsg_t *message = fty_proto_encode_alert(
+        NULL,               // aux
+        time (NULL),        // timestamp
+        ttl,
+        rule.c_str (),      // rule
+        sensor->asset_name, // element
+        state,              // state
+        severity,           // severity
+        description,        // description
+        ""                  // action ?email
+    );
+    std::string topic = rule + "/" + severity + "@" + sensor->asset_name;
+    if (message) {
+        int r = mlm_client_send (self->mlm, topic.c_str (), &message);
+        if( r != 0 )
+            my_zsys_debug(self->verbose, "failed to send alert %s result %", topic.c_str(), r);
+    }
+    zmsg_destroy (&message);
+}
+
+//  --------------------------------------------------------------------------
 //  Publish status of the pointed GPIO sensor
 
 void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl)
 {
-    zsys_debug ("Publishing GPIO sensor %i (%s) status",
+    my_zsys_debug(self->verbose, "Publishing GPIO sensor %i (%s) status",
         sensor->gpx_number, sensor->asset_name);
 
-/*
---------------------------------------------------------------------------------
-stream=_METRICS_SENSOR
-sender=agent-sensor-gpio@rackcontroller-3
-subject=status.GPIx@rackcontroller-3
-D: 17-03-23 13:14:11 FTY_PROTO_METRIC:
-D: 17-03-23 13:14:11     aux=
-D: 17-03-23 13:14:11         port=GPIx
-D: 17-03-23 13:14:11     time=1490274851
-D: 17-03-23 13:14:11     ttl=300
-D: 17-03-23 13:14:11     type='status.GPIx'
-D: 17-03-23 13:14:11     name='rackcontroller-3' => or name (assetname)?
-D: 17-03-23 13:14:11     value='closed'
-D: 17-03-23 13:14:11     unit=''
---------------------------------------------------------------------------------
-
-std::string Sensor::topicSuffix () const
-{
-        return "." + port() + "@" + _location;
-*/
         zhash_t *aux = zhash_new ();
         zhash_autofree (aux);
         char* port = (char*)malloc(5);
@@ -104,13 +179,13 @@ std::string Sensor::topicSuffix () const
         if (msg) {
             std::string topic = string("status.") + port + string("@") + sensor->asset_name; //sensor->location;
 
-            zsys_debug ("\tPort: %s, type: %s, status: %s",
+            my_zsys_debug(self->verbose, "\tPort: %s, type: %s, status: %s",
                 port, msg_type.c_str(),
                 libgpio_get_status_string(sensor->current_state).c_str());
 
             int r = mlm_client_send (self->mlm, topic.c_str (), &msg);
             if( r != 0 )
-                zsys_debug("failed to send measurement %s result %", topic.c_str(), r);
+                my_zsys_debug(self->verbose, "failed to send measurement %s result %", topic.c_str(), r);
             zmsg_destroy (&msg);
         }
         free(port);
@@ -122,14 +197,14 @@ std::string Sensor::topicSuffix () const
 static void
 s_check_gpio_status(fty_sensor_gpio_server_t *self)
 {
-    zsys_debug ("%s_server: %s", self->name, __func__);
+    my_zsys_debug (self->verbose, "%s_server: %s", self->name, __func__);
 
     pthread_mutex_lock (&gpx_list_mutex);
 
     // number of sensors monitored in gpx_list
-    zlistx_t *gpx_list = get_gpx_list();
+    zlistx_t *gpx_list = get_gpx_list(self->verbose);
     if (!gpx_list) {
-        zsys_debug ("GPx list not initialized, skipping");
+        my_zsys_debug (self->verbose, "GPx list not initialized, skipping");
         pthread_mutex_unlock (&gpx_list_mutex);
         return;
     }
@@ -137,12 +212,12 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
     _gpx_info_t *gpx_info = NULL;
 
     if (sensors_count == 0) {
-        zsys_debug ("No sensors monitored");
+        my_zsys_debug (self->verbose, "No sensors monitored");
         pthread_mutex_unlock (&gpx_list_mutex);
         return;
     }
     else
-        zsys_debug ("%i sensor(s) monitored", sensors_count);
+        my_zsys_debug (self->verbose, "%i sensor(s) monitored", sensors_count);
 
     if(!mlm_client_connected(self->mlm)) {
         pthread_mutex_unlock (&gpx_list_mutex);
@@ -155,43 +230,38 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
     // Loop on all sensors
     for (int cur_sensor_num = 0; cur_sensor_num < sensors_count; cur_sensor_num++) {
 
-        // Get the current sensor status
-        gpx_info->current_state = libgpio_read(self->gpio_lib, gpx_info->gpx_number);
-        if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
-            zsys_debug ("Can't read GPI sensor #%i status", gpx_info->gpx_number);
-            continue;
+        // FIXME: publish also GPO status?
+        // For now, filter these out!
+        if (gpx_info->gpx_direction != GPIO_DIRECTION_OUT) {
+            // Get the current sensor status
+            gpx_info->current_state = libgpio_read( self->gpio_lib,
+                                                    gpx_info->gpx_number,
+                                                    gpx_info->gpx_direction);
+            if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
+                my_zsys_debug (self->verbose, "Can't read GPI sensor #%i status", gpx_info->gpx_number);
+                continue;
+            }
+            my_zsys_debug (self->verbose, "Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
+                libgpio_get_status_string(gpx_info->current_state).c_str(),
+                gpx_info->current_state, gpx_info->gpx_number,
+                gpx_info->ext_name, gpx_info->asset_name);
+
+            publish_status (self, gpx_info, 300);
+
+            // Check against normal state
+            if (gpx_info->current_state != gpx_info->normal_state) {
+                my_zsys_debug (self->verbose, "ALARM: state changed");
+                // FIXME: do not repeat alarm?! so maybe flag in self
+                publish_alert (self, gpx_info, 300);
+            }
         }
-        zsys_debug ("Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
-            libgpio_get_status_string(gpx_info->current_state).c_str(),
-            gpx_info->current_state, gpx_info->gpx_number,
-            gpx_info->ext_name, gpx_info->asset_name);
-
-        publish_status (self, gpx_info, 300);
-
         gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
     }
     pthread_mutex_unlock (&gpx_list_mutex);
 }
 
 //  --------------------------------------------------------------------------
-//  process message from MAILBOX DELIVER INFO INFO/INFO-TEST
-//  body :
-//    - name    IPC (12378)
-//    - type    _https._tcp.
-//    - subtype _powerservice._sub._https._tcp.
-//    - port    443
-//    - hashtable : TXT name, TXT value
-//          uuid
-//          name
-//          vendor
-//          serial
-//          model
-//          location
-//          version
-//          path
-//          protocol format
-//          type
-//          version
+//  process message from MAILBOX DELIVER
 void static
 s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
 {
@@ -201,13 +271,25 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         zsys_warning ("Empty subject.");
         return;
     }
+/*
+    ## GPO_INTERACTION
+
+    REQ:
+        subject: "GPO_INTERACTION"
+        Message is a multipart string message
+
+        /asset/action              - apply action (open | close) on asset
+*/
+
+
     //we assume all request command are MAILBOX DELIVER, and subject="gpio"
-    if (!streq(command, "GPIO") && !streq(command, "GPIO-TEST")) {
+    if (!streq(command, "GPIO") && !streq(command, "GPO_INTERACTION")
+        && !streq(command, "GPIO-TEST")) {
         zsys_warning ("%s: Received unexpected command '%s'", self->name, command);
         zmsg_t *reply = zmsg_new ();
         zmsg_addstr(reply, "ERROR");
         zmsg_addstr (reply, "unexpected command");
-        mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), "info", NULL, 1000, &reply);
+        mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), "gpio", NULL, 1000, &reply);
         zstr_free (&command);
         zmsg_destroy (&message);
         return;
@@ -220,7 +302,10 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         if (streq(command, "GPIO")) {
             ; // info = fty_info_new (self->resolver);
         }
-        if (streq(command, "GPIO-TEST")) {
+        else if (streq(command, "GPO_INTERACTION")) {
+            ; // info = fty_info_test_new ();
+        }
+        else if (streq(command, "GPIO-TEST")) {
             ; // info = fty_info_test_new ();
         }
         //prepare replied message content
@@ -333,7 +418,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
         if (which == pipe) {
             zmsg_t *message = zmsg_recv (pipe);
             char *cmd = zmsg_popstr (message);
-            zsys_debug ("fty_sensor_gpio: received command %s", cmd);
+            my_zsys_debug(self->verbose, "fty_sensor_gpio: received command %s", cmd);
             if (cmd) {
                 if (streq (cmd, "$TERM")) {
                     zstr_free (&cmd);
@@ -390,13 +475,14 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
         else if (which == mlm_client_msgpipe (self->mlm)) {
             zmsg_t *message = mlm_client_recv (self->mlm);
             if (streq (mlm_client_command (self->mlm), "MAILBOX DELIVER")) {
-                // FIXME: to be removed?
+                // FIXME: not useful, to be removed?
                 //s_handle_stream (self, message);
             } else if (streq (mlm_client_command (self->mlm), "MAILBOX DELIVER")) {
                 // someone is addressing us directly
                 // FIXME: can be requested for:
                 // * sensors manifest (pn, type, normal status) by UI
-                // * GPO interacting
+                //   => handled by _assets?!
+                // * GPO interaction: REQ
                 s_handle_mailbox(self, message);
             }
             zmsg_destroy (&message);
