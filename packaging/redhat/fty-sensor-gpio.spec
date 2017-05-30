@@ -111,6 +111,7 @@ find %{buildroot} -name '*.la' | xargs rm -f
 
 %files
 %defattr(-,root,root)
+%doc README.md
 %{_bindir}/fty-sensor-gpio
 %{_mandir}/man1/fty-sensor-gpio*
 %config(noreplace) %{_sysconfdir}/fty-sensor-gpio/fty-sensor-gpio.cfg
