@@ -69,90 +69,6 @@ s_get (zconfig_t *config, const char* key, const char*dfl) {
 }
 
 //  --------------------------------------------------------------------------
-//  Helper function to replace strings
-
-static char*
-str_replace(const char *in, const char *pattern, const char *by)
-{
-    size_t outsize = strlen(in) + 1;
-    // TODO maybe avoid reallocing by counting the non-overlapping occurences of pattern
-    char *res = (char*)malloc(outsize);
-    // use this to iterate over the output
-    size_t resoffset = 0;
-
-    char *needle;
-    while ((needle = strstr((char *)in, (char *)pattern))) {
-        // copy everything up to the pattern
-        memcpy(res + resoffset, in, needle - in);
-        resoffset += needle - in;
-
-        // skip the pattern in the input-string
-        in = needle + strlen(pattern);
-
-        // adjust space for replacement
-        outsize = outsize - strlen(pattern) + strlen(by);
-        res = (char*)realloc(res, outsize);
-
-        // copy the pattern
-        memcpy(res + resoffset, by, strlen(by));
-        resoffset += strlen(by);
-    }
-
-    // copy the remaining input
-    strcpy(res + resoffset, in);
-
-    return res;
-}
-
-//  --------------------------------------------------------------------------
-//  Publish an alert for the pointed GPIO sensor
-
-void publish_alert (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl)
-{
-    my_zsys_debug (self->verbose, "Publishing GPIO sensor %i (%s) alert",
-        sensor->gpx_number,
-        sensor->asset_name);
-
-    // FIXME: ...
-    const char *state = "ACTIVE", *severity = sensor->alarm_severity;
-    char* description = (char*)malloc(128);
-    sprintf(description, sensor->alarm_message,
-        sensor->ext_name);
-
-    // Adapt alarm message if needed
-    if (strchr(sensor->alarm_message, '$')) {
-        // FIXME: other possible patterns $name $parent_name...
-        description = str_replace(sensor->alarm_message,
-                                  "$status",
-                                  libgpio_get_status_string(sensor->current_state).c_str());
-    }
-
-
-    std::string rule = string(sensor->type) + ".state_change@" + sensor->asset_name;
-
-    my_zsys_debug(self->verbose, "%s: publishing alert %s with description:\n%s",
-        __func__, rule.c_str (), description);
-    zmsg_t *message = fty_proto_encode_alert(
-        NULL,               // aux
-        time (NULL),        // timestamp
-        ttl,
-        rule.c_str (),      // rule
-        sensor->asset_name, // element
-        state,              // state
-        severity,           // severity
-        description,        // description
-        ""                  // action ?email
-    );
-    std::string topic = rule + "/" + severity + "@" + sensor->asset_name;
-    if (message) {
-        int r = mlm_client_send (self->mlm, topic.c_str (), &message);
-        if( r != 0 )
-            my_zsys_debug(self->verbose, "failed to send alert %s result %", topic.c_str(), r);
-    }
-    zmsg_destroy (&message);
-}
-
-//  --------------------------------------------------------------------------
 //  Publish status of the pointed GPIO sensor
 
 void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl)
@@ -247,13 +163,6 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                 gpx_info->ext_name, gpx_info->asset_name);
 
             publish_status (self, gpx_info, 300);
-
-            // Check against normal state
-            if (gpx_info->current_state != gpx_info->normal_state) {
-                my_zsys_debug (self->verbose, "ALARM: state changed");
-                // FIXME: do not repeat alarm?! so maybe flag in self
-                publish_alert (self, gpx_info, 300);
-            }
         }
         gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
     }

@@ -28,8 +28,6 @@
 
 #include "fty_sensor_gpio_classes.h"
 
-//zlistx_t *_gpx_list = NULL;
-
 // TODO:
 // * Add 'location' / parent.name
 //   + Asset management and update existing entries
@@ -59,16 +57,6 @@ usage(){
     puts ("  -e|--endpoint       malamute endpoint [ipc://@/malamute]");
 
 }
-
-//  --------------------------------------------------------------------------
-//  Return a copy of the list of monitored sensors
-#if 0
-zlistx_t *
-get_gpx_list()
-{
-    return zlistx_dup (_gpx_list); 
-}
-#endif
 
 // Send an update request over the MQ to check for GPIO status & alerts
 static int
@@ -110,6 +98,7 @@ int main (int argc, char *argv [])
         else {
             // FIXME: as per the systemd service file, the config file
             // is provided as the default arg without '-c'!
+            // So, should we consider this?
             printf ("Unknown option: %s\n", argv [argn]);
             return 1;
         }
@@ -117,7 +106,7 @@ int main (int argc, char *argv [])
 
     // Parse config file
     if(config_file) {
-        zsys_debug ("fty_sensor_gpio: loading configuration file '%s'", config_file);
+        my_zsys_debug (verbose, "fty_sensor_gpio: loading configuration file '%s'", config_file);
         config = zconfig_load (config_file);
         if (!config) {
             zsys_error ("Failed to load config file %s: %m", config_file);
@@ -135,7 +124,7 @@ int main (int argc, char *argv [])
         // Target address of the GPIO chipset
         gpio_base_address = s_get (config, "hardware/gpio_base_address", "-1");
 
-        zsys_debug ("Polling interval set to %i", poll_interval);
+        my_zsys_debug (verbose, "Polling interval set to %i", poll_interval);
         endpoint = s_get (config, "malamute/endpoint", endpoint);
         actor_name = s_get (config, "malamute/address", actor_name);
     }
@@ -165,7 +154,7 @@ int main (int argc, char *argv [])
 //    zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
     if (!streq(gpio_base_address, "-1")) {
-        zsys_debug ("Target address of the GPIO chipset set to %s", gpio_base_address);
+        my_zsys_debug (verbose, "Target address of the GPIO chipset set to %s", gpio_base_address);
         zstr_sendx (server, "GPIO_CHIP_ADDRESS", gpio_base_address, NULL);
     }
 
