@@ -64,7 +64,9 @@ const char* s_get (zconfig_t *config, const char* key, const char*dfl);
 
 // Implemented in assets actor
 extern zlistx_t *_gpx_list;
-extern zlistx_t * get_gpx_list();
+extern zlistx_t * get_gpx_list(bool verbose);
 extern pthread_mutex_t gpx_list_mutex;
+
+#define my_zsys_debug(verbose, ...) { if (verbose) zsys_debug (__VA_ARGS__); }
 
 #endif
