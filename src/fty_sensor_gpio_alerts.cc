@@ -309,26 +309,70 @@ fty_sensor_gpio_alerts_test (bool verbose)
     printf (" * fty_sensor_gpio_alerts: ");
 
     //  @selftest
-    //  Simple create/destroy test
 
-    // Note: If your selftest reads SCMed fixture data, please keep it in
-    // src/selftest-ro; if your test creates filesystem objects, please
-    // do so under src/selftest-rw. They are defined below along with a
-    // usecase for the variables (assert) to make compilers happy.
-    const char *SELFTEST_DIR_RO = "src/selftest-ro";
-    const char *SELFTEST_DIR_RW = "src/selftest-rw";
-    assert (SELFTEST_DIR_RO);
-    assert (SELFTEST_DIR_RW);
-    // Uncomment these to use C++ strings in C++ selftest code:
-    //std::string str_SELFTEST_DIR_RO = std::string(SELFTEST_DIR_RO);
-    //std::string str_SELFTEST_DIR_RW = std::string(SELFTEST_DIR_RW);
-    //assert ( (str_SELFTEST_DIR_RO != "") );
-    //assert ( (str_SELFTEST_DIR_RW != "") );
-    // NOTE that for "char*" context you need (str_SELFTEST_DIR_RO + "/myfilename").c_str()
+    static const char* endpoint = "inproc://fty_sensor_gpio_alerts_test";
 
-    fty_sensor_gpio_alerts_t *self = fty_sensor_gpio_alerts_new (FTY_SENSOR_GPIO_AGENT"-alerts");
-    assert (self);
-    fty_sensor_gpio_alerts_destroy (&self);
+    zactor_t *server = zactor_new (mlm_server, (void*) "Malamute");
+    zstr_sendx (server, "BIND", endpoint, NULL);
+    if (verbose)
+        zstr_send (server, "VERBOSE");
+
+    zactor_t *alerts = zactor_new (fty_sensor_gpio_alerts, (void*)"gpio-alerts");
+    if (verbose)
+        zstr_send (alerts, "VERBOSE");
+    zstr_sendx (alerts, "CONNECT", endpoint, NULL);
+    zstr_sendx (alerts, "PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);
+    zclock_sleep (1000);
+
+    mlm_client_t *alerts_listener = mlm_client_new ();
+    mlm_client_connect (alerts_listener, endpoint, 1000, "fty_sensor_gpio_alerts_listener");
+    mlm_client_set_consumer (alerts_listener, FTY_PROTO_STREAM_ALERTS_SYS, ".*");
+
+    // Test #1: Create an asset with current_state != normal_state
+    // and check that an alarm is generated
+    {
+        fty_sensor_gpio_assets_t *assets_self = fty_sensor_gpio_assets_new("gpio-assets");
+
+        int rv = add_sensor(assets_self, "create",
+            "Eaton", "sensor-10", "GPIO-Sensor-Door1",
+            "sensor", "door-contact-sensor",
+            "closed", "1",
+            "GPI", "",
+            "Door has been $status", "WARNING");
+
+        assert (rv == 0);
+        // Acquire the list of monitored sensors
+        pthread_mutex_lock (&gpx_list_mutex);
+        zlistx_t *test_gpx_list = get_gpx_list(verbose);
+        assert (test_gpx_list);
+        int sensors_count = zlistx_size (test_gpx_list);
+        assert (sensors_count == 1);
+        // Test the first sensor
+        _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (test_gpx_list);
+        assert (gpx_info);
+        // Modify the current_state
+        gpx_info->current_state = GPIO_STATE_OPENED;
+
+        // Send an update and check for the generated alert
+        zstr_sendx (alerts, "UPDATE", endpoint, NULL);
+        zclock_sleep (500);
+
+        // Check the published alert
+        zmsg_t *recv = mlm_client_recv (alerts_listener);
+        assert (recv);
+        fty_proto_t *frecv = fty_proto_decode (&recv);
+        assert (frecv);
+        assert (streq (fty_proto_name (frecv), "sensor-10"));
+        assert (streq (fty_proto_state (frecv), "ACTIVE"));
+        assert (streq (fty_proto_severity (frecv), "WARNING"));
+        assert (streq (fty_proto_description (frecv), "Door has been opened"));
+
+        fty_sensor_gpio_assets_destroy (&assets_self);
+    }
+
+    zactor_destroy (&alerts);
+    mlm_client_destroy (&alerts_listener);
+    zactor_destroy (&server);
     //  @end
     printf ("OK\n");
 }

@@ -143,7 +143,8 @@ _gpx_info_t *sensor_new()
 //  Sensors handling
 //  Add a new entry to our zlist of monitored sensors
 
-static int
+//static
+int
 add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     const char* manufacturer, const char* assetname, const char* extname,
     const char* asset_subtype, const char* sensor_type,
@@ -562,9 +563,6 @@ fty_sensor_gpio_assets_test (bool verbose)
     if (verbose)
         zstr_send (server, "VERBOSE");
 
-    mlm_client_t *client = mlm_client_new ();
-    mlm_client_connect (client, endpoint, 1000, "fty_sensor_gpio_assets_test");
-
     zactor_t *assets = zactor_new (fty_sensor_gpio_assets, (void*)"gpio-assets");
     if (verbose)
         zstr_send (assets, "VERBOSE");
@@ -772,7 +770,6 @@ fty_sensor_gpio_assets_test (bool verbose)
 
     //  @end
     zactor_destroy (&assets);
-    mlm_client_destroy (&client);
     mlm_client_destroy (&asset_generator);
     zactor_destroy (&server);
     printf ("OK\n");

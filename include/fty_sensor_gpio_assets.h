@@ -31,13 +31,26 @@ extern "C" {
 FTY_SENSOR_GPIO_EXPORT void
     fty_sensor_gpio_assets (zsock_t *pipe, void *args);
 
+//  Create a new fty_sensor_gpio_assets
+FTY_SENSOR_GPIO_EXPORT fty_sensor_gpio_assets_t *
+    fty_sensor_gpio_assets_new (const char* name);
+
 //  Destroy the fty_sensor_gpio_assets
-//FTY_SENSOR_GPIO_EXPORT void
-//    fty_sensor_gpio_assets_destroy (fty_sensor_gpio_assets_t **self_p);
+FTY_SENSOR_GPIO_EXPORT void
+    fty_sensor_gpio_assets_destroy (fty_sensor_gpio_assets_t **self_p);
 
 //  Self test of this class
 FTY_SENSOR_GPIO_EXPORT void
     fty_sensor_gpio_assets_test (bool verbose);
+
+//  List accessor
+FTY_SENSOR_GPIO_EXPORT int
+add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
+    const char* manufacturer, const char* assetname, const char* extname,
+    const char* asset_subtype, const char* sensor_type,
+    const char* sensor_normal_state, const char* sensor_gpx_number,
+    const char* sensor_gpx_direction, const char* sensor_location,
+    const char* sensor_alarm_message, const char* sensor_alarm_severity);
 
 // GPx list accessor
 //FTY_SENSOR_GPIO_EXPORT zlistx_t *
