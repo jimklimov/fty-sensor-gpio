@@ -29,6 +29,7 @@
 #include "fty_sensor_gpio_classes.h"
 
 // TODO:
+// * Install template files to $datadir
 // * Add 'location' / parent.name
 //   + Asset management and update existing entries
 // * Add 'int last_state' to '_gpx_info_t' and only publish state change?
@@ -44,6 +45,10 @@
 // * cleanup, final cppcheck, fix all FIXMEs...
 // * Support for pin mapping in config file (for GPO especially) to map
 //   GPx number to pin number
+//   gpo_mapping
+//       <gpo number> = <pin number>
+//   gpi_mapping
+//       <gpi number> = <pin number>
 
 void
 usage(){

@@ -75,6 +75,16 @@ libgpio_get_status_value (const char* status_name);
 FTY_SENSOR_GPIO_EXPORT void
     libgpio_set_gpio_base_address (libgpio_t *self, int GPx_base_index);
 
+//  @interface
+//  Set the test mode
+FTY_SENSOR_GPIO_EXPORT void
+libgpio_set_test_mode (libgpio_t *self, bool test_mode);
+
+//  @interface
+//  Set the verbosity
+FTY_SENSOR_GPIO_EXPORT void
+libgpio_set_verbose (libgpio_t *self, bool verbose);
+
 //  Destroy the libgpio
 FTY_SENSOR_GPIO_EXPORT void
     libgpio_destroy (libgpio_t **self_p);

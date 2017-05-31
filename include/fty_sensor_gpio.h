@@ -52,8 +52,9 @@ typedef struct _gpx_info_s {
     char* location;       // Parent name, to which the GPIO is attached
     int normal_state;     // opened | closed
     int current_state;    // opened | closed
-    int gpx_number;       // GPI number, 1 - 10 (FIXME: GPO)
-    int gpx_direction;    // GPIn or GPOut
+    int gpx_number;       // GPIO number
+    int pin_number;       // Pin number for this GPIO
+    int gpx_direction;    // GPI(n) or GPO(ut)
     char* alarm_message;  // Alert message to publish
     char* alarm_severity; // Applied severity
 } _gpx_info_t;

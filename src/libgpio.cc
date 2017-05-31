@@ -98,6 +98,10 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     char value_str[3];
     int fd;
 
+    // Use the value provided in "direction"
+    if (self->test_mode)
+        return direction;
+
     // GPI pin has -1 offset, i.e. GPI 1 is pin 0
     int pin = GPx_number - 1;
 
@@ -139,6 +143,10 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     char path[GPIO_VALUE_MAX];
     int fd;
     int retval = 0;
+
+    // Simply return "ok" in test mode
+    if (self->test_mode)
+        return retval;
 
     // FIXME: GPO pin MAY also have -1 offset, i.e. GPO 1 is pin 0
     int pin = GPO_number; // - 1;
