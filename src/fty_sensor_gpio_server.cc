@@ -222,7 +222,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         zmsg_t *reply = zmsg_new ();
         zmsg_addstr(reply, "ERROR");
         zmsg_addstr (reply, "BAD_COMMAND");
-        mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), "gpio", NULL, 1000, &reply);
+        mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), subject.c_str(), NULL, 1000, &reply);
         zmsg_destroy (&reply);
         return;
     }
@@ -234,7 +234,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         zmsg_t *reply = zmsg_new ();
         zmsg_addstr(reply, "ERROR");
         zmsg_addstr (reply, "BAD_COMMAND");
-        mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), "gpio", NULL, 1000, &reply);
+        mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), subject.c_str(), NULL, 1000, &reply);
         zmsg_destroy (&reply);
         return;
     }
@@ -289,7 +289,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     zmsg_addstr (reply, "ASSET_NOT_FOUND");
                 }
                 // send the reply
-                int rv = mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), "gpio", NULL, 5000, &reply);
+                int rv = mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), subject.c_str(), NULL, 5000, &reply);
                 if (rv == -1)
                     zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
             }
@@ -316,6 +316,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                         break;
                     }
                     else {
+                        my_zsys_debug (self->verbose, "Template file found for %s", asset_partnumber);
                         // Get info from template
                         const char *manufacturer = s_get (sensor_template_file, "manufacturer", "");
                         const char *type = s_get (sensor_template_file, "type", "");
@@ -338,7 +339,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     asset_partnumber = zmsg_popstr (message);
                 }
                 // send the reply
-                int rv = mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), "gpio", NULL, 5000, &reply);
+                int rv = mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), subject.c_str(), NULL, 5000, &reply);
                 if (rv == -1)
                     zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
 
