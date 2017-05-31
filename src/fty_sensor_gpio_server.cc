@@ -210,7 +210,7 @@ void static
 s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
 {
     std::string subject = mlm_client_subject (self->mlm);
-    std::string command = mlm_client_command (self->mlm); //zmsg_popstr (message);
+    std::string command = zmsg_popstr (message);
     if (command == "") {
         zmsg_destroy (&message);
         zsys_warning ("Empty subject.");
