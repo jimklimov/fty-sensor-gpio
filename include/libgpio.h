@@ -66,6 +66,11 @@ FTY_SENSOR_GPIO_EXPORT string
     libgpio_get_status_string (int value);
 
 //  @interface
+//  Get the numeric value for a status name
+FTY_SENSOR_GPIO_EXPORT int
+libgpio_get_status_value (const char* status_name);
+
+//  @interface
 //  Set the target address of the GPIO chipset
 FTY_SENSOR_GPIO_EXPORT void
     libgpio_set_gpio_base_address (libgpio_t *self, int GPx_base_index);

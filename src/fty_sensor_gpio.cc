@@ -35,8 +35,6 @@
 //   (i.e. last_state != current_state)
 // * Dynamic extension of the manifest: if it's a sensor but unknown, lively
 //   create a manifest file? Check with PO...
-// * Dedicated alert actor
-// * config file default path (when installed)
 // * Tests
 // * Documentation
 // * MAILBOX REQ handling:
@@ -44,9 +42,8 @@
 // ** Sensors manifest (MAILBOX message requesting the list of supported sensors
 //    and details, inc. normal state)
 // * cleanup, final cppcheck, fix all FIXMEs...
-// NEED TESTING:
-// * REQ fty-asset to REPUBLISH /$all (better than just listening for repub and persist!)
-
+// * Support for pin mapping in config file (for GPO especially) to map
+//   GPx number to pin number
 
 void
 usage(){

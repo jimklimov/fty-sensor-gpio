@@ -31,7 +31,9 @@
 //  Structure of our class
 
 struct _libgpio_t {
-    int gpio_base_address;
+    int  gpio_base_address;  // Base address of the GPIOs chipset
+    bool test_mode;          // true if we are in test mode, false otherwise
+    bool verbose;            // is actor verbose or not
 };
 
 //  Private functions forward declarations
@@ -51,17 +53,40 @@ libgpio_new (void)
     assert (self);
     //  Initialize class properties here
     self->gpio_base_address = GPIO_BASE_INDEX;
+    self->test_mode = false;
+    self->verbose = false;
 
     return self;
 }
 
 //  --------------------------------------------------------------------------
 //  Set the target address of the GPIO chipset
+
 void
 libgpio_set_gpio_base_address (libgpio_t *self, int GPx_base_index)
 {
     zsys_debug ("%s: setting address to %i", __func__, GPx_base_index);
     self->gpio_base_address = GPx_base_index;
+}
+
+//  --------------------------------------------------------------------------
+//  Set the test mode
+
+void
+libgpio_set_test_mode (libgpio_t *self, bool test_mode)
+{
+    zsys_debug ("%s: setting test_mode to '%s'", __func__, (test_mode == true)?"True":"False");
+    self->test_mode = test_mode;
+}
+
+//  --------------------------------------------------------------------------
+//  Set the verbosity
+
+void
+libgpio_set_verbose (libgpio_t *self, bool verbose)
+{
+    zsys_debug ("%s: setting verbose to '%s'", __func__, (verbose == true)?"True":"False");
+    self->verbose = verbose;
 }
 
 //  --------------------------------------------------------------------------
@@ -154,6 +179,25 @@ libgpio_get_status_string (int value)
             status_str = ""; // FIXME: return "unknown"?
     }
     return status_str;
+}
+
+//  --------------------------------------------------------------------------
+//  Get the numeric value for a status name
+int
+libgpio_get_status_value (const char* status_name)
+{
+    int status_value = GPIO_STATE_CLOSED;
+
+    if ( (streq (status_name, "closed")) || (streq (status_name, "close")) ) {
+        status_value = GPIO_STATE_CLOSED;
+    }
+    else if ( (streq (status_name, "opened")) || (streq (status_name, "open")) ) {
+        status_value = GPIO_STATE_OPENED;
+    }
+    else
+        status_value = GPIO_STATE_UNKNOWN;
+
+    return status_value;
 }
 
 //  --------------------------------------------------------------------------
