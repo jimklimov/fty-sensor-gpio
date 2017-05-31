@@ -132,6 +132,7 @@ _gpx_info_t *sensor_new()
     gpx_info->normal_state = GPIO_STATE_UNKNOWN;
     gpx_info->current_state = GPIO_STATE_UNKNOWN;
     gpx_info->gpx_number = -1;
+    gpx_info->pin_number = -1;
     gpx_info->gpx_direction = GPIO_DIRECTION_IN; // Default to GPI
     gpx_info->alarm_message = NULL;
     gpx_info->alarm_severity = NULL;
@@ -172,6 +173,7 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     else if ( streq (sensor_normal_state, "closed") )
         gpx_info->normal_state = GPIO_STATE_CLOSED;
     gpx_info->gpx_number = atoi(sensor_gpx_number);
+//    gpx_info->pin_number = atoi(sensor_pin_number);
     if ( streq (sensor_gpx_direction, "GPO" ) )
         gpx_info->gpx_direction = GPIO_DIRECTION_OUT;
     else
@@ -280,6 +282,7 @@ is_asset_gpio_sensor (fty_sensor_gpio_assets_t *self, string asset_subtype, stri
         return "";
 
     // Check if a sensor template exists
+    // FIXME: use @datadir@ (how?)!
     template_filename = string("./data/") + string(asset_model) + string(".tpl");
     FILE *template_file = fopen(template_filename.c_str(), "r");
     if (!template_file) {

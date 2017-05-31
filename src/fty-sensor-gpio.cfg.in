@@ -13,3 +13,11 @@ malamute
 
 hardware
     gpio_base_address = 488     #   Target address of the GPIO chipset (gpiochip488)
+    gpi_count         = 10      #   Number of GPI
+    gpo_count         = 10      #   Number of GPO
+    gpo_offset        = 15      #   Offset to apply to access GPO, from base chipset address
+#    gpi_offset        = 15      #   Offset to apply to access GPI, from base chipset address
+#    gpo_mapping                 #   Mapping between GPO number and HW pin number
+#        <gpo number> = <pin number>
+#    gpi_mapping                #   Mapping between GPI number and HW pin number
+#        <gpi number> = <pin number>

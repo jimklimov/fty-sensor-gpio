@@ -34,6 +34,8 @@ struct _libgpio_t {
     int  gpio_base_address;  // Base address of the GPIOs chipset
     bool test_mode;          // true if we are in test mode, false otherwise
     bool verbose;            // is actor verbose or not
+    int  gpo_offset;         // offset to access GPO pins
+    int  gpi_offset;         // offset to access GPI pins
 };
 
 //  Private functions forward declarations
@@ -53,6 +55,8 @@ libgpio_new (void)
     assert (self);
     //  Initialize class properties here
     self->gpio_base_address = GPIO_BASE_INDEX;
+    self->gpo_offset = 0;
+    self->gpi_offset = 0;
     self->test_mode = false;
     self->verbose = false;
 
@@ -67,6 +71,26 @@ libgpio_set_gpio_base_address (libgpio_t *self, int GPx_base_index)
 {
     zsys_debug ("%s: setting address to %i", __func__, GPx_base_index);
     self->gpio_base_address = GPx_base_index;
+}
+
+//  --------------------------------------------------------------------------
+//  Set the offset to access GPO pins
+
+void
+libgpio_set_gpo_offset (libgpio_t *self, int gpo_offset)
+{
+    zsys_debug ("%s: setting GPO offset to %i", __func__, gpo_offset);
+    self->gpo_offset = gpo_offset;
+}
+
+//  --------------------------------------------------------------------------
+//  Set the offset to access GPI pins
+
+void
+libgpio_set_gpi_offset (libgpio_t *self, int gpi_offset)
+{
+    zsys_debug ("%s: setting GPI offset to %i", __func__, gpi_offset);
+    self->gpi_offset = gpi_offset;
 }
 
 //  --------------------------------------------------------------------------

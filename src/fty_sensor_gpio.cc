@@ -76,7 +76,9 @@ int main (int argc, char *argv [])
     const char* endpoint = (char*)"ipc://@/malamute";
     const char* str_poll_interval = NULL;
     int poll_interval = DEFAULT_POLL_INTERVAL;
-    const char* gpio_base_address = NULL;
+    const char* gpio_base_address = "-1";
+    const char* gpi_offset = "0";
+    const char* gpo_offset = "0";
     bool verbose = false;
     int argn;
 
@@ -126,6 +128,10 @@ int main (int argc, char *argv [])
         // Target address of the GPIO chipset
         gpio_base_address = s_get (config, "hardware/gpio_base_address", "-1");
 
+        // GPO configuration
+        gpo_offset = s_get (config, "hardware/gpo_offset", "0");
+
+
         my_zsys_debug (verbose, "Polling interval set to %i", poll_interval);
         endpoint = s_get (config, "malamute/endpoint", endpoint);
         actor_name = s_get (config, "malamute/address", actor_name);
@@ -153,11 +159,18 @@ int main (int argc, char *argv [])
 
     // 2nd (main) stream to handle GPx polling, metrics publication and mailbox requests
     zstr_sendx (server, "CONNECT", endpoint, NULL);
-//    zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
     if (!streq(gpio_base_address, "-1")) {
         my_zsys_debug (verbose, "Target address of the GPIO chipset set to %s", gpio_base_address);
         zstr_sendx (server, "GPIO_CHIP_ADDRESS", gpio_base_address, NULL);
+    }
+    if (!streq(gpi_offset, "0")) {
+        my_zsys_debug (verbose, "GPI offset set to %s", gpi_offset);
+        zstr_sendx (server, "GPI_OFFSET", gpi_offset, NULL);
+    }
+    if (!streq(gpo_offset, "0")) {
+        my_zsys_debug (verbose, "GPO offset set to %s", gpo_offset);
+        zstr_sendx (server, "GPO_OFFSET", gpo_offset, NULL);
     }
 
     // 3rd stream to publish and manage alerts

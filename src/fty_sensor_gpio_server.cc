@@ -199,6 +199,8 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
 
             publish_status (self, gpx_info, 300);
         }
+        else
+            my_zsys_debug (self->verbose, "GPO sensor '%s' skipped!", gpx_info->asset_name);
         gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
     }
     pthread_mutex_unlock (&gpx_list_mutex);
@@ -260,6 +262,8 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (gpx_list);
                 gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
                 for (int cur_sensor_num = 0; cur_sensor_num < sensors_count; cur_sensor_num++) {
+                    if (!gpx_info || !gpx_info->asset_name)
+                        continue;
                     if (streq(gpx_info->asset_name, asset_name))
                         break;
                     gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
@@ -533,6 +537,18 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     int gpio_base_address = atoi(str_gpio_base_address);
                     libgpio_set_gpio_base_address (self->gpio_lib, gpio_base_address);
                     my_zsys_debug (self->verbose, "fty_sensor_gpio: GPIO_CHIP_ADDRESS=%i", gpio_base_address);
+                }
+                else if (streq (cmd, "GPI_OFFSET")) {
+                    char *str_gpi_offset = zmsg_popstr (message);
+                    int gpi_offset = atoi(str_gpi_offset);
+                    libgpio_set_gpi_offset (self->gpio_lib, gpi_offset);
+                    my_zsys_debug (self->verbose, "fty_sensor_gpio: GPI_OFFSET=%i", gpi_offset);
+                }
+                else if (streq (cmd, "GPO_OFFSET")) {
+                    char *str_gpo_offset = zmsg_popstr (message);
+                    int gpo_offset = atoi(str_gpo_offset);
+                    libgpio_set_gpo_offset (self->gpio_lib, gpo_offset);
+                    my_zsys_debug (self->verbose, "fty_sensor_gpio: GPO_OFFSET=%i", gpo_offset);
                 }
                 else {
                     zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);

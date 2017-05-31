@@ -76,6 +76,16 @@ FTY_SENSOR_GPIO_EXPORT void
     libgpio_set_gpio_base_address (libgpio_t *self, int GPx_base_index);
 
 //  @interface
+//  Set the offset to access GPI pins
+FTY_SENSOR_GPIO_EXPORT void
+libgpio_set_gpi_offset (libgpio_t *self, int gpi_offset);
+
+//  @interface
+//  Set the offset to access GPO pins
+FTY_SENSOR_GPIO_EXPORT void
+libgpio_set_gpo_offset (libgpio_t *self, int gpo_offset);
+
+//  @interface
 //  Set the test mode
 FTY_SENSOR_GPIO_EXPORT void
 libgpio_set_test_mode (libgpio_t *self, bool test_mode);
