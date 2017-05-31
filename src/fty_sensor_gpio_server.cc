@@ -216,6 +216,19 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         return;
     }
 
+    if (!streq(command, "GET")) {
+        zsys_warning ("%s: Received unexpected command '%s'", self->name, command);
+        zmsg_t *reply = zmsg_new ();
+        zmsg_addstr(reply, "ERROR");
+        zmsg_addstr (reply, "BAD_COMMAND");
+        mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), "gpio", NULL, 1000, &reply);
+        zstr_free (&command);
+        zmsg_destroy (&reply);
+        return;
+    }
+    // Now pop the actual command
+    command = zmsg_popstr (message);
+
     //we assume all request command are MAILBOX DELIVER, and subject="gpio"
     if (!streq(command, "GPIO") && !streq(command, "GPO_INTERACTION")
          && !streq(command, "GPIO_MANIFEST") && !streq(command, "GPIO_TEST")) {
@@ -225,7 +238,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         zmsg_addstr (reply, "BAD_COMMAND");
         mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), "gpio", NULL, 1000, &reply);
         zstr_free (&command);
-        zmsg_destroy (&message);
+        zmsg_destroy (&reply);
         return;
     }
     else {
@@ -284,6 +297,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
             }
             pthread_mutex_unlock (&gpx_list_mutex);
+            zmsg_destroy (&reply);
         }
         else if (streq(command, "GPIO_MANIFEST")) {
             // FIXME: consolidate code using filters
@@ -331,6 +345,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 if (rv == -1)
                     zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
 
+                zmsg_destroy (&reply);
             }
             else {
                 // Send all templates
@@ -393,8 +408,6 @@ DCS001
         }
     }
     zstr_free (&command);
-    zmsg_destroy (&message);
-
 }
 
 //  --------------------------------------------------------------------------
