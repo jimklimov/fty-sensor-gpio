@@ -209,46 +209,43 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
 void static
 s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
 {
-    char *command = zmsg_popstr (message);
-    if (!command) {
+    std::string subject = mlm_client_subject (self->mlm);
+    std::string command = mlm_client_command (self->mlm); //zmsg_popstr (message);
+    if (command == "") {
         zmsg_destroy (&message);
         zsys_warning ("Empty subject.");
         return;
     }
 
-    if (!streq(command, "GET")) {
-        zsys_warning ("%s: Received unexpected command '%s'", self->name, command);
+    if (command != "GET") {
+        zsys_warning ("%s: Received unexpected command '%s'", self->name, command.c_str());
         zmsg_t *reply = zmsg_new ();
         zmsg_addstr(reply, "ERROR");
         zmsg_addstr (reply, "BAD_COMMAND");
         mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), "gpio", NULL, 1000, &reply);
-        zstr_free (&command);
         zmsg_destroy (&reply);
         return;
     }
-    // Now pop the actual command
-    command = zmsg_popstr (message);
 
     //we assume all request command are MAILBOX DELIVER, and subject="gpio"
-    if (!streq(command, "GPIO") && !streq(command, "GPO_INTERACTION")
-         && !streq(command, "GPIO_MANIFEST") && !streq(command, "GPIO_TEST")) {
-        zsys_warning ("%s: Received unexpected command '%s'", self->name, command);
+    if ( (subject != "") && (subject != "GPIO") && (subject != "GPO_INTERACTION")
+         && (subject != "GPIO_MANIFEST") && (subject != "GPIO_TEST")) {
+        zsys_warning ("%s: Received unexpected subject '%s'", self->name, subject.c_str());
         zmsg_t *reply = zmsg_new ();
         zmsg_addstr(reply, "ERROR");
         zmsg_addstr (reply, "BAD_COMMAND");
         mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), "gpio", NULL, 1000, &reply);
-        zstr_free (&command);
         zmsg_destroy (&reply);
         return;
     }
     else {
         zmsg_t *reply = zmsg_new ();
-        my_zsys_debug (self->verbose, "%s: do '%s'", self->name, command);
+        my_zsys_debug (self->verbose, "%s: '%s' requested", self->name, subject.c_str());
 
-        if (streq(command, "GPIO")) {
+        if (subject == "GPIO") {
             ; // FIXME: needed?
         }
-        else if (streq(command, "GPO_INTERACTION")) {
+        else if (subject == "GPO_INTERACTION") {
             char *asset_name = zmsg_popstr (message);
             char *action_name = zmsg_popstr (message);
             my_zsys_debug (self->verbose, "GPO_INTERACTION: do '%s' on '%s'",
@@ -299,7 +296,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             pthread_mutex_unlock (&gpx_list_mutex);
             zmsg_destroy (&reply);
         }
-        else if (streq(command, "GPIO_MANIFEST")) {
+        else if (subject == "GPIO_MANIFEST") {
             // FIXME: consolidate code using filters
             zmsg_t *reply = zmsg_new ();
             char *asset_partnumber = zmsg_popstr (message);
@@ -403,11 +400,10 @@ DCS001
     alarm-message  = Door has been $status
 */
         }
-        else if (streq(command, "GPIO_TEST")) {
+        else if (subject == "GPIO_TEST") {
             ;
         }
     }
-    zstr_free (&command);
 }
 
 //  --------------------------------------------------------------------------
