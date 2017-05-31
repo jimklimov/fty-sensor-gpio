@@ -299,6 +299,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         else if (subject == "GPIO_MANIFEST") {
             // FIXME: consolidate code using filters
             zmsg_t *reply = zmsg_new ();
+            zmsg_addstr (reply, "OK");
             char *asset_partnumber = zmsg_popstr (message);
             // Check for a parameter, to send (a) specific template(s)
             if (asset_partnumber) {
@@ -325,7 +326,6 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                         const char *alarm_severity = s_get (sensor_template_file, "alarm-severity", "");
                         const char *alarm_message = s_get (sensor_template_file, "alarm-message", "");
 
-                        zmsg_addstr (reply, "OK");
                         zmsg_addstr (reply, asset_partnumber);
                         zmsg_addstr (reply, manufacturer);
                         zmsg_addstr (reply, type);
