@@ -89,10 +89,13 @@ void publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl
 
     // Adapt alarm message if needed
     if (strchr(sensor->alarm_message, '$')) {
-        // FIXME: other possible patterns $name $parent_name...
+        // FIXME: other possible patterns $parent_name...
         description = str_replace(sensor->alarm_message,
                                   "$status",
                                   libgpio_get_status_string(sensor->current_state).c_str());
+        description = str_replace(description,
+                                  "$device_name",
+                                  sensor->ext_name);
     }
 
 
