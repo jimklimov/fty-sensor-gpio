@@ -46,6 +46,7 @@ struct _fty_sensor_gpio_server_t {
     char               *name;         // actor name
     mlm_client_t       *mlm;          // malamute client
     libgpio_t          *gpio_lib;     // GPIO library handle
+    bool               test_mode;     // true if we are in test mode, false otherwise
 };
 
 // Configuration accessors
@@ -204,7 +205,8 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         return;
     }
     else {
-        zsys_debug ("%s: do '%s'", self->name, command);
+        zmsg_t *reply = zmsg_new ();
+        my_zsys_debug (self->verbose, "%s: do '%s'", self->name, command);
 //        zmsg_t *reply = zmsg_new ();
 //        char *zuuid = zmsg_popstr (message);
 //        fty_info_t *info;
@@ -212,41 +214,58 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             ; // info = fty_info_new (self->resolver);
         }
         else if (streq(command, "GPO_INTERACTION")) {
-            ; // info = fty_info_test_new ();
+            char *asset_name = zmsg_popstr (message);
+            char *action_name = zmsg_popstr (message);
+            my_zsys_debug (self->verbose, "GPO_INTERACTION: do '%s' on '%s'",
+                action_name, asset_name);
+            // Get the GPO entry for details
+            pthread_mutex_lock (&gpx_list_mutex);
+            zlistx_t *gpx_list = get_gpx_list(self->verbose);
+            if (gpx_list) {
+                // FIXME: doesn't work?!
+                // _gpx_info_t *gpx_info = (_gpx_info_t*)zlistx_find (test_gpx_list, (void *) gpx_info_test);
+                int sensors_count = zlistx_size (gpx_list);
+                _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (gpx_list);
+                gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
+                for (int cur_sensor_num = 0; cur_sensor_num < sensors_count; cur_sensor_num++) {
+                    if (streq(gpx_info->asset_name, asset_name))
+                        break;
+                    gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
+                }
+                if ( (gpx_info) && (streq(gpx_info->asset_name, asset_name)) ) {
+                    int status_value = libgpio_get_status_value (action_name);
+
+                    if (status_value != GPIO_STATE_UNKNOWN) {
+                        if (libgpio_write (self->gpio_lib, gpx_info->gpx_number, status_value) != 0) {
+                            my_zsys_debug (self->verbose, "GPO_INTERACTION: failed to set value!");
+                            zmsg_addstr (reply, "ERROR");
+                            zmsg_addstr (reply, "SET_VALUE_FAILED");
+                        }
+                        else {
+                            zmsg_addstr (reply, "OK");
+                        }
+                    }
+                    else {
+                        my_zsys_debug (self->verbose, "GPO_INTERACTION: status value is unknown!");
+                        zmsg_addstr (reply, "ERROR");
+                        zmsg_addstr (reply, "UNKNOWN_VALUE");
+                    }
+                }
+                else {
+                    my_zsys_debug (self->verbose, "GPO_INTERACTION: can't find asset '%'!", asset_name);
+                    zmsg_addstr (reply, "ERROR");
+                    zmsg_addstr (reply, "ASSET_NOT_FOUND");
+                }
+                // send the reply
+                int rv = mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), "gpio", NULL, 5000, &reply);
+                if (rv == -1)
+                    zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
+
+            }
         }
         else if (streq(command, "GPIO-TEST")) {
-            ; // info = fty_info_test_new ();
+            ;
         }
-        //prepare replied message content
-/*        zmsg_addstrf (reply, "%s", zuuid);
-        char *srv_name = s_get_name(SRV_NAME, info->uuid);
-        zmsg_addstr (reply, srv_name);
-        zmsg_addstr (reply, SRV_TYPE);
-        zmsg_addstr (reply, SRV_STYPE);
-        zmsg_addstr (reply, SRV_PORT);
-        zhash_insert(info->infos, INFO_UUID, info->uuid);
-        zhash_insert(info->infos, INFO_HOSTNAME, info->hostname);
-        zhash_insert(info->infos, INFO_NAME, info->name);
-        zhash_insert(info->infos, INFO_NAME_URI, info->name_uri);
-        zhash_insert(info->infos, INFO_VENDOR, info->vendor);
-        zhash_insert(info->infos, INFO_MODEL, info->model);
-        zhash_insert(info->infos, INFO_SERIAL, info->serial);
-        zhash_insert(info->infos, INFO_LOCATION, info->location);
-        zhash_insert(info->infos, INFO_PARENT_URI, info->parent_uri);
-        zhash_insert(info->infos, INFO_VERSION, info->version);
-        zhash_insert(info->infos, INFO_REST_PATH, info->path);
-        zhash_insert(info->infos, INFO_PROTOCOL_FORMAT, info->protocol_format);
-        zhash_insert(info->infos, INFO_TYPE, info->type);
-        zhash_insert(info->infos, INFO_TXTVERS, info->txtvers);
-
-        zframe_t * frame_infos = zhash_pack(info->infos);
-        zmsg_append (reply, &frame_infos);
-        mlm_client_sendto (self->client, mlm_client_sender (self->client), "info", NULL, 1000, &reply);
-        zframe_destroy(&frame_infos);
-        zstr_free (&zuuid);
-        zstr_free(&srv_name);
-        fty_info_destroy (&info);
-*/
     }
     zstr_free (&command);
     zmsg_destroy (&message);
@@ -266,6 +285,7 @@ fty_sensor_gpio_server_new (const char* name)
     self->mlm         = mlm_client_new();
     self->name        = strdup(name);
     self->verbose     = false;
+    self->test_mode   = false;
 
     self->gpio_lib = libgpio_new ();
     assert (self->gpio_lib);
@@ -364,6 +384,10 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                 else if (streq (cmd, "VERBOSE")) {
                     self->verbose = true;
                     zsys_debug ("fty_sensor_gpio: VERBOSE=true");
+                }
+                else if (streq (cmd, "TEST")) {
+                    self->test_mode = true;
+                    zsys_debug ("fty_sensor_gpio: TEST=true");
                 }
                 else if (streq (cmd, "UPDATE")) {
                     s_check_gpio_status(self);
