@@ -190,17 +190,19 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                                                     gpx_info->gpx_direction);
             if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
                 my_zsys_debug (self->verbose, "Can't read GPI sensor #%i status", gpx_info->gpx_number);
-                continue;
             }
-            my_zsys_debug (self->verbose, "Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
-                libgpio_get_status_string(gpx_info->current_state).c_str(),
-                gpx_info->current_state, gpx_info->gpx_number,
-                gpx_info->ext_name, gpx_info->asset_name);
+            else {
+                my_zsys_debug (self->verbose, "Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
+                    libgpio_get_status_string(gpx_info->current_state).c_str(),
+                    gpx_info->current_state, gpx_info->gpx_number,
+                    gpx_info->ext_name, gpx_info->asset_name);
 
-            publish_status (self, gpx_info, 300);
+                publish_status (self, gpx_info, 300);
+            }
         }
         else
             my_zsys_debug (self->verbose, "GPO sensor '%s' skipped!", gpx_info->asset_name);
+
         gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
     }
     pthread_mutex_unlock (&gpx_list_mutex);
