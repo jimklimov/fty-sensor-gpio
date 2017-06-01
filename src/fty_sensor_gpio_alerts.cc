@@ -160,7 +160,7 @@ s_check_gpio_status(fty_sensor_gpio_alerts_t *self)
 
         // No processing if not yet init'ed, or GPO!
         if ( (!gpx_info) || (gpx_info->gpx_direction == GPIO_DIRECTION_OUT)
-            || (gpx_info->current_state != GPIO_STATE_UNKNOWN) )
+            || (gpx_info->current_state == GPIO_STATE_UNKNOWN) )
             continue;
 
         // Check against normal state

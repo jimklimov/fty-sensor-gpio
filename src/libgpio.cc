@@ -157,6 +157,8 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
 
     int pin = (GPx_number + self->gpi_offset);
 
+    my_zsys_debug (self->verbose, "%s: reading GPx #%i (pin %i)", GPx_number, pin);
+
     // Enable the desired GPIO
     if (libgpio_export(self, pin) == -1)
         return -1;
@@ -208,6 +210,8 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
 
     int pin = (GPO_number + self->gpo_offset);
 
+    my_zsys_debug (self->verbose, "%s: writing GPO #%i (pin %i)", GPO_number, pin);
+
     snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + self->gpio_base_address);
     fd = open(path, O_WRONLY);
     if (fd == -1) {
@@ -219,6 +223,8 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
         zsys_error("Failed to write value!");
         retval = -1;
     }
+
+    my_zsys_debug (self->verbose, "%s: result %i", retval);
 
     close(fd);
     return retval;

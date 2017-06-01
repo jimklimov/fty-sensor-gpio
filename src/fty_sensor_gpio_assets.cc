@@ -209,7 +209,7 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     // Don't free gpx_info, it will be done at TERM time
 
     my_zsys_debug (self->verbose, "%s sensor '%s' (%s) %sd with\n\tmanufacturer: %s\n\tmodel: %s \
-    \n\ttype: %s\n\tnormal-state: %s\n\tPin number: %s\n\tlocation: %s \
+    \n\ttype: %s\n\tnormal-state: %s\n\tGPx number: %s\n\tlocation: %s \
     \n\talarm-message: %s\n\talarm-severity: %s",
         sensor_gpx_direction, extname, assetname, operation, manufacturer, asset_subtype,
         sensor_type, sensor_normal_state, sensor_gpx_number, sensor_location,
