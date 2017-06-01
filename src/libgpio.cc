@@ -73,7 +73,7 @@ libgpio_new (void)
 void
 libgpio_set_gpio_base_address (libgpio_t *self, int GPx_base_index)
 {
-    zsys_debug ("%s: setting address to %i", __func__, GPx_base_index);
+    my_zsys_debug (self->verbose, "%s: setting address to %i", __func__, GPx_base_index);
     self->gpio_base_address = GPx_base_index;
 }
 
@@ -83,7 +83,7 @@ libgpio_set_gpio_base_address (libgpio_t *self, int GPx_base_index)
 void
 libgpio_set_gpo_offset (libgpio_t *self, int gpo_offset)
 {
-    zsys_debug ("%s: setting GPO offset to %i", __func__, gpo_offset);
+    my_zsys_debug (self->verbose, "%s: setting GPO offset to %i", __func__, gpo_offset);
     self->gpo_offset = gpo_offset;
 }
 
@@ -93,7 +93,7 @@ libgpio_set_gpo_offset (libgpio_t *self, int gpo_offset)
 void
 libgpio_set_gpi_offset (libgpio_t *self, int gpi_offset)
 {
-    zsys_debug ("%s: setting GPI offset to %i", __func__, gpi_offset);
+    my_zsys_debug (self->verbose, "%s: setting GPI offset to %i", __func__, gpi_offset);
     self->gpi_offset = gpi_offset;
 }
 
@@ -102,7 +102,7 @@ libgpio_set_gpi_offset (libgpio_t *self, int gpi_offset)
 void
 libgpio_set_gpi_count (libgpio_t *self, int gpi_count)
 {
-    zsys_debug ("%s: setting GPI count to %i", __func__, gpi_count);
+    my_zsys_debug (self->verbose, "%s: setting GPI count to %i", __func__, gpi_count);
     self->gpi_count = gpi_count;
 }
 
@@ -111,7 +111,7 @@ libgpio_set_gpi_count (libgpio_t *self, int gpi_count)
 void
 libgpio_set_gpo_count (libgpio_t *self, int gpo_count)
 {
-    zsys_debug ("%s: setting GPO count to %i", __func__, gpo_count);
+    my_zsys_debug (self->verbose, "%s: setting GPO count to %i", __func__, gpo_count);
     self->gpo_count = gpo_count;
 }
 
@@ -122,7 +122,7 @@ libgpio_set_gpo_count (libgpio_t *self, int gpo_count)
 void
 libgpio_set_test_mode (libgpio_t *self, bool test_mode)
 {
-    zsys_debug ("%s: setting test_mode to '%s'", __func__, (test_mode == true)?"True":"False");
+    my_zsys_debug (self->verbose, "%s: setting test_mode to '%s'", __func__, (test_mode == true)?"True":"False");
     self->test_mode = test_mode;
 }
 
@@ -132,7 +132,7 @@ libgpio_set_test_mode (libgpio_t *self, bool test_mode)
 void
 libgpio_set_verbose (libgpio_t *self, bool verbose)
 {
-    zsys_debug ("%s: setting verbose to '%s'", __func__, (verbose == true)?"True":"False");
+    my_zsys_debug (self->verbose, "%s: setting verbose to '%s'", __func__, (verbose == true)?"True":"False");
     self->verbose = verbose;
 }
 

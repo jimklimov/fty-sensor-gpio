@@ -523,6 +523,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                 else if (streq (cmd, "VERBOSE")) {
                     self->verbose = true;
                     my_zsys_debug (self->verbose, "fty_sensor_gpio: VERBOSE=true");
+                    libgpio_set_verbose(self->gpio_lib, self->verbose);
                 }
                 else if (streq (cmd, "TEST")) {
                     self->test_mode = true;
