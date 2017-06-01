@@ -78,7 +78,9 @@ int main (int argc, char *argv [])
     int poll_interval = DEFAULT_POLL_INTERVAL;
     const char* gpio_base_address = "-1";
     const char* gpi_offset = "0";
+    const char* gpi_count = "0";
     const char* gpo_offset = "0";
+    const char* gpo_count = "0";
     bool verbose = false;
     int argn;
 
@@ -167,14 +169,10 @@ int main (int argc, char *argv [])
         my_zsys_debug (verbose, "Target address of the GPIO chipset set to %s", gpio_base_address);
         zstr_sendx (server, "GPIO_CHIP_ADDRESS", gpio_base_address, NULL);
     }
-    if (!streq(gpi_offset, "0")) {
-        my_zsys_debug (verbose, "GPI offset set to %s", gpi_offset);
-        zstr_sendx (server, "GPI_OFFSET", gpi_offset, NULL);
-    }
-    if (!streq(gpo_offset, "0")) {
-        my_zsys_debug (verbose, "GPO offset set to %s", gpo_offset);
-        zstr_sendx (server, "GPO_OFFSET", gpo_offset, NULL);
-    }
+    zstr_sendx (server, "GPI_OFFSET", gpi_offset, NULL);
+    zstr_sendx (server, "GPO_OFFSET", gpo_offset, NULL);
+    zstr_sendx (server, "GPI_COUNT", gpi_count, NULL);
+    zstr_sendx (server, "GPO_COUNT", gpo_count, NULL);
 
     // 3rd stream to publish and manage alerts
     zstr_sendx (alerts, "CONNECT", endpoint, NULL);

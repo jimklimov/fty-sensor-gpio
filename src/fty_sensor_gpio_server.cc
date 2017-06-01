@@ -550,6 +550,18 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     libgpio_set_gpo_offset (self->gpio_lib, gpo_offset);
                     my_zsys_debug (self->verbose, "fty_sensor_gpio: GPO_OFFSET=%i", gpo_offset);
                 }
+                else if (streq (cmd, "GPI_COUNT")) {
+                    char *str_gpi_count = zmsg_popstr (message);
+                    int gpi_count = atoi(str_gpi_count);
+                    libgpio_set_gpi_count (self->gpio_lib, gpi_count);
+                    my_zsys_debug (self->verbose, "fty_sensor_gpio: GPI_COUNT=%i", gpi_count);
+                }
+                else if (streq (cmd, "GPO_COUNT")) {
+                    char *str_gpo_count = zmsg_popstr (message);
+                    int gpo_count = atoi(str_gpo_count);
+                    libgpio_set_gpo_count (self->gpio_lib, gpo_count);
+                    my_zsys_debug (self->verbose, "fty_sensor_gpio: GPO_COUNT=%i", gpo_count);
+                }
                 else {
                     zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
                 }

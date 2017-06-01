@@ -86,6 +86,16 @@ FTY_SENSOR_GPIO_EXPORT void
 libgpio_set_gpo_offset (libgpio_t *self, int gpo_offset);
 
 //  @interface
+//  Set the number of supported GPI
+FTY_SENSOR_GPIO_EXPORT void
+libgpio_set_gpi_count (libgpio_t *self, int gpi_count);
+
+//  @interface
+//  Set the number of supported GPO
+FTY_SENSOR_GPIO_EXPORT void
+libgpio_set_gpo_count (libgpio_t *self, int gpo_count);
+
+//  @interface
 //  Set the test mode
 FTY_SENSOR_GPIO_EXPORT void
 libgpio_set_test_mode (libgpio_t *self, bool test_mode);

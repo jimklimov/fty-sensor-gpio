@@ -36,6 +36,8 @@ struct _libgpio_t {
     bool verbose;            // is actor verbose or not
     int  gpo_offset;         // offset to access GPO pins
     int  gpi_offset;         // offset to access GPI pins
+    int  gpo_count;          // number of supported GPO
+    int  gpi_count;          // number of supported GPI
 };
 
 //  Private functions forward declarations
@@ -57,6 +59,8 @@ libgpio_new (void)
     self->gpio_base_address = GPIO_BASE_INDEX;
     self->gpo_offset = 0;
     self->gpi_offset = 0;
+    self->gpo_count = 0;
+    self->gpi_count = 0;
     self->test_mode = false;
     self->verbose = false;
 
@@ -94,6 +98,25 @@ libgpio_set_gpi_offset (libgpio_t *self, int gpi_offset)
 }
 
 //  --------------------------------------------------------------------------
+//  Set the number of supported GPI
+void
+libgpio_set_gpi_count (libgpio_t *self, int gpi_count)
+{
+    zsys_debug ("%s: setting GPI count to %i", __func__, gpi_count);
+    self->gpi_count = gpi_count;
+}
+
+//  --------------------------------------------------------------------------
+//  Set the number of supported GPO
+void
+libgpio_set_gpo_count (libgpio_t *self, int gpo_count)
+{
+    zsys_debug ("%s: setting GPO count to %i", __func__, gpo_count);
+    self->gpo_count = gpo_count;
+}
+
+
+//  --------------------------------------------------------------------------
 //  Set the test mode
 
 void
@@ -126,8 +149,13 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     if (self->test_mode)
         return direction;
 
-    // GPI pin has -1 offset, i.e. GPI 1 is pin 0
-    int pin = (GPx_number + self->gpi_offset) - 1;
+    // Sanity check
+    if (GPx_number > self->gpi_count) {
+        zsys_error("Requested GPx is higher than the count of supported GPIO!");
+        return -1;
+    }
+
+    int pin = (GPx_number + self->gpi_offset);
 
     // Enable the desired GPIO
     if (libgpio_export(self, pin) == -1)
@@ -172,8 +200,13 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     if (self->test_mode)
         return retval;
 
-    // FIXME: GPO pin MAY also have -1 offset, i.e. GPO 1 is pin 0
-    int pin = (GPO_number + self->gpo_offset); // - 1;
+    // Sanity check
+    if (GPO_number > self->gpo_count) {
+        zsys_error("Requested GPx is higher than the count of supported GPIO!");
+        return -1;
+    }
+
+    int pin = (GPO_number + self->gpo_offset);
 
     snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + self->gpio_base_address);
     fd = open(path, O_WRONLY);
