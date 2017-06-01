@@ -127,7 +127,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         return direction;
 
     // GPI pin has -1 offset, i.e. GPI 1 is pin 0
-    int pin = GPx_number - 1;
+    int pin = (GPx_number + self->gpi_offset) - 1;
 
     // Enable the desired GPIO
     if (libgpio_export(self, pin) == -1)
@@ -173,7 +173,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
         return retval;
 
     // FIXME: GPO pin MAY also have -1 offset, i.e. GPO 1 is pin 0
-    int pin = GPO_number; // - 1;
+    int pin = (GPO_number + self->gpo_offset); // - 1;
 
     snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + self->gpio_base_address);
     fd = open(path, O_WRONLY);

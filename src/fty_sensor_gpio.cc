@@ -131,6 +131,9 @@ int main (int argc, char *argv [])
         // GPO configuration
         gpo_offset = s_get (config, "hardware/gpo_offset", "0");
 
+        // GPI configuration
+        gpi_offset = s_get (config, "hardware/gpi_offset", "0");
+
 
         my_zsys_debug (verbose, "Polling interval set to %i", poll_interval);
         endpoint = s_get (config, "malamute/endpoint", endpoint);
