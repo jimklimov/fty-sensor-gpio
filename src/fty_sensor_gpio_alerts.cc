@@ -159,17 +159,16 @@ s_check_gpio_status(fty_sensor_gpio_alerts_t *self)
         // only check the fields
 
         // No processing if not yet init'ed, or GPO!
-        if ( (!gpx_info) || (gpx_info->gpx_direction == GPIO_DIRECTION_OUT)
-            || (gpx_info->current_state == GPIO_STATE_UNKNOWN) )
-            continue;
-
-        // Check against normal state
-        if (gpx_info->current_state != gpx_info->normal_state) {
-            my_zsys_debug (self->verbose, "ALARM: state changed");
-            // FIXME: do not repeat alarm?! so maybe flag in self
-            publish_alert (self, gpx_info, 300);
+        if ( (gpx_info) && (gpx_info->gpx_direction != GPIO_DIRECTION_OUT)
+            && (gpx_info->current_state != GPIO_STATE_UNKNOWN) )
+        {
+            // Check against normal state
+            if (gpx_info->current_state != gpx_info->normal_state) {
+                my_zsys_debug (self->verbose, "ALARM: state changed");
+                // FIXME: do not repeat alarm?! so maybe flag in self
+                publish_alert (self, gpx_info, 300);
+            }
         }
-
         gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
     }
 }

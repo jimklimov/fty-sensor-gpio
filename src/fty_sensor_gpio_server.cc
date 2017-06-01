@@ -181,13 +181,15 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
     // Loop on all sensors
     for (int cur_sensor_num = 0; cur_sensor_num < sensors_count; cur_sensor_num++) {
 
-        // FIXME: publish also GPO status?
-        // For now, filter these out!
-        if (gpx_info->gpx_direction != GPIO_DIRECTION_OUT) {
+        // FIXME: publish also GPO status? For now, filter these out!
+        // No processing if not yet init'ed, or GPO!
+        if ( (gpx_info) && (gpx_info->gpx_direction != GPIO_DIRECTION_OUT) )
+        {
             // Get the current sensor status
             gpx_info->current_state = libgpio_read( self->gpio_lib,
                                                     gpx_info->gpx_number,
                                                     gpx_info->gpx_direction);
+
             if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
                 my_zsys_debug (self->verbose, "Can't read GPI sensor #%i status", gpx_info->gpx_number);
             }
@@ -200,9 +202,10 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                 publish_status (self, gpx_info, 300);
             }
         }
-        else
-            my_zsys_debug (self->verbose, "GPO sensor '%s' skipped!", gpx_info->asset_name);
-
+        else {
+            if (gpx_info->gpx_direction != GPIO_DIRECTION_OUT)
+                my_zsys_debug (self->verbose, "GPO sensor '%s' skipped!", gpx_info->asset_name);
+        }
         gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
     }
     pthread_mutex_unlock (&gpx_list_mutex);

@@ -15,10 +15,10 @@ hardware
     gpio_base_address = 488     #   Target address of the GPIO chipset (gpiochip488)
     gpi_count         = 10      #   Number of GPI
     gpo_count         =  5      #   Number of GPO
-    gpo_offset        = 15      #   Offset to apply to access GPO pin, from base chipset address
-    gpi_offset        = -1      #   Offset to apply to access GPI pin, from base chipset address
-                                #   GPI pins have -1 offset, i.e. GPI 1 is pin 0, ...
-
+#   Offset to apply to access GPO pin, from base chipset address
+    gpo_offset        = 15      #   GPO pins have +15 offset, i.e. GPO 1 is pin 16, ...
+#   Offset to apply to access GPI pin, from base chipset address
+    gpi_offset        = -1      #   GPI pins have -1 offset, i.e. GPI 1 is pin 0, ...
 # More advanced mapping
 #    gpo_mapping                 #   Mapping between GPO number and HW pin number
 #        <gpo number> = <pin number>
