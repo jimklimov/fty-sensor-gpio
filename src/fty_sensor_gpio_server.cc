@@ -267,10 +267,10 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (gpx_list);
                 gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
                 for (int cur_sensor_num = 0; cur_sensor_num < sensors_count; cur_sensor_num++) {
-                    if (!gpx_info || !gpx_info->asset_name)
-                        continue;
-                    if (streq(gpx_info->asset_name, asset_name))
-                        break;
+                    if (gpx_info && gpx_info->asset_name) {
+                        if (streq(gpx_info->asset_name, asset_name))
+                            break;
+                    }
                     gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
                 }
                 if ( (gpx_info) && (streq(gpx_info->asset_name, asset_name)) ) {
@@ -293,7 +293,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     }
                 }
                 else {
-                    my_zsys_debug (self->verbose, "GPO_INTERACTION: can't find asset '%'!", asset_name);
+                    my_zsys_debug (self->verbose, "GPO_INTERACTION: can't find asset '%s'!", asset_name);
                     zmsg_addstr (reply, "ERROR");
                     zmsg_addstr (reply, "ASSET_NOT_FOUND");
                 }
