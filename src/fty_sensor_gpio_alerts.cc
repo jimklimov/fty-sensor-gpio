@@ -81,7 +81,7 @@ void publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl
         sensor->gpx_number,
         sensor->asset_name);
 
-    // FIXME: ...
+    // FIXME: discuss alarm with Tomas
     const char *state = "ACTIVE", *severity = sensor->alarm_severity;
     char* description = (char*)malloc(128);
     sprintf(description, sensor->alarm_message,
@@ -89,13 +89,15 @@ void publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl
 
     // Adapt alarm message if needed
     if (strchr(sensor->alarm_message, '$')) {
-        // FIXME: other possible patterns $parent_name...
         description = str_replace(sensor->alarm_message,
                                   "$status",
                                   libgpio_get_status_string(sensor->current_state).c_str());
         description = str_replace(description,
                                   "$device_name",
                                   sensor->ext_name);
+        description = str_replace(description,
+                                  "$location",
+                                  sensor->location);
     }
 
 
