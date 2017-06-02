@@ -29,13 +29,9 @@
 #include "fty_sensor_gpio_classes.h"
 
 // TODO:
-// * Search for template files in $datadir or ./data (and/or use cfg templates_dir =...)
 // * Add 'location' / parent.name (+variable $location)
 //   + Asset management and update existing entries
-// * i18n for alerts and $status
-// * Add 'int last_state' to '_gpx_info_t' and only publish state change?
-//   (i.e. last_state != current_state)
-// * Tests for libgpio & _server
+// * Tests for _server
 // * Documentation
 // * MAILBOX REQ handling:
 // ** Sensors manifest request with empty sensors list (return all)
@@ -46,6 +42,10 @@
 //       <gpo number> = <pin number>
 //   gpi_mapping
 //       <gpi number> = <pin number>
+// To be discussed:
+// * Add 'int last_state' to '_gpx_info_t' and only publish state change?
+//   (i.e. last_state != current_state)
+// * i18n for alerts and $status
 
 void
 usage(){

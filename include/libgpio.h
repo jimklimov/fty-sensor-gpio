@@ -36,9 +36,8 @@
 
 // Defines
 #define GPIO_BUFFER_MAX      4
-#define GPIO_DIRECTION_MAX  35
-#define GPIO_VALUE_MAX      30
-#define GPI_MAX_NUM         10
+#define GPIO_DIRECTION_MAX  64 // 35
+#define GPIO_VALUE_MAX      64 // 30
 
 
 #ifdef __cplusplus

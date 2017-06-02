@@ -45,7 +45,11 @@ struct _libgpio_t {
 static int libgpio_export(libgpio_t *self, int pin);
 static int libgpio_unexport(libgpio_t *self, int pin);
 static int libgpio_set_direction(libgpio_t *self, int pin, int dir);
+static int mkpath(char* file_path, mode_t mode);
 
+//  Test mode variables
+const char *SELFTEST_DIR_RO = "src/selftest-ro";
+const char *SELFTEST_DIR_RW = "src/selftest-rw";
 
 //  --------------------------------------------------------------------------
 //  Create a new libgpio
@@ -146,8 +150,8 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     int fd;
 
     // Use the value provided in "direction"
-    if (self->test_mode)
-        return direction;
+    //if (self->test_mode)
+    //    return direction;
 
     // Sanity check
     if (GPx_number > self->gpi_count) {
@@ -167,8 +171,13 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     if (libgpio_set_direction(self, pin, direction) == -1)
         return -1;
 
-    snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + self->gpio_base_address);
-    fd = open(path, O_RDONLY);
+    snprintf(path, GPIO_VALUE_MAX, "%s/sys/class/gpio/gpio%d/value",
+        (self->test_mode)?SELFTEST_DIR_RW:"", // trick #1 to allow testing
+        pin + self->gpio_base_address);
+    // trick #2 to allow testing
+    if (self->test_mode)
+        mkpath(path, 0777);
+    fd = open(path, O_RDONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
         zsys_error("Failed to open gpio value for reading!");
         return -1;
@@ -179,6 +188,8 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         close(fd);
         return -1;
     }
+
+    my_zsys_debug (self->verbose, "%s: result %s", __func__, value_str);
 
     close(fd);
 
@@ -198,10 +209,6 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     int fd;
     int retval = 0;
 
-    // Simply return "ok" in test mode
-    if (self->test_mode)
-        return retval;
-
     // Sanity check
     if (GPO_number > self->gpo_count) {
         zsys_error("Requested GPx is higher than the count of supported GPIO!");
@@ -220,8 +227,13 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     if (libgpio_set_direction(self, pin, GPIO_DIRECTION_OUT) == -1)
         return -1;
 
-    snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + self->gpio_base_address);
-    fd = open(path, O_WRONLY);
+    snprintf(path, GPIO_VALUE_MAX, "%s/sys/class/gpio/gpio%d/value",
+        (self->test_mode)?SELFTEST_DIR_RW:"", // trick #1 to allow testing
+        pin + self->gpio_base_address);
+    // trick #2 to allow testing
+    if (self->test_mode)
+        mkpath(path, 0777);
+    fd = open(path, O_WRONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
         zsys_error("Failed to open gpio value for writing (path: %s)!", path);
         return(-1);
@@ -309,25 +321,41 @@ libgpio_test (bool verbose)
 
     //  @selftest
     //  Simple create/destroy test
+    libgpio_t *self = libgpio_new ();
+    assert (self);
+    libgpio_destroy (&self);
+
+    // Setup
+    self = libgpio_new ();
+    //libgpio_set_verbose (self, true);
+    libgpio_set_test_mode (self, true);
+    libgpio_set_gpio_base_address (self, 0);
+    libgpio_set_gpi_offset (self, 0);
+    libgpio_set_gpo_offset (self, 0);
+    libgpio_set_gpi_count (self, 10);
+    libgpio_set_gpo_count (self, 5);
 
     // Note: If your selftest reads SCMed fixture data, please keep it in
     // src/selftest-ro; if your test creates filesystem objects, please
     // do so under src/selftest-rw. They are defined below along with a
     // usecase for the variables (assert) to make compilers happy.
-    const char *SELFTEST_DIR_RO = "src/selftest-ro";
-    const char *SELFTEST_DIR_RW = "src/selftest-rw";
+    // const char *SELFTEST_DIR_RO = "src/selftest-ro";
+    // const char *SELFTEST_DIR_RW = "src/selftest-rw";
     assert (SELFTEST_DIR_RO);
     assert (SELFTEST_DIR_RW);
-    // Uncomment these to use C++ strings in C++ selftest code:
-    //std::string str_SELFTEST_DIR_RO = std::string(SELFTEST_DIR_RO);
-    //std::string str_SELFTEST_DIR_RW = std::string(SELFTEST_DIR_RW);
-    //assert ( (str_SELFTEST_DIR_RO != "") );
-    //assert ( (str_SELFTEST_DIR_RW != "") );
-    // NOTE that for "char*" context you need (str_SELFTEST_DIR_RO + "/myfilename").c_str()
 
-    libgpio_t *self = libgpio_new ();
-    assert (self);
-    libgpio_destroy (&self);
+    // Write test
+    // Let's first write to the dummy GPIO, so that the read works afterward
+    assert( libgpio_write (self, 1, GPIO_STATE_CLOSED) == 0);
+
+    // Read test
+    assert( libgpio_read (self, 1, GPIO_DIRECTION_IN) == GPIO_STATE_CLOSED );
+
+    // Value resolution test
+    assert( libgpio_get_status_value("opened") == GPIO_STATE_OPENED );
+    assert( libgpio_get_status_value("closed") == GPIO_STATE_CLOSED );
+    assert( libgpio_get_status_value( libgpio_get_status_string(GPIO_STATE_CLOSED).c_str() ) == GPIO_STATE_CLOSED );
+
     //  @end
     printf ("OK\n");
 }
@@ -338,16 +366,23 @@ libgpio_test (bool verbose)
 //  --------------------------------------------------------------------------
 //  Set the current GPIO pin to act on
 
-int libgpio_export(libgpio_t *self, int pin)
+int
+libgpio_export(libgpio_t *self, int pin)
 {
     char buffer[GPIO_BUFFER_MAX];
+    char path[GPIO_VALUE_MAX];
     ssize_t bytes_written;
     int fd;
     int retval = 0;
 
-    fd = open("/sys/class/gpio/export", O_WRONLY);
+    snprintf(path, GPIO_VALUE_MAX, "%s/sys/class/gpio/export",
+        (self->test_mode)?SELFTEST_DIR_RW:""); // trick #1 to allow testing
+    // trick #2 to allow testing
+    if (self->test_mode)
+        mkpath(path, 0777);
+    fd = open(path, O_WRONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
-        zsys_error("Failed to open export for writing!");
+        zsys_error("%s: Failed to open %s for writing! %i", __func__, path, errno);
         return -1;
     }
 
@@ -365,14 +400,21 @@ int libgpio_export(libgpio_t *self, int pin)
 //  --------------------------------------------------------------------------
 //  Unset the current GPIO pin to act on
 
-int libgpio_unexport(libgpio_t *self, int pin)
+int
+libgpio_unexport(libgpio_t *self, int pin)
 {
     char buffer[GPIO_BUFFER_MAX];
+    char path[GPIO_VALUE_MAX];
     ssize_t bytes_written;
     int fd;
     int retval = 0;
 
-    fd = open("/sys/class/gpio/unexport", O_WRONLY);
+    snprintf(path, GPIO_VALUE_MAX, "%s/sys/class/gpio/unexport",
+        (self->test_mode)?SELFTEST_DIR_RW:""); // trick #1 to allow testing
+    // trick #2 to allow testing
+    if (self->test_mode)
+        mkpath(path, 0777);
+    fd = open(path, O_WRONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
       zsys_error("Failed to open unexport for writing!");
       return -1;
@@ -393,7 +435,8 @@ int libgpio_unexport(libgpio_t *self, int pin)
 //  --------------------------------------------------------------------------
 //  Set the current GPIO direction to 'in' (read) or 'out' (write)
 
-int libgpio_set_direction(libgpio_t *self, int pin, int direction)
+int
+libgpio_set_direction(libgpio_t *self, int pin, int direction)
 {
     static const char s_directions_str[]  = "in\0out";
     int retval = 0;
@@ -401,16 +444,21 @@ int libgpio_set_direction(libgpio_t *self, int pin, int direction)
     char path[GPIO_DIRECTION_MAX];
     int fd;
 
-    snprintf(path, GPIO_DIRECTION_MAX, "/sys/class/gpio/gpio%d/direction", pin + self->gpio_base_address);
-    fd = open(path, O_WRONLY);
+    snprintf(path, GPIO_DIRECTION_MAX, "%s/sys/class/gpio/gpio%d/direction",
+        ((self->test_mode)?SELFTEST_DIR_RW:""), // trick #1 to allow testing
+        pin + self->gpio_base_address);
+    // trick #2 to allow testing
+    if (self->test_mode)
+        mkpath(path, 0777);
+    fd = open(path, O_WRONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
-        zsys_error("Failed to open gpio direction for writing!");
+        zsys_error("%s: Failed to open %s for writing!", __func__, path);
         return -1;
     }
 
     if (write(fd, &s_directions_str[GPIO_DIRECTION_IN == direction ? 0 : 3],
       GPIO_DIRECTION_IN == direction ? 2 : 3) == -1) {
-        zsys_error("Failed to set direction!");
+        zsys_error("%s: Failed to set direction!", __func__);
         retval = -1;
     }
 
@@ -418,3 +466,23 @@ int libgpio_set_direction(libgpio_t *self, int pin, int direction)
     return retval;
 }
 
+//  --------------------------------------------------------------------------
+//  Helper function to recursively create directories
+
+static int
+mkpath(char* file_path, mode_t mode)
+{
+    assert(file_path && *file_path);
+    char* p;
+    for (p=strchr(file_path+1, '/'); p; p=strchr(p+1, '/')) {
+        *p='\0';
+        if (mkdir(file_path, mode)==-1) {
+            if (errno!=EEXIST) {
+                *p='/';
+                return -1;
+            }
+        }
+        *p='/';
+    }
+    return 0;
+}
