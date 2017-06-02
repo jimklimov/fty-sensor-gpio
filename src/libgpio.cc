@@ -212,10 +212,18 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
 
     my_zsys_debug (self->verbose, "%s: writing GPO #%i (pin %i)", __func__, GPO_number, pin);
 
+    // Enable the desired GPIO
+    if (libgpio_export(self, pin) == -1)
+        return -1;
+
+    // Set its direction
+    if (libgpio_set_direction(self, pin, GPIO_DIRECTION_OUT) == -1)
+        return -1;
+
     snprintf(path, GPIO_VALUE_MAX, "/sys/class/gpio/gpio%d/value", pin + self->gpio_base_address);
     fd = open(path, O_WRONLY);
     if (fd == -1) {
-        zsys_error("Failed to open gpio value for writing!");
+        zsys_error("Failed to open gpio value for writing (path: %s)!", path);
         return(-1);
     }
 
@@ -227,6 +235,10 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     my_zsys_debug (self->verbose, "%s: result %i", __func__, retval);
 
     close(fd);
+
+    if (libgpio_unexport(self, pin) == -1) {
+        retval = -1;
+    }
     return retval;
 }
 
