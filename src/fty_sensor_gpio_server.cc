@@ -33,6 +33,8 @@
         Message is a multipart string message
 
         /sensor/action              - apply action (open | close) on sensor (asset or ext name)
+                                      beside from open and close, opened | high and closed | low
+                                      are also supported
 
     REP:
         subject: "GPO_INTERACTION"
@@ -183,28 +185,29 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
 
         // FIXME: publish also GPO status? For now, filter these out!
         // No processing if not yet init'ed, or GPO!
-        if ( (gpx_info) && (gpx_info->gpx_direction != GPIO_DIRECTION_OUT) )
-        {
-            // Get the current sensor status
-            gpx_info->current_state = libgpio_read( self->gpio_lib,
-                                                    gpx_info->gpx_number,
-                                                    gpx_info->gpx_direction);
+        if (gpx_info) {
+            if (gpx_info->gpx_direction != GPIO_DIRECTION_OUT) {
+                // Get the current sensor status
+                gpx_info->current_state = libgpio_read( self->gpio_lib,
+                                                        gpx_info->gpx_number,
+                                                        gpx_info->gpx_direction);
 
-            if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
-                my_zsys_debug (self->verbose, "Can't read GPI sensor #%i status", gpx_info->gpx_number);
+                if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
+                    my_zsys_debug (self->verbose, "Can't read GPI sensor #%i status", gpx_info->gpx_number);
+                }
+                else {
+                    my_zsys_debug (self->verbose, "Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
+                        libgpio_get_status_string(gpx_info->current_state).c_str(),
+                        gpx_info->current_state, gpx_info->gpx_number,
+                        gpx_info->ext_name, gpx_info->asset_name);
+
+                    publish_status (self, gpx_info, 300);
+                }
             }
             else {
-                my_zsys_debug (self->verbose, "Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
-                    libgpio_get_status_string(gpx_info->current_state).c_str(),
-                    gpx_info->current_state, gpx_info->gpx_number,
-                    gpx_info->ext_name, gpx_info->asset_name);
-
-                publish_status (self, gpx_info, 300);
+                if (gpx_info->gpx_direction == GPIO_DIRECTION_OUT)
+                    my_zsys_debug (self->verbose, "GPO sensor '%s' skipped!", gpx_info->asset_name);
             }
-        }
-        else {
-            if (gpx_info->gpx_direction != GPIO_DIRECTION_OUT)
-                my_zsys_debug (self->verbose, "GPO sensor '%s' skipped!", gpx_info->asset_name);
         }
         gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
     }
