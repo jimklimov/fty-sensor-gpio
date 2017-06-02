@@ -32,7 +32,7 @@
         subject: "GPO_INTERACTION"
         Message is a multipart string message
 
-        /asset/action              - apply action (open | close) on asset
+        /sensor/action              - apply action (open | close) on sensor (asset or ext name)
 
     REP:
         subject: "GPO_INTERACTION"
@@ -253,10 +253,10 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             ; // FIXME: needed?
         }
         else if (subject == "GPO_INTERACTION") {
-            char *asset_name = zmsg_popstr (message);
+            char *sensor_name = zmsg_popstr (message);
             char *action_name = zmsg_popstr (message);
             my_zsys_debug (self->verbose, "GPO_INTERACTION: do '%s' on '%s'",
-                action_name, asset_name);
+                action_name, sensor_name);
             // Get the GPO entry for details
             pthread_mutex_lock (&gpx_list_mutex);
             zlistx_t *gpx_list = get_gpx_list(self->verbose);
@@ -267,13 +267,18 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (gpx_list);
                 gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
                 for (int cur_sensor_num = 0; cur_sensor_num < sensors_count; cur_sensor_num++) {
-                    if (gpx_info && gpx_info->asset_name) {
-                        if (streq(gpx_info->asset_name, asset_name))
-                            break;
+                    if (gpx_info && gpx_info->asset_name && gpx_info->ext_name) {
+                        my_zsys_debug (self->verbose, "GPO_INTERACTION: checking sensor %s/%s",
+                            gpx_info->asset_name, gpx_info->ext_name);
+                        if ( streq(gpx_info->asset_name, sensor_name)
+                            || streq(gpx_info->ext_name, sensor_name) ) {
+                                break;
+                        }
                     }
                     gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
                 }
-                if ( (gpx_info) && (streq(gpx_info->asset_name, asset_name)) ) {
+                if ( (gpx_info) && ((streq(gpx_info->asset_name, sensor_name))
+                    || streq(gpx_info->ext_name, sensor_name)) ) {
                     int status_value = libgpio_get_status_value (action_name);
 
                     if (status_value != GPIO_STATE_UNKNOWN) {
@@ -293,7 +298,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     }
                 }
                 else {
-                    my_zsys_debug (self->verbose, "GPO_INTERACTION: can't find asset '%s'!", asset_name);
+                    my_zsys_debug (self->verbose, "GPO_INTERACTION: can't find sensor '%s'!", sensor_name);
                     zmsg_addstr (reply, "ERROR");
                     zmsg_addstr (reply, "ASSET_NOT_FOUND");
                 }
