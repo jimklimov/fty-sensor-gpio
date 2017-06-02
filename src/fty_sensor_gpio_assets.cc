@@ -40,6 +40,7 @@ struct _fty_sensor_gpio_assets_t {
     char               *name;         // actor name
     mlm_client_t       *mlm;          // malamute client
     zlistx_t           *gpx_list;     // List of monitored GPx _gpx_info_t (10xGPI / 5xGPO on IPC3000)
+    char               *template_dir; // Location of the template files
 };
 
 
@@ -303,10 +304,6 @@ is_asset_gpio_sensor (fty_sensor_gpio_assets_t *self, string asset_subtype, stri
 //  When asset message comes, check if it is a GPIO sensor and store it or
 //  update the monitoring structure.
 
-// 2.2) fty-sensor-gpio listen to assets listing, filtering on
-//      type=sensor and ext. attribute 'model' known in the supported catalog (data/<model>.tpl)
-//      [and parent == self IPC?!]
-
 static void
 fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftymessage)
 {
@@ -325,7 +322,6 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
         ||  (streq (operation, "update")) ) {
 
         const char* asset_subtype = fty_proto_ext_string (ftymessage, "subtype", "");
-            // FIXME: fallback to "device.type"?
         const char* asset_model = fty_proto_ext_string (ftymessage, "model", "");
         string config_template_filename = is_asset_gpio_sensor(self, asset_subtype, asset_model);
         if (config_template_filename == "") {
@@ -409,10 +405,12 @@ fty_sensor_gpio_assets_new (const char* name)
     self->mlm         = mlm_client_new();
     self->name        = strdup(name);
     self->verbose     = false;
+    self->template_dir = NULL;
     // Declare our zlist for GPIOs tracking
     // Instanciated here and provided to all actors
     _gpx_list = zlistx_new ();
     assert (_gpx_list);
+
 
     // Declare zlist item handlers
     zlistx_set_duplicator (_gpx_list, (czmq_duplicator *) sensor_dup);
@@ -438,6 +436,9 @@ fty_sensor_gpio_assets_destroy (fty_sensor_gpio_assets_t **self_p)
         pthread_mutex_unlock (&gpx_list_mutex);
         free(self->name);
         mlm_client_destroy (&self->mlm);
+        if (self->template_dir)
+            free(self->template_dir);
+
         //  Free object itself
         free (self);
         *self_p = NULL;
@@ -518,6 +519,10 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                     self->verbose = true;
                     my_zsys_debug (self->verbose, "fty-gpio-sensor-assets: VERBOSE=true");
                 }
+                else if (streq (cmd, "TEMPLATE_DIR")) {
+                    self->template_dir = zmsg_popstr (message);
+                    my_zsys_debug (self->verbose, "fty_sensor_gpio: Using sensors template directory: %s", self->template_dir);
+                }
                 else {
                     zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
                 }
@@ -534,13 +539,6 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                 }
                 fty_proto_destroy (&fmessage);
                 zmsg_destroy (&message);
-            } else if (streq (mlm_client_command (self->mlm), "MAILBOX DELIVER")) {
-                // someone is addressing us directly
-                // FIXME: can be requested for
-                // * sensors manifest (pn, type, normal status) by UI
-                // => for _server?!
-                // * what else?
-                //s_handle_mailbox(self, message);
             }
             zmsg_destroy (&message);
         }
@@ -710,8 +708,6 @@ fty_sensor_gpio_assets_test (bool verbose)
         gpx_info_test->asset_name = strdup("sensor-10");
         _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (test_gpx_list);
         gpx_info = (_gpx_info_t *)zlistx_next (test_gpx_list);
-        // FIXME: doesn't work?!
-//        _gpx_info_t *gpx_info = (_gpx_info_t*)zlistx_find (test_gpx_list, (void *) gpx_info_test);
         assert (gpx_info);
         assert (streq (gpx_info->asset_name, "sensor-10"));
         assert (streq (gpx_info->ext_name, "GPIO-Sensor-Door1"));

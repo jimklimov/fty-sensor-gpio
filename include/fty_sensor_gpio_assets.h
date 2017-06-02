@@ -52,10 +52,6 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     const char* sensor_gpx_direction, const char* sensor_location,
     const char* sensor_alarm_message, const char* sensor_alarm_severity);
 
-// GPx list accessor
-//FTY_SENSOR_GPIO_EXPORT zlistx_t *
-//    get_gpx_list(fty_sensor_gpio_assets_t *self);
-
 //  @end
 
 #ifdef __cplusplus

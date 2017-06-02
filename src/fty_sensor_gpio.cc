@@ -29,22 +29,19 @@
 #include "fty_sensor_gpio_classes.h"
 
 // TODO:
-// * Install template files to $datadir
-// * Add 'location' / parent.name
+// * Search for template files in $datadir or ./data (and/or use cfg templates_dir =...)
+// * Add 'location' / parent.name (+variable $location)
 //   + Asset management and update existing entries
+// * i18n for alerts and $status
 // * Add 'int last_state' to '_gpx_info_t' and only publish state change?
 //   (i.e. last_state != current_state)
-// * Dynamic extension of the manifest: if it's a sensor but unknown, lively
-//   create a manifest file? Check with PO...
-// * Tests
+// * Tests for libgpio & _server
 // * Documentation
 // * MAILBOX REQ handling:
-// ** GPO handling (MAILBOX message requesting GPOx to be activated)
-// ** Sensors manifest (MAILBOX message requesting the list of supported sensors
-//    and details, inc. normal state)
+// ** Sensors manifest request with empty sensors list (return all)
+// ** Sensor template addition (create local files with all details provided through UI/CLI)
 // * cleanup, final cppcheck, fix all FIXMEs...
-// * Support for pin mapping in config file (for GPO especially) to map
-//   GPx number to pin number
+// * Support for fine grained pin mapping in config file
 //   gpo_mapping
 //       <gpo number> = <pin number>
 //   gpi_mapping
@@ -143,6 +140,28 @@ int main (int argc, char *argv [])
         actor_name = s_get (config, "malamute/address", actor_name);
     }
 
+    // Guess the template installation directory
+    char *template_dir = NULL;
+    string template_filename = string("/usr/share/fty-sensor-gpio/") + string("DCS001.tpl");
+    FILE *template_file = fopen(template_filename.c_str(), "r");
+    if (!template_file) {
+        template_filename = string("./data/") + string("DCS001.tpl");
+        template_file = fopen(template_filename.c_str(), "r");
+        if (!template_file) {
+            template_dir = NULL;
+            zsys_error ("Can't find sensors template files directory!");
+            return EXIT_FAILURE;
+        }
+        else {
+            template_dir = strdup("./data/");
+        }
+    }
+    else {
+        template_dir = strdup("/usr/share/fty-sensor-gpio/");
+    }
+    fclose(template_file);
+    my_zsys_debug (verbose, "Using sensors template directory: %s", template_dir);
+
     // Check env. variables
     if (getenv ("BIOS_LOG_LEVEL") && streq (getenv ("BIOS_LOG_LEVEL"), "LOG_DEBUG"))
         verbose = true;
@@ -162,10 +181,12 @@ int main (int argc, char *argv [])
     zstr_sendx (assets, "CONNECT", endpoint, NULL);
     zstr_sendx (assets, "PRODUCER", FTY_PROTO_STREAM_ASSETS, NULL);
     zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
+    zstr_sendx (assets, "TEMPLATE_DIR", template_dir, NULL);
 
     // 2nd (main) stream to handle GPx polling, metrics publication and mailbox requests
     zstr_sendx (server, "CONNECT", endpoint, NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
+    zstr_sendx (server, "TEMPLATE_DIR", template_dir, NULL);
     if (!streq(gpio_base_address, "-1")) {
         my_zsys_debug (verbose, "Target address of the GPIO chipset set to %s", gpio_base_address);
         zstr_sendx (server, "GPIO_CHIP_ADDRESS", gpio_base_address, NULL);

@@ -83,6 +83,7 @@ struct _fty_sensor_gpio_server_t {
     mlm_client_t       *mlm;          // malamute client
     libgpio_t          *gpio_lib;     // GPIO library handle
     bool               test_mode;     // true if we are in test mode, false otherwise
+    char               *template_dir; // Location of the template files
 };
 
 // Configuration accessors
@@ -231,7 +232,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
     }
 
     //we assume all request command are MAILBOX DELIVER, and subject="gpio"
-    if ( (subject != "") && (subject != "GPIO") && (subject != "GPO_INTERACTION")
+    if ( (subject != "") && (subject != "GPO_INTERACTION")
          && (subject != "GPIO_MANIFEST") && (subject != "GPIO_TEST")) {
         zsys_warning ("%s: Received unexpected subject '%s'", self->name, subject.c_str());
         zmsg_t *reply = zmsg_new ();
@@ -245,10 +246,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         zmsg_t *reply = zmsg_new ();
         my_zsys_debug (self->verbose, "%s: '%s' requested", self->name, subject.c_str());
 
-        if (subject == "GPIO") {
-            ; // FIXME: needed?
-        }
-        else if (subject == "GPO_INTERACTION") {
+        if (subject == "GPO_INTERACTION") {
             char *sensor_name = zmsg_popstr (message);
             char *action_name = zmsg_popstr (message);
             my_zsys_debug (self->verbose, "GPO_INTERACTION: do '%s' on '%s'",
@@ -257,12 +255,11 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             pthread_mutex_lock (&gpx_list_mutex);
             zlistx_t *gpx_list = get_gpx_list(self->verbose);
             if (gpx_list) {
-                // FIXME: doesn't work?!
-                // _gpx_info_t *gpx_info = (_gpx_info_t*)zlistx_find (test_gpx_list, (void *) gpx_info_test);
                 int sensors_count = zlistx_size (gpx_list);
                 _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (gpx_list);
                 gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
                 for (int cur_sensor_num = 0; cur_sensor_num < sensors_count; cur_sensor_num++) {
+                    // Check both asset and ext name
                     if (gpx_info && gpx_info->asset_name && gpx_info->ext_name) {
                         my_zsys_debug (self->verbose, "GPO_INTERACTION: checking sensor %s/%s",
                             gpx_info->asset_name, gpx_info->ext_name);
@@ -427,11 +424,11 @@ fty_sensor_gpio_server_new (const char* name)
     assert (self);
 
     //  Initialize class properties
-    self->mlm         = mlm_client_new();
-    self->name        = strdup(name);
-    self->verbose     = false;
-    self->test_mode   = false;
-
+    self->mlm          = mlm_client_new();
+    self->name         = strdup(name);
+    self->verbose      = false;
+    self->test_mode    = false;
+    self->template_dir = NULL;
     self->gpio_lib = libgpio_new ();
     assert (self->gpio_lib);
 
@@ -453,6 +450,8 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
         libgpio_destroy (&self->gpio_lib);
         free(self->name);
         mlm_client_destroy (&self->mlm);
+        if (self->template_dir)
+            free(self->template_dir);
 
         //  Free object itself
         free (self);
@@ -538,6 +537,10 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                 }
                 else if (streq (cmd, "UPDATE")) {
                     s_check_gpio_status(self);
+                }
+                else if (streq (cmd, "TEMPLATE_DIR")) {
+                    self->template_dir = zmsg_popstr (message);
+                    my_zsys_debug (self->verbose, "fty_sensor_gpio: Using sensors template directory: %s", self->template_dir);
                 }
                 else if (streq (cmd, "GPIO_CHIP_ADDRESS")) {
                     char *str_gpio_base_address = zmsg_popstr (message);
