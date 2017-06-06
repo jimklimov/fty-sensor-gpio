@@ -26,11 +26,10 @@
     </use>
 
     <class name = "libgpio" stable = "1">General Purpose Input/Output (GPIO) sensors library</class>
-    <class name = "fty-sensor-gpio-server">42ITy GPIO server</class>
     <class name = "fty-sensor-gpio-alerts">42ITy GPIO alerts handler</class>
     <class name = "fty-sensor-gpio-assets">42ITy GPIO assets handler</class>
+    <class name = "fty-sensor-gpio-server">42ITy GPIO server</class>
     <!-- class name = "alert actor" state = "stable">actor handling device alerts and thresholds</class -->
-
     <main name = "fty-sensor-gpio" service = "1">Manage GPI sensors and GPO devices</main>
 
 </project>
