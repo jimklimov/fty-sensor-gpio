@@ -10,5 +10,5 @@ Installation model
      -->
 
 <install>
-    <item path = "/usr/share/fty-sensor-gpio" name = "data/*.tpl" />
+    <item path = "/usr/share/fty-sensor-gpio/data/" name = "data/*.tpl" />
 </install>
