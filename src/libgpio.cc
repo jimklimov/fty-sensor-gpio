@@ -46,6 +46,7 @@ static int libgpio_export(libgpio_t *self, int pin);
 static int libgpio_unexport(libgpio_t *self, int pin);
 static int libgpio_set_direction(libgpio_t *self, int pin, int dir);
 static int mkpath(char* file_path, mode_t mode);
+// FIXME: use zsys_dir_create (...);
 
 //  Test mode variables
 const char *SELFTEST_DIR_RO = "src/selftest-ro";
@@ -149,9 +150,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     char value_str[3];
     int fd;
 
-    // Use the value provided in "direction"
-    //if (self->test_mode)
-    //    return direction;
+    value_str[0] = 0;
 
     // Sanity check
     if (GPx_number > self->gpi_count) {
@@ -179,7 +178,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         mkpath(path, 0777);
     fd = open(path, O_RDONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
-        zsys_error("Failed to open gpio value for reading!");
+        zsys_error("Failed to open gpio '%s' for reading!", path);
         return -1;
     }
 
@@ -257,7 +256,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
 
 //  --------------------------------------------------------------------------
 //  Get the textual name for a status
-string
+const string
 libgpio_get_status_string (int value)
 {
     string status_str;
@@ -319,6 +318,9 @@ libgpio_test (bool verbose)
 {
     printf (" * libgpio: ");
 
+    // Note: for testing purpose, we use a trick, that is to access the /sys
+    // FS under our SELFTEST_DIR_RW.
+
     //  @selftest
     //  Simple create/destroy test
     libgpio_t *self = libgpio_new ();
@@ -355,6 +357,15 @@ libgpio_test (bool verbose)
     assert( libgpio_get_status_value("opened") == GPIO_STATE_OPENED );
     assert( libgpio_get_status_value("closed") == GPIO_STATE_CLOSED );
     assert( libgpio_get_status_value( libgpio_get_status_string(GPIO_STATE_CLOSED).c_str() ) == GPIO_STATE_CLOSED );
+
+    // Delete all test files
+    std::string sys_fn = string(SELFTEST_DIR_RW) + "/sys";
+    zdir_t *dir = zdir_new (sys_fn.c_str(), NULL);
+    assert (dir);
+    zdir_remove (dir, true);
+    zdir_destroy (&dir);
+
+    libgpio_destroy (&self);
 
     //  @end
     printf ("OK\n");
@@ -469,6 +480,7 @@ libgpio_set_direction(libgpio_t *self, int pin, int direction)
 //  --------------------------------------------------------------------------
 //  Helper function to recursively create directories
 
+// FIXME: replace with zsys_dir_create (const char *pathname, ...);
 static int
 mkpath(char* file_path, mode_t mode)
 {

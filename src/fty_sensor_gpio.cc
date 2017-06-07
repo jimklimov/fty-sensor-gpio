@@ -29,10 +29,11 @@
 #include "fty_sensor_gpio_classes.h"
 
 // TODO:
-// * Add 'location' / parent.name (+variable $location)
-//   + Asset management and update existing entries
+// * Smart update of existing entries
 // * Tests for _server
 // * Documentation
+// ** README.md
+// ** actors as per https://github.com/zeromq/czmq/blob/master/src/zconfig.c#L15
 // * MAILBOX REQ handling:
 // ** Sensors manifest request with empty sensors list (return all)
 // ** Sensor template addition (create local files with all details provided through UI/CLI)
@@ -43,6 +44,9 @@
 //   gpi_mapping
 //       <gpi number> = <pin number>
 // To be discussed:
+// * Add 'location' / parent.name (+variable $location)
+//   location is the IPC, we want the installation location (which rack door, ...)
+// * Check for convergence with other dry-contacts (on EMP001 and fty-sensor-env, EMP002, 
 // * Add 'int last_state' to '_gpx_info_t' and only publish state change?
 //   (i.e. last_state != current_state)
 // * i18n for alerts and $status
@@ -138,11 +142,13 @@ int main (int argc, char *argv [])
         my_zsys_debug (verbose, "Polling interval set to %i", poll_interval);
         endpoint = s_get (config, "malamute/endpoint", endpoint);
         actor_name = s_get (config, "malamute/address", actor_name);
+
+        zconfig_destroy (&config);
     }
 
     // Guess the template installation directory
     char *template_dir = NULL;
-    string template_filename = string("/usr/share/fty-sensor-gpio/") + string("DCS001.tpl");
+    string template_filename = string("/usr/share/fty-sensor-gpio/data/") + string("DCS001.tpl");
     FILE *template_file = fopen(template_filename.c_str(), "r");
     if (!template_file) {
         template_filename = string("./data/") + string("DCS001.tpl");
@@ -157,7 +163,7 @@ int main (int argc, char *argv [])
         }
     }
     else {
-        template_dir = strdup("/usr/share/fty-sensor-gpio/");
+        template_dir = strdup("/usr/share/fty-sensor-gpio/data/");
     }
     fclose(template_file);
     my_zsys_debug (verbose, "Using sensors template directory: %s", template_dir);
@@ -206,10 +212,12 @@ int main (int argc, char *argv [])
     zloop_timer (gpio_status_update, poll_interval, 0, s_update_event, alerts);
     zloop_start (gpio_status_update);
 
+    // Cleanup
     zloop_destroy (&gpio_status_update);
     zactor_destroy (&server);
     zactor_destroy (&assets);
     zactor_destroy (&alerts);
+    zstr_free(&template_dir);
 
     return 0;
 }

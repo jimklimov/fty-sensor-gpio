@@ -63,17 +63,63 @@
         subject: "GPIO_MANIFEST"
         Message is a multipart message:
 
-        * OK/<sensor 1 description>/.../<sensor N description N> = non-empty
+        * OK/<sensor 1 description>/.../<sensor N description> = non-empty
         * ERROR/<reason>
 
         where:
             <reason>                 = ASSET_NOT_FOUND / BAD_COMMAND
-            <sensor N description N> = sensor_partnumber/manufacturer/type/normal_state/gpx_direction/alarm_severity/alarm_message
+            <sensor N description> = sensor_partnumber/manufacturer/type/normal_state/gpx_direction/alarm_severity/alarm_message
+
+     ------------------------------------------------------------------------
+    ## GPIO_MANIFEST_SUMMARY
+
+    REQ:
+        subject: "GPIO_MANIFEST_SUMMARY"
+        Message is a multipart string message
+
+              - get the list of supported sensors
+                this is a light version of GPIO_MANIFEST, only returning
+                sensor_partnumber/manufacturer
+
+    REP:
+        subject: "GPIO_MANIFEST_SUMMARY"
+        Message is a multipart message:
+
+        * OK/<sensor 1 description>/.../<sensor N description> = non-empty
+        * ERROR/<reason>
+
+        where:
+            <reason>                 = ASSET_NOT_FOUND / BAD_COMMAND
+            <sensor N description> = sensor_partnumber/manufacturer
+
+     ------------------------------------------------------------------------
+    ## GPIO_TEMPLATE_ADD
+
+    REQ:
+        subject: "GPIO_TEMPLATE_ADD"
+        Message is a multipart string message
+
+        /<sensor description>      - request the creation of a sensor template file
+
+        where:
+            <sensor description> = sensor_partnumber/manufacturer/type/normal_state/gpx_direction/alarm_severity/alarm_message
+
+    REP:
+        subject: "GPIO_TEMPLATE_ADD"
+        Message is a multipart message:
+
+        * OK
+        * ERROR/<reason>
+
+        where:
+            <reason>             = ...
+
 
 @end
 */
 
 #include "fty_sensor_gpio_classes.h"
+#include <regex>
 
 //  Structure of our class
 
@@ -214,7 +260,7 @@ void static
 s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
 {
     std::string subject = mlm_client_subject (self->mlm);
-    std::string command = zmsg_popstr (message);
+/*    std::string command = zmsg_popstr (message);
     if (command == "") {
         zmsg_destroy (&message);
         zsys_warning ("Empty subject.");
@@ -230,10 +276,11 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         zmsg_destroy (&reply);
         return;
     }
-
+*/
     //we assume all request command are MAILBOX DELIVER, and subject="gpio"
-    if ( (subject != "") && (subject != "GPO_INTERACTION")
-         && (subject != "GPIO_MANIFEST") && (subject != "GPIO_TEST")) {
+    if ( (subject != "") && (subject != "GPO_INTERACTION") && (subject != "GPIO_TEMPLATE_ADD")
+         && (subject != "GPIO_MANIFEST") && (subject != "GPIO_MANIFEST_SUMMARY")
+         && (subject != "GPIO_TEST")) {
         zsys_warning ("%s: Received unexpected subject '%s'", self->name, subject.c_str());
         zmsg_t *reply = zmsg_new ();
         zmsg_addstr(reply, "ERROR");
@@ -301,9 +348,10 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
             }
             pthread_mutex_unlock (&gpx_list_mutex);
-            zmsg_destroy (&reply);
+            zstr_free(&sensor_name);
+            zstr_free(&action_name);
         }
-        else if (subject == "GPIO_MANIFEST") {
+        else if ( (subject == "GPIO_MANIFEST") || (subject == "GPIO_MANIFEST_SUMMARY") ) {
             // FIXME: consolidate code using filters
             zmsg_t *reply = zmsg_new ();
             zmsg_addstr (reply, "OK");
@@ -312,7 +360,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             if (asset_partnumber) {
                 while (asset_partnumber) {
                     // FIXME: use @datadir@ (how?)!
-                    string template_filename = string("./data/") + string(asset_partnumber) + string(".tpl");
+                    string template_filename = string(self->template_dir) + string(asset_partnumber) + string(".tpl");
 
                     // We have a GPIO sensor, process it
                     zconfig_t *sensor_template_file = zconfig_load (template_filename.c_str());
@@ -343,74 +391,157 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     }
 
                     // Get the next one, if there is one
+                    zconfig_destroy (&sensor_template_file);                    
+                    zstr_free(&asset_partnumber);
                     asset_partnumber = zmsg_popstr (message);
                 }
-                // send the reply
-                int rv = mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), subject.c_str(), NULL, 5000, &reply);
-                if (rv == -1)
-                    zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
-
-                zmsg_destroy (&reply);
             }
             else {
                 // Send all templates
-/*                zdir_t *older = zdir_new ("./data/", NULL);
-                zdir_count (zdir_t *self);
-                zlist_t *zdir_list (zdir_t *self);
-*/
+                assert (self->template_dir);
+
+                zdir_t *dir = zdir_new (self->template_dir, "-");
+                if (!dir) {
+                    //log_error ("zdir_new (path = '%s', parent = '-') failed.", self->template_dir);
+                    return;
+                }
+
+                zlist_t *files = zdir_list (dir);
+                if (!files) {
+                    zdir_destroy (&dir);
+                    //log_error ("zdir_list () failed.");
+                    return;
+                }
+
+                std::regex file_rex (".+\\.tpl");
+
+                zfile_t *item = (zfile_t *) zlist_first (files);
+                while (item) {
+                    if (std::regex_match (zfile_filename (item, self->template_dir), file_rex)) {
+                        my_zsys_debug (self->verbose, "%s: %s matched", __func__, zfile_filename (item, self->template_dir));
+                        string template_filename = zfile_filename (item, NULL);
+                        
+                        string asset_partnumber = zfile_filename (item, self->template_dir);
+                        asset_partnumber.erase (asset_partnumber.size () - 4);
+
+                        // We have a GPIO sensor, process it
+                        zconfig_t *sensor_template_file = zconfig_load (template_filename.c_str());
+
+                        // Get info from template
+                        const char *manufacturer = s_get (sensor_template_file, "manufacturer", "");
+                        const char *type = s_get (sensor_template_file, "type", "");
+                        const char *normal_state = s_get (sensor_template_file, "normal-state", "");
+                        const char *gpx_direction = s_get (sensor_template_file, "gpx-direction", "");
+                        const char *alarm_severity = s_get (sensor_template_file, "alarm-severity", "");
+                        const char *alarm_message = s_get (sensor_template_file, "alarm-message", "");
+
+                        zmsg_addstr (reply, asset_partnumber.c_str());
+                        zmsg_addstr (reply, manufacturer);
+                        if (subject == "GPIO_MANIFEST") {
+                            zmsg_addstr (reply, type);
+                            zmsg_addstr (reply, normal_state);
+                            zmsg_addstr (reply, gpx_direction);
+                            zmsg_addstr (reply, alarm_severity);
+                            zmsg_addstr (reply, alarm_message);
+                        }
+                        zconfig_destroy (&sensor_template_file);
+                    }
+                    item = (zfile_t *) zlist_next (files);
+                }
+                zlist_destroy (&files);
+                zdir_destroy (&dir);
             }
+            // send the reply
+            int rv = mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), subject.c_str(), NULL, 5000, &reply);
+            if (rv == -1)
+                zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
 
-/*
-{
-    assert (path_to_dir);
-
-    zdir_t *dir = zdir_new (path_to_dir, "-");
-    if (!dir) {
-        log_error ("zdir_new (path = '%s', parent = '-') failed.", path_to_dir);
-        return 1;
-    }
-
-    zlist_t *files = zdir_list (dir);
-    if (!files) {
-        zdir_destroy (&dir);
-        log_error ("zdir_list () failed.");
-        return 1;
-    }
-
-    std::regex file_rex (".+\\.tpl");
-
-    zfile_t *item = (zfile_t *) zlist_first (files);
-    while (item) {
-        if (std::regex_match (zfile_filename (item, path_to_dir), file_rex)) {
-            std::string filename = zfile_filename (item, path_to_dir);
-            filename.erase (filename.size () - 4);
-            std::string service = "fty-metric-composite@";
-            service += filename;
-            s_bits_systemctl ("stop", service.c_str ());
-            s_bits_systemctl ("disable", service.c_str ());
-            zfile_remove (item);
-            log_debug ("file removed");
+            zmsg_destroy (&reply);
         }
-        item = (zfile_t *) zlist_next (files);
-    }
-    zlist_destroy (&files);
-    zdir_destroy (&dir);
-    return 0;
-}
+        else if (subject == "GPIO_TEMPLATE_ADD") {
 
-DCS001
-    manufacturer   = Eaton
-    part-number    = DCS001
-    type           = door-contact-sensor
-    normal-state   = closed
-    gpx-direction  = GPI
-    alarm-severity = WARNING
-    alarm-message  = Door has been $status
-*/
+            char *sensor_partnumber = zmsg_popstr (message);
+            if (sensor_partnumber) {
+                zconfig_t *root = zconfig_new ("root", NULL);
+                string template_filename = string(self->template_dir) + string(sensor_partnumber) + string(".tpl");
+
+                // We have a GPIO sensor, process it
+                /*zconfig_t *sensor_template_file = zconfig_load (template_filename.c_str());
+                if (!sensor_template_file) {
+                    my_zsys_debug (self->verbose, "Can't create sensor template file"); // FIXME: error
+                    zmsg_addstr (reply, "ERROR");
+                    zmsg_addstr (reply, "?"); // FIXME: check errno for exact 
+                }*/
+
+                char *manufacturer = zmsg_popstr (message);
+                char *type = zmsg_popstr (message);
+                char *normal_state = zmsg_popstr (message);
+                char *gpx_direction = zmsg_popstr (message);
+                char *alarm_severity = zmsg_popstr (message);
+                char *alarm_message = zmsg_popstr (message);
+                
+                // Sanity check
+                if ( !type || !alarm_message) {
+                    zmsg_addstr (reply, "ERROR");
+                    zmsg_addstr (reply, "MISSING_PARAM");
+                }
+                else {
+                    // Fill possible missing values with sane defaults
+                    if (!manufacturer)
+                        manufacturer = strdup("unknown");
+                    if (!normal_state)
+                        normal_state = strdup("opened");
+                    if (!gpx_direction)
+                        gpx_direction = strdup("GPI");
+                    if (!alarm_severity)
+                        alarm_severity = strdup("WARNING");
+                    }
+                    
+                    zconfig_set_comment (root, " Generated through 42ITy web UI");
+                    zconfig_put (root, "manufacturer", manufacturer);
+                    zconfig_put (root, "part-number", sensor_partnumber);
+                    zconfig_put (root, "type", type);
+                    zconfig_put (root, "normal-state", normal_state);
+                    zconfig_put (root, "gpx-direction", gpx_direction);
+                    zconfig_put (root, "alarm-severity", alarm_severity);
+                    zconfig_put (root, "alarm-message", alarm_message);
+
+                    // Save the template
+                    int rv = zconfig_save (root, template_filename.c_str());
+                    zconfig_destroy (&root);
+
+                    // Prepare our answer
+                    if ( rv == 0)
+                        zmsg_addstr (reply, "OK");
+                    else {
+                        zmsg_addstr (reply, "ERROR");
+                        zmsg_addstr (reply, "UNKNOWN"); // FIXME: check errno
+                    }
+                    // Cleanup
+                    zstr_free(&manufacturer);
+                    zstr_free(&type);
+                    zstr_free(&normal_state);
+                    zstr_free(&gpx_direction);
+                    zstr_free(&alarm_severity);
+                    zstr_free(&alarm_message);
+            }
+            else {
+                zmsg_addstr (reply, "ERROR");
+                zmsg_addstr (reply, "MISSING_PARAM");
+            }
+            // send the reply
+            int rv = mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), subject.c_str(), NULL, 5000, &reply);
+            if (rv == -1)
+                zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
+
+            zstr_free(&sensor_partnumber);
+            
         }
+
         else if (subject == "GPIO_TEST") {
             ;
         }
+        zmsg_destroy (&reply);
     }
 }
 
@@ -448,10 +579,10 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
 
         //  Free class properties
         libgpio_destroy (&self->gpio_lib);
-        free(self->name);
+        zstr_free(&self->name);
         mlm_client_destroy (&self->mlm);
         if (self->template_dir)
-            free(self->template_dir);
+            zstr_free(&self->template_dir);
 
         //  Free object itself
         free (self);
@@ -547,30 +678,35 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     int gpio_base_address = atoi(str_gpio_base_address);
                     libgpio_set_gpio_base_address (self->gpio_lib, gpio_base_address);
                     my_zsys_debug (self->verbose, "fty_sensor_gpio: GPIO_CHIP_ADDRESS=%i", gpio_base_address);
+                    zstr_free (&str_gpio_base_address);
                 }
                 else if (streq (cmd, "GPI_OFFSET")) {
                     char *str_gpi_offset = zmsg_popstr (message);
                     int gpi_offset = atoi(str_gpi_offset);
                     libgpio_set_gpi_offset (self->gpio_lib, gpi_offset);
                     my_zsys_debug (self->verbose, "fty_sensor_gpio: GPI_OFFSET=%i", gpi_offset);
+                    zstr_free (&str_gpi_offset);
                 }
                 else if (streq (cmd, "GPO_OFFSET")) {
                     char *str_gpo_offset = zmsg_popstr (message);
                     int gpo_offset = atoi(str_gpo_offset);
                     libgpio_set_gpo_offset (self->gpio_lib, gpo_offset);
                     my_zsys_debug (self->verbose, "fty_sensor_gpio: GPO_OFFSET=%i", gpo_offset);
+                    zstr_free (&str_gpo_offset);
                 }
                 else if (streq (cmd, "GPI_COUNT")) {
                     char *str_gpi_count = zmsg_popstr (message);
                     int gpi_count = atoi(str_gpi_count);
                     libgpio_set_gpi_count (self->gpio_lib, gpi_count);
                     my_zsys_debug (self->verbose, "fty_sensor_gpio: GPI_COUNT=%i", gpi_count);
+                    zstr_free (&str_gpi_count);
                 }
                 else if (streq (cmd, "GPO_COUNT")) {
                     char *str_gpo_count = zmsg_popstr (message);
                     int gpo_count = atoi(str_gpo_count);
                     libgpio_set_gpo_count (self->gpio_lib, gpo_count);
                     my_zsys_debug (self->verbose, "fty_sensor_gpio: GPO_COUNT=%i", gpo_count);
+                    zstr_free (&str_gpo_count);
                 }
                 else {
                     zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
@@ -583,10 +719,6 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
             zmsg_t *message = mlm_client_recv (self->mlm);
             if (streq (mlm_client_command (self->mlm), "MAILBOX DELIVER")) {
                 // someone is addressing us directly
-                // FIXME: can be requested for:
-                // * sensors manifest (pn, type, normal status) by UI
-                //   => handled by _assets?!
-                // * GPO interaction: REQ
                 s_handle_mailbox(self, message);
             }
             zmsg_destroy (&message);
@@ -594,44 +726,268 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
     }
     zpoller_destroy (&poller);
     mlm_client_destroy (&self->mlm);
+    fty_sensor_gpio_server_destroy(&self);
 }
 
 //  --------------------------------------------------------------------------
 //  Self test of this class
-
-// FIXME
 
 void
 fty_sensor_gpio_server_test (bool verbose)
 {
     printf (" * fty_sensor_gpio_server: ");
 
-    // Test #1: Get status for an asset and check its publication
-    // Test #2: Get GPIO_MANIFEST request and answer it
-    // Test #3: Get GPO_INTERACTION request and answer it
-
-
-    //  @selftest
-    //  Simple create/destroy test
-
     // Note: If your selftest reads SCMed fixture data, please keep it in
     // src/selftest-ro; if your test creates filesystem objects, please
     // do so under src/selftest-rw. They are defined below along with a
     // usecase for the variables (assert) to make compilers happy.
     const char *SELFTEST_DIR_RO = "src/selftest-ro";
-    const char *SELFTEST_DIR_RW = "src/selftest-rw";
+    const char *SELFTEST_DIR_RW = "src/selftest-rw/";
     assert (SELFTEST_DIR_RO);
     assert (SELFTEST_DIR_RW);
     // Uncomment these to use C++ strings in C++ selftest code:
     //std::string str_SELFTEST_DIR_RO = std::string(SELFTEST_DIR_RO);
-    //std::string str_SELFTEST_DIR_RW = std::string(SELFTEST_DIR_RW);
+    std::string str_SELFTEST_DIR_RW = std::string(SELFTEST_DIR_RW);
     //assert ( (str_SELFTEST_DIR_RO != "") );
     //assert ( (str_SELFTEST_DIR_RW != "") );
     // NOTE that for "char*" context you need (str_SELFTEST_DIR_RO + "/myfilename").c_str()
 
-    fty_sensor_gpio_server_t *self = fty_sensor_gpio_server_new (FTY_SENSOR_GPIO_AGENT);
+    //  @selftest
+
+    static const char* endpoint = "inproc://fty_sensor_gpio_server_test";
+    
+    std::string template_dir = str_SELFTEST_DIR_RW + "/data/";
+    zsys_dir_create (template_dir.c_str());
+    zactor_t *server = zactor_new (mlm_server, (void*) "Malamute");
+    zstr_sendx (server, "BIND", endpoint, NULL);
+    if (verbose)
+        zstr_send (server, "VERBOSE");
+
+    zactor_t *self = zactor_new (fty_sensor_gpio_server, (void*)FTY_SENSOR_GPIO_AGENT);
     assert (self);
-    fty_sensor_gpio_server_destroy (&self);
+
+    // Configure the server
+    zstr_sendx (self, "CONNECT", endpoint, NULL);
+    if (verbose)
+        zstr_send (self, "VERBOSE");
+    zstr_sendx (self, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
+    zstr_sendx (self, "TEMPLATE_DIR", template_dir.c_str(), NULL);
+    zstr_sendx (self, "GPIO_CHIP_ADDRESS", "488", NULL);
+    zstr_sendx (self, "GPI_OFFSET", "-1", NULL);    // Only 1 GPI
+    zstr_sendx (self, "GPO_OFFSET", "0", NULL);     // Only 1 GPO
+    zstr_sendx (self, "GPI_COUNT", "10", NULL);
+    zstr_sendx (self, "GPO_COUNT", "5", NULL);
+    zstr_send (self, "TEST");
+
+    mlm_client_t *mb_client = mlm_client_new ();
+    mlm_client_connect (mb_client, endpoint, 1000, "fty_sensor_gpio_client");
+
+    // Prepare the testbed with 2 assets (1xGPI + 1xGPO)
+    fty_sensor_gpio_assets_t *assets_self = fty_sensor_gpio_assets_new("gpio-assets");
+
+    int rv = add_sensor(assets_self, "create",
+        "Eaton", "sensor-10", "GPIO-Sensor-Door1",
+        "DCS001", "door-contact-sensor",
+        "closed", "1",
+        "GPI", "IPC1",
+        "Door has been $status", "WARNING");
+    assert (rv == 0);
+
+    rv = add_sensor(assets_self, "create",
+        "Eaton", "sensor-11", "GPIO-Test-GPO1",
+        "DCS001", "dummy",
+        "closed", "1",
+        "GPO", "IPC1",
+        "Dummy has been $status", "WARNING");
+    assert (rv == 0);
+
+    // Also create the dummy file for reading the GPI sensor
+    std::string gpi_sys_dir = str_SELFTEST_DIR_RW + "/sys/class/gpio/gpio488";
+    zsys_dir_create (gpi_sys_dir.c_str());
+    std::string gpi1_fn = gpi_sys_dir + "/value";
+    int handle = open (gpi1_fn.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0777);
+    assert (handle >= 0);
+    int rc = write (handle, "0", 1);   // 0 == GPIO_STATE_CLOSED
+    assert (rc == 1);
+    close (handle);
+    // and the path for GPO
+    std::string gpo_sys_dir = str_SELFTEST_DIR_RW + "/sys/class/gpio/gpio489";
+    zsys_dir_create (gpo_sys_dir.c_str());
+
+    // Acquire the list of monitored sensors
+    pthread_mutex_lock (&gpx_list_mutex);
+    zlistx_t *test_gpx_list = get_gpx_list(verbose);
+    assert (test_gpx_list);
+    int sensors_count = zlistx_size (test_gpx_list);
+    assert (sensors_count == 2);
+    // Test the first sensor
+/*    _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (test_gpx_list);
+    assert (gpx_info);
+    // Modify the current_state
+    gpx_info->current_state = GPIO_STATE_OPENED;
+*/
+    pthread_mutex_unlock (&gpx_list_mutex);
+
+    // Test #1: Get status for an asset through its published metric
+    {
+        mlm_client_t *metrics_listener = mlm_client_new ();
+        mlm_client_connect (metrics_listener, endpoint, 1000, "fty_sensor_gpio_metrics_listener");
+        mlm_client_set_consumer (metrics_listener, FTY_PROTO_STREAM_METRICS_SENSOR, ".*");
+
+        // Send an update and check for the generated metric
+        zstr_sendx (self, "UPDATE", endpoint, NULL);
+        zclock_sleep (500);
+
+        // Check the published metric
+        zmsg_t *recv = mlm_client_recv (metrics_listener);
+        assert (recv);
+        fty_proto_t *frecv = fty_proto_decode (&recv);
+        assert (frecv);
+        assert (streq (fty_proto_name (frecv), "sensor-10"));
+        assert (streq (fty_proto_type (frecv), "status.GPI1"));
+        assert (streq (fty_proto_aux_string (frecv, "port", NULL), "GPI1"));
+        assert (streq (fty_proto_value (frecv), "closed"));
+
+        fty_proto_destroy (&frecv);
+        zmsg_destroy (&recv);
+        mlm_client_destroy (&metrics_listener);
+    }
+
+    // Test #2: Post a GPIO_TEMPLATE_ADD request and check the file created
+    // Note: this will serve afterward for the GPIO_MANIFEST / GPIO_MANIFEST_SUMMARY
+    // requests
+    {
+        zmsg_t *msg = zmsg_new ();
+        zmsg_addstr (msg, "TEST001");           // sensor_partnumber
+        zmsg_addstr (msg, "FooManufacturer");   // manufacturer
+        zmsg_addstr (msg, "test");              // type
+        zmsg_addstr (msg, "closed");            // normal_state
+        zmsg_addstr (msg, "GPI");               // gpx_direction
+        zmsg_addstr (msg, "WARNING");           // alarm_severity
+        zmsg_addstr (msg, "test triggered");    // alarm_message
+
+        int rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPIO_TEMPLATE_ADD", NULL, 5000, &msg);
+        assert ( rv == 0 );
+
+        // Check the server answer
+        zmsg_t *recv = mlm_client_recv (mb_client);
+        assert(recv);
+        char *answer = zmsg_popstr (recv);
+        assert ( answer );
+        assert ( streq (answer, "OK") );
+        zstr_free(&answer);
+        zmsg_destroy (&msg);
+        zmsg_destroy (&recv);
+    }
+
+    // Test #3: Get GPIO_MANIFEST request and check it
+    // Note: we should receive the template created above only!
+    {
+        zmsg_t *msg = zmsg_new ();
+        int rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPIO_MANIFEST", NULL, 5000, &msg);
+        assert ( rv == 0 );
+
+        // Check the server answer
+        zmsg_t *recv = mlm_client_recv (mb_client);
+        assert(recv);
+        char *recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "OK") );
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "TEST001") );
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "FooManufacturer") );
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "test") );
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "closed") );
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "GPI") );
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "WARNING") );
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "test triggered") );
+        zstr_free (&recv_str);
+
+        zmsg_destroy (&msg);
+        zmsg_destroy (&recv);
+    }
+
+    // Test #4: Request GPIO_MANIFEST_SUMMARY and check it
+    {
+        zmsg_t *msg = zmsg_new ();
+        int rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPIO_MANIFEST_SUMMARY", NULL, 5000, &msg);
+        assert ( rv == 0 );
+
+        // Check the server answer
+        zmsg_t *recv = mlm_client_recv (mb_client);
+        assert(recv);
+        char *recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "OK") );
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "TEST001") );
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "FooManufacturer") );
+        zstr_free (&recv_str);
+
+        zmsg_destroy (&msg);
+        zmsg_destroy (&recv);
+    }
+    // Test #5: Send GPO_INTERACTION request on GPO 'sensor-11' and check it
+    {
+        zmsg_t *msg = zmsg_new ();
+        zmsg_addstr (msg, "sensor-11");     // sensor
+        zmsg_addstr (msg, "open");          // action
+        int rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPO_INTERACTION", NULL, 5000, &msg);
+        assert ( rv == 0 );
+
+        // Check the server answer
+        zmsg_t *recv = mlm_client_recv (mb_client);
+        assert(recv);
+        char *recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "OK") );
+        zstr_free (&recv_str);
+
+        zmsg_destroy (&msg);
+        zmsg_destroy (&recv);
+        // Now check the filesystem
+        std::string gpo1_fn = gpo_sys_dir + "/value";
+        int handle = open (gpo1_fn.c_str(), O_RDONLY, 0);
+        assert (handle >= 0);
+        char readbuf[2];
+        int rc = read (handle, &readbuf[0], 1);
+        assert (rc == 1);
+        close (handle);
+        assert ( readbuf[0] == '1' ); // 1 == GPIO_STATE_OPENED
+        
+    }
+
+    zsys_dir_delete (template_dir.c_str());
+    // Delete all test files
+    zdir_t *dir = zdir_new (template_dir.c_str(), NULL);
+    assert (dir);
+    zdir_remove (dir, true);
+    zdir_destroy (&dir);
+    dir = zdir_new ((str_SELFTEST_DIR_RW + "/sys").c_str(), NULL);
+    assert (dir);
+    zdir_remove (dir, true);
+    zdir_destroy (&dir);
+
+    // Cleanup assets
+    fty_sensor_gpio_assets_destroy(&assets_self);
+
+    // And connections / actors
+    mlm_client_destroy (&mb_client);
+    zactor_destroy (&server);
+    zactor_destroy (&self);
     //  @end
     printf ("OK\n");
 }

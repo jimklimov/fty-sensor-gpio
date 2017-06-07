@@ -61,7 +61,7 @@ FTY_SENSOR_GPIO_EXPORT int
 
 //  @interface
 //  Get the textual name for a status
-FTY_SENSOR_GPIO_EXPORT string
+FTY_SENSOR_GPIO_EXPORT const string
     libgpio_get_status_string (int value);
 
 //  @interface

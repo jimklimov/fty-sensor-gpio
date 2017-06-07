@@ -38,58 +38,67 @@ struct _fty_sensor_gpio_alerts_t {
 
 //  --------------------------------------------------------------------------
 //  Helper function to replace strings
-
+//  https://gist.github.com/idada/11058000
+//  * Copyright (C) 2010 chantra <chantra@debuntu.org>
+//  * Copyright (C) 2012 Iain R. Learmonth <irl@sdf.org>
+//  GPLv2+
 static char*
-str_replace(const char *in, const char *pattern, const char *by)
+str_replace(char* string, const char* substr, const char* replacement)
 {
-    size_t outsize = strlen(in) + 1;
-    // TODO maybe avoid reallocing by counting the non-overlapping occurences of pattern
-    char *res = (char*)malloc(outsize);
-    // use this to iterate over the output
-    size_t resoffset = 0;
+	char* tok = NULL;
+	char* newstr = NULL;
+	char* oldstr = NULL;
+	int   oldstr_len = 0;
+	int   substr_len = 0;
+	int   replacement_len = 0;
 
-    char *needle;
-    while ((needle = strstr((char *)in, (char *)pattern))) {
-        // copy everything up to the pattern
-        memcpy(res + resoffset, in, needle - in);
-        resoffset += needle - in;
+	newstr = strdup(string);
+	substr_len = strlen(substr);
+	replacement_len = strlen(replacement);
 
-        // skip the pattern in the input-string
-        in = needle + strlen(pattern);
+	if (substr == NULL || replacement == NULL) {
+		return newstr;
+	}
 
-        // adjust space for replacement
-        outsize = outsize - strlen(pattern) + strlen(by);
-        res = (char*)realloc(res, outsize);
+	while ((tok = strstr(newstr, substr))) {
+		oldstr = newstr;
+		oldstr_len = strlen(oldstr);
+		newstr = (char*)malloc(sizeof(char) * (oldstr_len - substr_len + replacement_len + 1));
 
-        // copy the pattern
-        memcpy(res + resoffset, by, strlen(by));
-        resoffset += strlen(by);
-    }
+		if (newstr == NULL) {
+			free(oldstr);
+			return NULL;
+		}
 
-    // copy the remaining input
-    strcpy(res + resoffset, in);
+		memcpy(newstr, oldstr, tok - oldstr);
+		memcpy(newstr + (tok - oldstr), replacement, replacement_len);
+		memcpy(newstr + (tok - oldstr) + replacement_len, tok + substr_len, oldstr_len - substr_len - (tok - oldstr));
+		memset(newstr + oldstr_len - substr_len + replacement_len, 0, 1);
 
-    return res;
+		free(oldstr);
+	}
+
+	free(string);
+
+	return newstr;
 }
 
 //  --------------------------------------------------------------------------
 //  Publish an alert for the pointed GPIO sensor
 
-void publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl)
+void
+publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl)
 {
     my_zsys_debug (self->verbose, "Publishing GPIO sensor %i (%s) alert",
         sensor->gpx_number,
         sensor->asset_name);
 
-    // FIXME: discuss alarm with Tomas
     const char *state = "ACTIVE", *severity = sensor->alarm_severity;
-    char* description = (char*)malloc(128);
-    sprintf(description, sensor->alarm_message,
-        sensor->ext_name);
+    char* description = strdup(sensor->alarm_message);
 
     // Adapt alarm message if needed
-    if (strchr(sensor->alarm_message, '$')) {
-        description = str_replace(sensor->alarm_message,
+    if (strchr(description, '$')) {
+        description = str_replace(description,
                                   "$status",
                                   libgpio_get_status_string(sensor->current_state).c_str());
         description = str_replace(description,
@@ -99,7 +108,6 @@ void publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl
                                   "$location",
                                   sensor->location);
     }
-
 
     std::string rule = string(sensor->type) + ".state_change@" + sensor->asset_name;
 
@@ -122,6 +130,7 @@ void publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl
             my_zsys_debug (self->verbose, "failed to send alert %s result %", topic.c_str(), r);
     }
     zmsg_destroy (&message);
+    zstr_free(&description);
 }
 
 //  --------------------------------------------------------------------------
@@ -132,10 +141,13 @@ s_check_gpio_status(fty_sensor_gpio_alerts_t *self)
 {
     my_zsys_debug (self->verbose, "%s_alerts: %s", self->name, __func__);
 
+    pthread_mutex_lock (&gpx_list_mutex);
+
     // number of sensors monitored in gpx_list
     zlistx_t *gpx_list = get_gpx_list(self->verbose);
     if (!gpx_list) {
         my_zsys_debug (self->verbose, "GPx list not initialized, skipping");
+        pthread_mutex_unlock (&gpx_list_mutex);
         return;
     }
     int sensors_count = zlistx_size (gpx_list);
@@ -143,13 +155,16 @@ s_check_gpio_status(fty_sensor_gpio_alerts_t *self)
 
     if (sensors_count == 0) {
         my_zsys_debug (self->verbose, "No sensors monitored");
+        pthread_mutex_unlock (&gpx_list_mutex);
         return;
     }
     else
         my_zsys_debug (self->verbose, "%i sensor(s) monitored", sensors_count);
 
-    if(!mlm_client_connected(self->mlm))
+    if(!mlm_client_connected(self->mlm)) {
+        pthread_mutex_unlock (&gpx_list_mutex);
         return;
+    }
 
     // Acquire the current sensor
     gpx_info = (_gpx_info_t *)zlistx_first (gpx_list);
@@ -173,6 +188,7 @@ s_check_gpio_status(fty_sensor_gpio_alerts_t *self)
         }
         gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
     }
+    pthread_mutex_unlock (&gpx_list_mutex);
 }
 
 //  --------------------------------------------------------------------------
@@ -189,6 +205,25 @@ fty_sensor_gpio_alerts_new (const char* name)
     self->verbose     = false;
 
     return self;
+}
+
+//  --------------------------------------------------------------------------
+//  Destroy the fty_sensor_gpio_alerts
+
+void
+fty_sensor_gpio_alerts_destroy (fty_sensor_gpio_alerts_t **self_p)
+{
+    assert (self_p);
+    if (*self_p) {
+        fty_sensor_gpio_alerts_t *self = *self_p;
+        //  Free class properties
+        mlm_client_destroy (&self->mlm);
+        if (self->name)
+            zstr_free (&self->name);
+        //  Free object itself
+        free (self);
+        *self_p = NULL;
+    }
 }
 
 //  --------------------------------------------------------------------------
@@ -288,23 +323,7 @@ fty_sensor_gpio_alerts(zsock_t *pipe, void *args)
     }
     zpoller_destroy (&poller);
     mlm_client_destroy (&self->mlm);
-}
-
-//  --------------------------------------------------------------------------
-//  Destroy the fty_sensor_gpio_alerts
-
-void
-fty_sensor_gpio_alerts_destroy (fty_sensor_gpio_alerts_t **self_p)
-{
-    assert (self_p);
-    if (*self_p) {
-        fty_sensor_gpio_alerts_t *self = *self_p;
-        //  Free class properties
-        mlm_client_destroy (&self->mlm);
-        //  Free object itself
-        free (self);
-        *self_p = NULL;
-    }
+    fty_sensor_gpio_alerts_destroy(&self);
 }
 
 //  --------------------------------------------------------------------------
@@ -342,9 +361,9 @@ fty_sensor_gpio_alerts_test (bool verbose)
 
         int rv = add_sensor(assets_self, "create",
             "Eaton", "sensor-10", "GPIO-Sensor-Door1",
-            "sensor", "door-contact-sensor",
+            "DCS001", "door-contact-sensor",
             "closed", "1",
-            "GPI", "",
+            "GPI", "IPC1",
             "Door has been $status", "WARNING");
 
         assert (rv == 0);
@@ -359,6 +378,7 @@ fty_sensor_gpio_alerts_test (bool verbose)
         assert (gpx_info);
         // Modify the current_state
         gpx_info->current_state = GPIO_STATE_OPENED;
+        pthread_mutex_unlock (&gpx_list_mutex);
 
         // Send an update and check for the generated alert
         zstr_sendx (alerts, "UPDATE", endpoint, NULL);
@@ -374,11 +394,13 @@ fty_sensor_gpio_alerts_test (bool verbose)
         assert (streq (fty_proto_severity (frecv), "WARNING"));
         assert (streq (fty_proto_description (frecv), "Door has been opened"));
 
+        zmsg_destroy (&recv);
+        fty_proto_destroy (&frecv);
         fty_sensor_gpio_assets_destroy (&assets_self);
     }
 
-    zactor_destroy (&alerts);
     mlm_client_destroy (&alerts_listener);
+    zactor_destroy (&alerts);
     zactor_destroy (&server);
     //  @end
     printf ("OK\n");
