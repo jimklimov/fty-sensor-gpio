@@ -306,20 +306,8 @@ fty_sensor_gpio_alerts(zsock_t *pipe, void *args)
             }
             zmsg_destroy (&message);
         }
-        else if (which == mlm_client_msgpipe (self->mlm)) {
-            zmsg_t *message = mlm_client_recv (self->mlm);
-            if (is_fty_proto (message)) {
-                // FIXME: to be removed?
-                fty_proto_t *fmessage = fty_proto_decode (&message);
-                //if (fty_proto_id (fmessage) == FTY_PROTO_ASSET) {
-                //    fty_sensor_gpio_handle_asset (self, fmessage);
-                //}
-                fty_proto_destroy (&fmessage);
-            } else if (streq (mlm_client_command (self->mlm), "MAILBOX DELIVER")) {
-                // someone is addressing us directly
-            }
-            zmsg_destroy (&message);
-        }
+        /*else if (which == mlm_client_msgpipe (self->mlm)) {
+        }*/
     }
     zpoller_destroy (&poller);
     mlm_client_destroy (&self->mlm);

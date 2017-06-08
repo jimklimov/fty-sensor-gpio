@@ -175,6 +175,7 @@ void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int tt
             sensor->asset_name, //sensor->location,
             libgpio_get_status_string(sensor->current_state).c_str(),
             "");
+
         zhash_destroy (&aux);
         if (msg) {
             std::string topic = string("status.") + port + string("@") + sensor->asset_name; //sensor->location;
@@ -622,12 +623,12 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
         if (which == pipe) {
             zmsg_t *message = zmsg_recv (pipe);
             char *cmd = zmsg_popstr (message);
-            my_zsys_debug(self->verbose, "fty_sensor_gpio: received command %s", cmd);
             if (cmd) {
+                my_zsys_debug(self->verbose, "fty_sensor_gpio: received command %s", cmd);
                 if (streq (cmd, "$TERM")) {
                     zstr_free (&cmd);
                     zmsg_destroy (&message);
-                    break;
+                    goto exit;
                 }
                 else if (streq (cmd, "CONNECT")) {
                     char *endpoint = zmsg_popstr (message);
@@ -724,6 +725,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
             zmsg_destroy (&message);
         }
     }
+exit:
     zpoller_destroy (&poller);
     mlm_client_destroy (&self->mlm);
     fty_sensor_gpio_server_destroy(&self);
