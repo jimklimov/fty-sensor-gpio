@@ -627,7 +627,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                 if (streq (cmd, "$TERM")) {
                     zstr_free (&cmd);
                     zmsg_destroy (&message);
-                    break;
+                    goto exit;
                 }
                 else if (streq (cmd, "CONNECT")) {
                     char *endpoint = zmsg_popstr (message);
@@ -724,6 +724,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
             zmsg_destroy (&message);
         }
     }
+exit:
     zpoller_destroy (&poller);
     mlm_client_destroy (&self->mlm);
     fty_sensor_gpio_server_destroy(&self);
@@ -986,8 +987,8 @@ fty_sensor_gpio_server_test (bool verbose)
 
     // And connections / actors
     mlm_client_destroy (&mb_client);
-    zactor_destroy (&server);
     zactor_destroy (&self);
+    zactor_destroy (&server);
     //  @end
     printf ("OK\n");
 }
