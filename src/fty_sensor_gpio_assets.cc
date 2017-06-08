@@ -576,6 +576,8 @@ fty_sensor_gpio_assets_test (bool verbose)
         zstr_send (assets, "VERBOSE");
     zstr_sendx (assets, "CONNECT", endpoint, NULL);
     zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
+    // Use source-provided templates
+    zstr_sendx (assets, "TEMPLATE_DIR", "./data/", NULL);
     zclock_sleep (1000);
 
     mlm_client_t *asset_generator = mlm_client_new ();
