@@ -746,10 +746,10 @@ fty_sensor_gpio_server_test (bool verbose)
     assert (SELFTEST_DIR_RO);
     assert (SELFTEST_DIR_RW);
     // Uncomment these to use C++ strings in C++ selftest code:
-    //std::string str_SELFTEST_DIR_RO = std::string(SELFTEST_DIR_RO);
+    std::string str_SELFTEST_DIR_RO = std::string(SELFTEST_DIR_RO);
     std::string str_SELFTEST_DIR_RW = std::string(SELFTEST_DIR_RW);
-    //assert ( (str_SELFTEST_DIR_RO != "") );
-    //assert ( (str_SELFTEST_DIR_RW != "") );
+    assert ( (str_SELFTEST_DIR_RO != "") );
+    assert ( (str_SELFTEST_DIR_RW != "") );
     // NOTE that for "char*" context you need (str_SELFTEST_DIR_RO + "/myfilename").c_str()
 
     //  @selftest
