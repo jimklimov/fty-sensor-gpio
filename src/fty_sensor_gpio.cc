@@ -146,7 +146,7 @@ int main (int argc, char *argv [])
     if (actor_name == NULL)
         actor_name = strdup(FTY_SENSOR_GPIO_AGENT);
 
-    if (endpoint)
+    if (endpoint == NULL)
         endpoint = strdup("ipc://@/malamute");
 
     // Guess the template installation directory
