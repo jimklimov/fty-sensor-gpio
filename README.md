@@ -74,11 +74,11 @@ template file is used. Otherwise, the provided value takes precedence.
 
 Example of entries:
 
---------------------------------------------------------------------------------
+```bash
 name,type,sub_type,location,status,priority,model,gpx_number,normal_state
 GPIO-Sensor-Door1,device,sensor,IPC1,active,P1,DCS001,1,opened
 GPIO-GPOTest1,device,sensor,IPC1,active,P1,GPOTEST,1,
---------------------------------------------------------------------------------
+```
 
 ## Architecture
 
@@ -108,7 +108,7 @@ installed by default to '/usr/share/fty-sensor-gpio/data/'.
 Template files are named using the 'part-number' field, with the '.tpl'
 (template) file extension, and have the following format:
 
---------------------------------------------------------------------------------
+```bash
 manufacturer   = <value>
 part-number    = <value>
 type           = <value>
@@ -116,11 +116,11 @@ normal-state   = <value>
 gpx-direction  = <value>
 alarm-severity = <value>
 alarm-message  = <value>
---------------------------------------------------------------------------------
+```
 
 For example:
 
---------------------------------------------------------------------------------
+```bash
 manufacturer   = Eaton
 part-number    = DCS001
 type           = door-contact-sensor
@@ -128,7 +128,7 @@ normal-state   = closed
 gpx-direction  = GPI
 alarm-severity = WARNING
 alarm-message  = Door has been $status
---------------------------------------------------------------------------------
+```
 
 'alarm-message' can be adapted at runtime through the use of some variables, to
 adapt the alert message:
@@ -146,7 +146,7 @@ Metrics are published on the '_METRICS_SENSOR' stream.
 
 For example:
 
---------------------------------------------------------------------------------
+```bash
 stream=_METRICS_SENSOR
 sender=fty-sensor-gpio
 subject=status.GPI2@sensor-90
@@ -159,7 +159,7 @@ D: 13-01-28 10:22:53     type='status.GPI2'
 D: 13-01-28 10:22:53     name='sensor-90'
 D: 13-01-28 10:22:53     value='opened'
 D: 13-01-28 10:22:53     unit=''
---------------------------------------------------------------------------------
+```
 
 ### Published alerts
 
