@@ -877,6 +877,7 @@ fty_sensor_gpio_server_test (bool verbose)
         assert(recv);
         char *answer = zmsg_popstr (recv);
         assert ( answer );
+        zsys_debug("Got answer: '%s'", answer);
         assert ( streq (answer, "OK") );
         zstr_free(&answer);
         zmsg_destroy (&msg);
