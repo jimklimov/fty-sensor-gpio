@@ -162,10 +162,11 @@ void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int tt
 
         zhash_t *aux = zhash_new ();
         zhash_autofree (aux);
-        char* port = (char*)malloc(5);
-        sprintf(port, "GPI%i", sensor->gpx_number);
-        zhash_insert (aux, "port", (void*) port);
-        string msg_type = string("status.") + port;
+        char port[6];  // "GPI" + "xx" + '\0'
+        memset(&port[0], 0, 6);
+        snprintf(&port[0], 6, "GPI%i", sensor->gpx_number);
+        zhash_insert (aux, "port", (void*) &port[0]);
+        string msg_type = string("status.") + &port[0];
 
         zmsg_t *msg = fty_proto_encode_metric (
             aux,
@@ -177,10 +178,10 @@ void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int tt
             "");
         zhash_destroy (&aux);
         if (msg) {
-            std::string topic = string("status.") + port + string("@") + sensor->asset_name; //sensor->location;
+            std::string topic = msg_type + string("@") + sensor->asset_name; //sensor->location;
 
             my_zsys_debug(self->verbose, "\tPort: %s, type: %s, status: %s",
-                port, msg_type.c_str(),
+                &port[0], msg_type.c_str(),
                 libgpio_get_status_string(sensor->current_state).c_str());
 
             int r = mlm_client_send (self->mlm, topic.c_str (), &msg);
@@ -188,7 +189,6 @@ void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int tt
                 my_zsys_debug(self->verbose, "failed to send measurement %s result %", topic.c_str(), r);
             zmsg_destroy (&msg);
         }
-        free(port);
 }
 
 //  --------------------------------------------------------------------------
