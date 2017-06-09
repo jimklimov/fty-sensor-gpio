@@ -1,7 +1,7 @@
 # fty-sensor-gpio
 
 fty-sensor-gpio is an agent to manage GPI sensors and GPO devices. It is able
-to read status of any kind of GPIO devices or set (enable / disable) any
+to read status of any kind of GPIO devices or set (enable / disable) any GPO.
 
 GPIO devices are basic dry-contact, which are either 'opened' or 'closed', to
 indicate a status or enable / disable a device.
