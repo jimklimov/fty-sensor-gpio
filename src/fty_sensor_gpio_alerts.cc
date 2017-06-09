@@ -258,12 +258,12 @@ fty_sensor_gpio_alerts(zsock_t *pipe, void *args)
         if (which == pipe) {
             zmsg_t *message = zmsg_recv (pipe);
             char *cmd = zmsg_popstr (message);
-            my_zsys_debug (self->verbose, "fty_sensor_gpio: received command %s", cmd);
             if (cmd) {
+                my_zsys_debug (self->verbose, "fty_sensor_gpio: received command %s", cmd);
                 if (streq (cmd, "$TERM")) {
                     zstr_free (&cmd);
                     zmsg_destroy (&message);
-                    break;
+                    goto exit;
                 }
                 else if (streq (cmd, "CONNECT")) {
                     char *endpoint = zmsg_popstr (message);
@@ -306,23 +306,11 @@ fty_sensor_gpio_alerts(zsock_t *pipe, void *args)
             }
             zmsg_destroy (&message);
         }
-        else if (which == mlm_client_msgpipe (self->mlm)) {
-            zmsg_t *message = mlm_client_recv (self->mlm);
-            if (is_fty_proto (message)) {
-                // FIXME: to be removed?
-                fty_proto_t *fmessage = fty_proto_decode (&message);
-                //if (fty_proto_id (fmessage) == FTY_PROTO_ASSET) {
-                //    fty_sensor_gpio_handle_asset (self, fmessage);
-                //}
-                fty_proto_destroy (&fmessage);
-            } else if (streq (mlm_client_command (self->mlm), "MAILBOX DELIVER")) {
-                // someone is addressing us directly
-            }
-            zmsg_destroy (&message);
-        }
+        /* else if (which == mlm_client_msgpipe (self->mlm)) {
+        }*/
     }
+exit:
     zpoller_destroy (&poller);
-    mlm_client_destroy (&self->mlm);
     fty_sensor_gpio_alerts_destroy(&self);
 }
 
@@ -394,8 +382,8 @@ fty_sensor_gpio_alerts_test (bool verbose)
         assert (streq (fty_proto_severity (frecv), "WARNING"));
         assert (streq (fty_proto_description (frecv), "Door has been opened"));
 
-        zmsg_destroy (&recv);
         fty_proto_destroy (&frecv);
+        zmsg_destroy (&recv);
         fty_sensor_gpio_assets_destroy (&assets_self);
     }
 

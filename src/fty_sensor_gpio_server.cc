@@ -622,8 +622,8 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
         if (which == pipe) {
             zmsg_t *message = zmsg_recv (pipe);
             char *cmd = zmsg_popstr (message);
-            my_zsys_debug(self->verbose, "fty_sensor_gpio: received command %s", cmd);
             if (cmd) {
+                my_zsys_debug(self->verbose, "fty_sensor_gpio: received command %s", cmd);
                 if (streq (cmd, "$TERM")) {
                     zstr_free (&cmd);
                     zmsg_destroy (&message);
@@ -726,7 +726,6 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
     }
 exit:
     zpoller_destroy (&poller);
-    mlm_client_destroy (&self->mlm);
     fty_sensor_gpio_server_destroy(&self);
 }
 
@@ -829,6 +828,7 @@ fty_sensor_gpio_server_test (bool verbose)
 */
     pthread_mutex_unlock (&gpx_list_mutex);
 
+// leak HERE begining
     // Test #1: Get status for an asset through its published metric
     {
         mlm_client_t *metrics_listener = mlm_client_new ();
@@ -837,7 +837,8 @@ fty_sensor_gpio_server_test (bool verbose)
 
         // Send an update and check for the generated metric
         zstr_sendx (self, "UPDATE", endpoint, NULL);
-        zclock_sleep (500);
+// leak HERE?!
+//        zclock_sleep (500);
 
         // Check the published metric
         zmsg_t *recv = mlm_client_recv (metrics_listener);
@@ -853,6 +854,7 @@ fty_sensor_gpio_server_test (bool verbose)
         zmsg_destroy (&recv);
         mlm_client_destroy (&metrics_listener);
     }
+// leak HERE end
 
     // Test #2: Post a GPIO_TEMPLATE_ADD request and check the file created
     // Note: this will serve afterward for the GPIO_MANIFEST / GPIO_MANIFEST_SUMMARY
@@ -959,6 +961,7 @@ fty_sensor_gpio_server_test (bool verbose)
 
         zmsg_destroy (&msg);
         zmsg_destroy (&recv);
+
         // Now check the filesystem
         std::string gpo1_fn = gpo_sys_dir + "/value";
         int handle = open (gpo1_fn.c_str(), O_RDONLY, 0);

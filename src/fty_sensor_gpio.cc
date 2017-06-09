@@ -73,8 +73,8 @@ int main (int argc, char *argv [])
 {
     char *config_file = NULL;
     zconfig_t *config = NULL;
-    const char* actor_name = (char*)FTY_SENSOR_GPIO_AGENT;
-    const char* endpoint = (char*)"ipc://@/malamute";
+    char* actor_name = NULL;
+    char* endpoint = NULL;
     const char* str_poll_interval = NULL;
     int poll_interval = DEFAULT_POLL_INTERVAL;
     const char* gpio_base_address = "-1";
@@ -140,11 +140,14 @@ int main (int argc, char *argv [])
         gpi_count = s_get (config, "hardware/gpi_count", "0");
 
         my_zsys_debug (verbose, "Polling interval set to %i", poll_interval);
-        endpoint = s_get (config, "malamute/endpoint", endpoint);
-        actor_name = s_get (config, "malamute/address", actor_name);
-
-        zconfig_destroy (&config);
+        endpoint = strdup(s_get (config, "malamute/endpoint", NULL));
+        actor_name = strdup(s_get (config, "malamute/address", NULL));
     }
+    if (actor_name == NULL)
+        actor_name = strdup(FTY_SENSOR_GPIO_AGENT);
+
+    if (endpoint)
+        endpoint = strdup("ipc://@/malamute");
 
     // Guess the template installation directory
     char *template_dir = NULL;
@@ -218,6 +221,9 @@ int main (int argc, char *argv [])
     zactor_destroy (&assets);
     zactor_destroy (&alerts);
     zstr_free(&template_dir);
+    zstr_free(&actor_name);
+    zstr_free(&endpoint);
+    zconfig_destroy (&config);
 
     return 0;
 }

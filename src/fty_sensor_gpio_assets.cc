@@ -488,12 +488,12 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
         if (which == pipe) {
             zmsg_t *message = zmsg_recv (pipe);
             char *cmd = zmsg_popstr (message);
-            my_zsys_debug (self->verbose, "fty-gpio-sensor-assets: received command %s", cmd);
             if (cmd) {
+                my_zsys_debug (self->verbose, "fty-gpio-sensor-assets: received command %s", cmd);
                 if (streq (cmd, "$TERM")) {
                     zstr_free (&cmd);
                     zmsg_destroy (&message);
-                    break;
+                    goto exit;
                 }
                 else if (streq (cmd, "CONNECT")) {
                     char *endpoint = zmsg_popstr (message);
@@ -550,6 +550,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
             zmsg_destroy (&message);
         }
     }
+exit:
     zpoller_destroy (&poller);
     fty_sensor_gpio_assets_destroy(&self);
 }

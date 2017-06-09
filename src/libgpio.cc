@@ -182,7 +182,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         return -1;
     }
 
-    if (read(fd, value_str, 3) == -1) {
+    if (read(fd, value_str, 3) <= 0) {
         zsys_error("Failed to read value!");
         close(fd);
         return -1;
@@ -196,7 +196,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         return -1;
     }
 
-    return(atoi(value_str));
+    return(atoi(&value_str[0]));
 }
 //  --------------------------------------------------------------------------
 //  Write a GPO (to enable or disable it)
