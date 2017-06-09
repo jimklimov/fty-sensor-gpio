@@ -150,7 +150,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     char value_str[3];
     int fd;
 
-    value_str[0] = 0;
+    memset(&value_str[0], 0, 3);
 
     // Sanity check
     if (GPx_number > self->gpi_count) {
@@ -329,9 +329,12 @@ libgpio_test (bool verbose)
 
     // Setup
     self = libgpio_new ();
+    assert (self);
     //libgpio_set_verbose (self, true);
     libgpio_set_test_mode (self, true);
     libgpio_set_gpio_base_address (self, 0);
+    // We use the same offset for GPI and GPO, to be able to write a GPO
+    // and read the same for GPI
     libgpio_set_gpi_offset (self, 0);
     libgpio_set_gpo_offset (self, 0);
     libgpio_set_gpi_count (self, 10);
