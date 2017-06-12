@@ -44,7 +44,9 @@ env:
     #- secure:
     #- secure:
   matrix:
-    - BUILD_TYPE=default
+#    - BUILD_TYPE=default
+    - BUILD_TYPE=default CI_CZMQ_VER=4
+    - BUILD_TYPE=default CI_CZMQ_VER=3
     - BUILD_TYPE=default-Werror
 #   - BUILD_TYPE=cmake
 #   - BUILD_TYPE=android
@@ -92,9 +94,20 @@ matrix:
         packages:
         - *pkg_deps_common
         - *pkg_deps_doctools
-  - env: BUILD_TYPE=valgrind
+  - env: BUILD_TYPE=valgrind CI_CZMQ_VER=3
     os: linux
     dist: trusty
+    sudo: required
+    addons:
+      apt:
+        sources: *pkg_src_zeromq_ubuntu14
+        packages:
+        - valgrind
+        - *pkg_deps_common
+  - env: BUILD_TYPE=valgrind CI_CZMQ_VER=4
+    os: linux
+    dist: trusty
+    sudo: required
     addons:
       apt:
         sources: *pkg_src_zeromq_ubuntu14
