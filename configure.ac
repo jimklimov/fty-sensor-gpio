@@ -229,7 +229,7 @@ AS_IF([test x"${search_libczmq}" = xyes], [
 
     found_pkgconfig=""
     found_linkname=""
-    PKG_CHECK_MODULES([czmq], [libczmq >= 3.0.0],
+    PKG_CHECK_MODULES([czmq], [libczmq >= 3.0.2],
     [
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $czmq_LIBS"
         was_czmq_check_lib_detected=pkgcfg
@@ -254,7 +254,7 @@ AS_IF([test x"${search_libczmq}" = xyes], [
                 )
         fi
 
-        AC_CHECK_LIB([czmq], [zmsg_test],
+        AC_CHECK_LIB([czmq], [zhashx_test],
             [
                 was_czmq_check_lib_detected=yes
                 PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE -lczmq"
@@ -281,7 +281,7 @@ dnl END of PKG_CHECK_MODULES and/or direct tests for libczmq
             ],
         [xno], [
                 AC_SUBST([pkgconfig_name_libczmq],[libczmq])
-            AC_MSG_ERROR([Cannot find pkg-config metadata for libczmq 3.0.0 or higher])
+            AC_MSG_ERROR([Cannot find pkg-config metadata for libczmq 3.0.2 or higher])
     ])
 ])
 dnl END of enabled attempts to search for libczmq
@@ -316,14 +316,14 @@ AS_IF([test x"${search_libmlm}" = xyes], [
 
     found_pkgconfig=""
     found_linkname=""
-    PKG_CHECK_MODULES([malamute], [libmlm >= 0.0.0],
+    PKG_CHECK_MODULES([malamute], [libmlm >= 1.0.0],
     [
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $malamute_LIBS"
         was_malamute_check_lib_detected=pkgcfg
         found_pkgconfig="libmlm"
     ],
     [
-        AC_MSG_NOTICE([Package libmlm not found; falling back to defined compilability tests])
+        AC_MSG_NOTICE([Package libmlm not found with needed constraints; falling back to defined compilability tests])
 
         malamute_synthetic_cflags=""
         malamute_synthetic_libs="-lmlm"
@@ -368,7 +368,7 @@ dnl END of PKG_CHECK_MODULES and/or direct tests for libmlm
             ],
         [xno], [
                 AC_SUBST([pkgconfig_name_libmlm],[libmlm])
-            AC_MSG_ERROR([Cannot find pkg-config metadata for libmlm 0.0.0 or higher])
+            AC_MSG_ERROR([Cannot find pkg-config metadata for libmlm 1.0.0 or higher])
     ])
 ])
 dnl END of enabled attempts to search for libmlm
