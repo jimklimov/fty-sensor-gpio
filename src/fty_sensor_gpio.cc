@@ -159,9 +159,16 @@ int main (int argc, char *argv [])
         template_filename = string("./data/") + string("DCS001.tpl");
         template_file = fopen(template_filename.c_str(), "r");
         if (!template_file) {
-            template_dir = NULL;
-            zsys_error ("Can't find sensors template files directory!");
-            return EXIT_FAILURE;
+            template_filename = string("./src/data/") + string("DCS001.tpl");
+            template_file = fopen(template_filename.c_str(), "r");
+            if (!template_file) {
+                template_dir = NULL;
+                zsys_error ("Can't find sensors template files directory!");
+                return EXIT_FAILURE;
+            }
+            else {
+                template_dir = strdup("./src/data/");
+            }
         }
         else {
             template_dir = strdup("./data/");
