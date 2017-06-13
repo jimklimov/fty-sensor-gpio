@@ -102,8 +102,8 @@ Template files describe a GPIO sensor, and provide default values (such as
 Warning: Template files are mandatory! If there is no template file for a
 commissioned sensor, this sensor will not be monitored!
 
-Template files are provided in the 'data/' directory of the source tree, and
-installed by default to '/usr/share/fty-sensor-gpio/data/'.
+Template files are provided in the 'src/selftest-ro/data/' directory of the
+source tree, and installed by default to '/usr/share/fty-sensor-gpio/data/'.
 
 Template files are named using the 'part-number' field, with the '.tpl'
 (template) file extension, and have the following format:

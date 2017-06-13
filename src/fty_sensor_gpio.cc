@@ -31,6 +31,8 @@
 // TODO:
 // * Smart update of existing entries
 // * Tests for _server
+// * Location of "data" directory into a variable like other components
+//   (even if a hardcode for starters); use configure-script data preferably
 // * Documentation
 // ** README.md
 // ** actors as per https://github.com/zeromq/czmq/blob/master/src/zconfig.c#L15
@@ -154,18 +156,30 @@ int main (int argc, char *argv [])
     string template_filename = string("/usr/share/fty-sensor-gpio/data/") + string("DCS001.tpl");
     FILE *template_file = fopen(template_filename.c_str(), "r");
     if (!template_file) {
-        template_filename = string("./data/") + string("DCS001.tpl");
+        template_filename = string("./selftest-ro/data/") + string("DCS001.tpl");
         template_file = fopen(template_filename.c_str(), "r");
         if (!template_file) {
-            template_dir = NULL;
-            zsys_error ("Can't find sensors template files directory!");
-            return EXIT_FAILURE;
+            template_filename = string("./src/data/") + string("DCS001.tpl");
+            template_file = fopen(template_filename.c_str(), "r");
+            if (!template_file) {
+                template_dir = NULL;
+                zsys_error ("Can't find sensors template files directory!");
+                zstr_free(&actor_name);
+                zstr_free(&endpoint);
+                return EXIT_FAILURE;
+            }
+            else {
+                // Running from the top level directory
+                template_dir = strdup("./src/data/");
+            }
         }
         else {
+            // Running from src/ directory
             template_dir = strdup("./data/");
         }
     }
     else {
+        // Running from installed package
         template_dir = strdup("/usr/share/fty-sensor-gpio/data/");
     }
     fclose(template_file);
