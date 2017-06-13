@@ -572,7 +572,7 @@ fty_sensor_gpio_assets_test (bool verbose)
     //const char *SELFTEST_DIR_RO = "src/selftest-ro";
     // Note: here, we use the templates from src/data to check if assets
     // are GPIOs
-    const char *SELFTEST_DIR_RO = "src/";
+    const char *SELFTEST_DIR_RO = "src/selftest-ro";
     const char *SELFTEST_DIR_RW = "src/selftest-rw";
     assert (SELFTEST_DIR_RO);
     assert (SELFTEST_DIR_RW);

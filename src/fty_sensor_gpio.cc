@@ -156,7 +156,7 @@ int main (int argc, char *argv [])
     string template_filename = string("/usr/share/fty-sensor-gpio/data/") + string("DCS001.tpl");
     FILE *template_file = fopen(template_filename.c_str(), "r");
     if (!template_file) {
-        template_filename = string("./data/") + string("DCS001.tpl");
+        template_filename = string("./selftest-ro/data/") + string("DCS001.tpl");
         template_file = fopen(template_filename.c_str(), "r");
         if (!template_file) {
             template_filename = string("./src/data/") + string("DCS001.tpl");
@@ -169,14 +169,17 @@ int main (int argc, char *argv [])
                 return EXIT_FAILURE;
             }
             else {
+                // Running from the top level directory
                 template_dir = strdup("./src/data/");
             }
         }
         else {
+            // Running from src/ directory
             template_dir = strdup("./data/");
         }
     }
     else {
+        // Running from installed package
         template_dir = strdup("/usr/share/fty-sensor-gpio/data/");
     }
     fclose(template_file);

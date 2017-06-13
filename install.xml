@@ -10,5 +10,9 @@ Installation model
      -->
 
 <install>
-    <item path = "/usr/share/fty-sensor-gpio/data/" name = "data/*.tpl" />
+    <item path = "/usr/share/fty-sensor-gpio/data/" name = "../src/selftest-ro/data/DCS001.tpl" />
+    <item path = "/usr/share/fty-sensor-gpio/data/" name = "../src/selftest-ro/data/M12.tpl" />
+    <item path = "/usr/share/fty-sensor-gpio/data/" name = "../src/selftest-ro/data/VIB001.tpl" />
+    <item path = "/usr/share/fty-sensor-gpio/data/" name = "../src/selftest-ro/data/WLD012.tpl" />
+    <item path = "/usr/share/fty-sensor-gpio/data/" name = "../src/selftest-ro/data/XCELW.tpl" />
 </install>
