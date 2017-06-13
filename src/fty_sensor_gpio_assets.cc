@@ -569,7 +569,10 @@ fty_sensor_gpio_assets_test (bool verbose)
     // src/selftest-ro; if your test creates filesystem objects, please
     // do so under src/selftest-rw. They are defined below along with a
     // usecase for the variables (assert) to make compilers happy.
-    const char *SELFTEST_DIR_RO = "src/selftest-ro";
+    //const char *SELFTEST_DIR_RO = "src/selftest-ro";
+    // Note: here, we use the templates from src/data to check if assets
+    // are GPIOs
+    const char *SELFTEST_DIR_RO = "src/";
     const char *SELFTEST_DIR_RW = "src/selftest-rw";
     assert (SELFTEST_DIR_RO);
     assert (SELFTEST_DIR_RW);
