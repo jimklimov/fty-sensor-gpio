@@ -756,7 +756,10 @@ fty_sensor_gpio_server_test (bool verbose)
 
     static const char* endpoint = "inproc://fty_sensor_gpio_server_test";
 
-    std::string template_dir = str_SELFTEST_DIR_RO + "/data/";
+    // Note: here we test the creation of a template (GPIO_TEMPLATE_ADD)
+    // and then the fact that GPIO_MANIFEST request just return this newly
+    // created template!
+    std::string template_dir = str_SELFTEST_DIR_RW + "/data/";
     zsys_dir_create (template_dir.c_str());
     zactor_t *server = zactor_new (mlm_server, (void*) "Malamute");
     zstr_sendx (server, "BIND", endpoint, NULL);
