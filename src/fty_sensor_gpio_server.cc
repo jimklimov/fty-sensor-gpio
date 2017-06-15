@@ -789,7 +789,7 @@ fty_sensor_gpio_server_test (bool verbose)
     fty_sensor_gpio_assets_t *assets_self = fty_sensor_gpio_assets_new("gpio-assets");
 
     int rv = add_sensor(assets_self, "create",
-        "Eaton", "sensor-10", "GPIO-Sensor-Door1",
+        "Eaton", "sensorgpio-10", "GPIO-Sensor-Door1",
         "DCS001", "door-contact-sensor",
         "closed", "1",
         "GPI", "IPC1",
@@ -797,7 +797,7 @@ fty_sensor_gpio_server_test (bool verbose)
     assert (rv == 0);
 
     rv = add_sensor(assets_self, "create",
-        "Eaton", "sensor-11", "GPIO-Test-GPO1",
+        "Eaton", "sensorgpio-11", "GPIO-Test-GPO1",
         "DCS001", "dummy",
         "closed", "1",
         "GPO", "IPC1",
@@ -848,7 +848,7 @@ fty_sensor_gpio_server_test (bool verbose)
         assert (recv);
         fty_proto_t *frecv = fty_proto_decode (&recv);
         assert (frecv);
-        assert (streq (fty_proto_name (frecv), "sensor-10"));
+        assert (streq (fty_proto_name (frecv), "sensorgpio-10"));
         assert (streq (fty_proto_type (frecv), "status.GPI1"));
         assert (streq (fty_proto_aux_string (frecv, "port", NULL), "GPI1"));
         assert (streq (fty_proto_value (frecv), "closed"));
@@ -951,7 +951,7 @@ fty_sensor_gpio_server_test (bool verbose)
     // Test #5: Send GPO_INTERACTION request on GPO 'sensor-11' and check it
     {
         zmsg_t *msg = zmsg_new ();
-        zmsg_addstr (msg, "sensor-11");     // sensor
+        zmsg_addstr (msg, "sensorgpio-11");     // sensor
         zmsg_addstr (msg, "open");          // action
         int rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPO_INTERACTION", NULL, 5000, &msg);
         assert ( rv == 0 );

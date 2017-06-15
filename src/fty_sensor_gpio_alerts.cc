@@ -348,7 +348,7 @@ fty_sensor_gpio_alerts_test (bool verbose)
         fty_sensor_gpio_assets_t *assets_self = fty_sensor_gpio_assets_new("gpio-assets");
 
         int rv = add_sensor(assets_self, "create",
-            "Eaton", "sensor-10", "GPIO-Sensor-Door1",
+            "Eaton", "sensorgpio-10", "GPIO-Sensor-Door1",
             "DCS001", "door-contact-sensor",
             "closed", "1",
             "GPI", "IPC1",
@@ -377,7 +377,7 @@ fty_sensor_gpio_alerts_test (bool verbose)
         assert (recv);
         fty_proto_t *frecv = fty_proto_decode (&recv);
         assert (frecv);
-        assert (streq (fty_proto_name (frecv), "sensor-10"));
+        assert (streq (fty_proto_name (frecv), "sensorgpio-10"));
         assert (streq (fty_proto_state (frecv), "ACTIVE"));
         assert (streq (fty_proto_severity (frecv), "WARNING"));
         assert (streq (fty_proto_description (frecv), "Door has been opened"));

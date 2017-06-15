@@ -59,7 +59,7 @@ The following fields and extended attributes are available:
 
 * name (mandatory)
 * type (mandatory): set to 'device'
-* sub_type (mandatory): set to 'sensor'
+* sub_type (mandatory): set to 'sensor-gpio'
 * location (optional)
 * status (optional)
 * priority (optional)
@@ -76,8 +76,8 @@ Example of entries:
 
 ```bash
 name,type,sub_type,location,status,priority,model,gpx_number,normal_state
-GPIO-Sensor-Door1,device,sensor,IPC1,active,P1,DCS001,1,opened
-GPIO-GPOTest1,device,sensor,IPC1,active,P1,GPOTEST,1,
+GPIO-Sensor-Door1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened
+GPIO-GPOTest1,device,sensorgpio,IPC1,active,P1,GPOTEST,1,
 ```
 
 ## Architecture
@@ -86,9 +86,10 @@ GPIO-GPOTest1,device,sensor,IPC1,active,P1,GPOTEST,1,
 
 fty-sensor-gpio is composed of 3 actors:
 
-* assets actor: requests all assets, and listen to ASSETS stream, to find GPIO
-sensors and configure the agent. These information are then used by both the
-server and the alerts actors.
+* assets actor: requests all sensorgpio to the assets agent, and then listen to
+ASSETS stream (for further addition / deletion / update, to find GPIO sensors
+and configure the agent. These information are then used by both the server and
+the alerts actors.
 * server actor: handles GPI polling and related metrics publication. This actor
 also handles mailbox requests, to serve the manifest of supported GPIO devices,
 create additional template files or act on GPO devices upon command reception
@@ -149,7 +150,7 @@ For example:
 ```bash
 stream=_METRICS_SENSOR
 sender=fty-sensor-gpio
-subject=status.GPI2@sensor-90
+subject=status.GPI2@sensorgpio-90
 D: 13-01-28 10:22:53 FTY_PROTO_METRIC:
 D: 13-01-28 10:22:53     aux=
 D: 13-01-28 10:22:53         port=GPI2
