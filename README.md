@@ -65,7 +65,7 @@ The following fields and extended attributes are available:
 * priority (optional)
 * model (mandatory): is the part number of the GPIO sensor, use for naming
 the template files
-* gpx_number (mandatory): is the GPI or GPO number to which the sensor is
+* port (mandatory): is the GPI or GPO pin number to which the sensor is
 connected to. The pin number of the GPIO is then computed based on this number
 and the configured 'gpi_offset' and 'gpo_offset'.
 * normal_state (optional): is the status of the sensor under nominal conditions.
@@ -75,7 +75,7 @@ template file is used. Otherwise, the provided value takes precedence.
 Example of entries:
 
 ```bash
-name,type,sub_type,location,status,priority,model,gpx_number,normal_state
+name,type,sub_type,location,status,priority,model,port,normal_state
 GPIO-Sensor-Door1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened
 GPIO-GPOTest1,device,sensorgpio,IPC1,active,P1,GPOTEST,1,
 ```

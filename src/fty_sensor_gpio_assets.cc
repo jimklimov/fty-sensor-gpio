@@ -344,7 +344,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
         const char *sensor_type = s_get (config_template, "type", "");
         const char *sensor_alarm_message = s_get (config_template, "alarm-message", "");
         // Get from user config
-        const char *sensor_gpx_number = fty_proto_ext_string (ftymessage, "gpx_number", "");
+        const char *sensor_gpx_number = fty_proto_ext_string (ftymessage, "port", "");
         const char* extname = fty_proto_ext_string (ftymessage, "name", "");
         // Get normal state, direction and severity from user config, or fallback to template values
         const char *sensor_normal_state = s_get (config_template, "normal-state", "");
@@ -364,7 +364,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
             return;
         }
         if (streq (sensor_gpx_number, "")) {
-            my_zsys_debug (self->verbose, "No sensor pin provided! Skipping sensor");
+            my_zsys_debug (self->verbose, "No sensor pin (port) provided! Skipping sensor");
             zconfig_destroy (&config_template);
             return;
         }
@@ -625,7 +625,7 @@ fty_sensor_gpio_assets_test (bool verbose)
         zhash_update (aux, "subtype", (void *) "sensorgpio");
         zhash_update (aux, "parent", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPIO-Sensor-Door1");
-        zhash_update (ext, "gpx_number", (void *) "1");
+        zhash_update (ext, "port", (void *) "1");
         zhash_update (ext, "model", (void *) "DCS001");
 
         zmsg_t *msg = fty_proto_encode_asset (
@@ -648,7 +648,7 @@ fty_sensor_gpio_assets_test (bool verbose)
         zhash_update (aux, "subtype", (void *) "sensorgpio");
         zhash_update (aux, "parent", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPIO-Sensor-Waterleak1");
-        zhash_update (ext, "gpx_number", (void *) "2");
+        zhash_update (ext, "port", (void *) "2");
         zhash_update (ext, "model", (void *) "WLD012");
 
         msg = fty_proto_encode_asset (
@@ -715,7 +715,7 @@ fty_sensor_gpio_assets_test (bool verbose)
         zhash_update (aux, "parent", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPIO-Sensor-Door1");
         zhash_update (ext, "normal_state", (void *) "opened");
-        zhash_update (ext, "gpx_number", (void *) "1");
+        zhash_update (ext, "port", (void *) "1");
         zhash_update (ext, "model", (void *) "DCS001");
 
         zmsg_t *msg = fty_proto_encode_asset (
