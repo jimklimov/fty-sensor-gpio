@@ -344,7 +344,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
         const char *sensor_type = s_get (config_template, "type", "");
         const char *sensor_alarm_message = s_get (config_template, "alarm-message", "");
         // Get from user config
-        const char *sensor_gpx_number = fty_proto_ext_string (ftymessage, "gpx_number", "");
+        const char *sensor_gpx_number = fty_proto_ext_string (ftymessage, "port", "");
         const char* extname = fty_proto_ext_string (ftymessage, "name", "");
         // Get normal state, direction and severity from user config, or fallback to template values
         const char *sensor_normal_state = s_get (config_template, "normal-state", "");
@@ -364,7 +364,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
             return;
         }
         if (streq (sensor_gpx_number, "")) {
-            my_zsys_debug (self->verbose, "No sensor pin provided! Skipping sensor");
+            my_zsys_debug (self->verbose, "No sensor pin (port) provided! Skipping sensor");
             zconfig_destroy (&config_template);
             return;
         }
@@ -384,22 +384,23 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
 }
 
 //  --------------------------------------------------------------------------
-//  Request all assets  from fty-asset, to init our monitoring structure.
+//  Request all 'sensorgpio' assets  from fty-asset, to init our monitoring
+//  structure.
 
 void
 request_sensor_assets(fty_sensor_gpio_assets_t *self)
 {
     my_zsys_debug (self->verbose, "%s", __func__);
 
-    my_zsys_debug (self->verbose, "%s:\tRequest sensors list", self->name);
+    my_zsys_debug (self->verbose, "%s:\tRequest GPIO sensors list", self->name);
     zmsg_t *msg = zmsg_new ();
     zmsg_addstr (msg, "GET");
-    zmsg_addstr (msg, "sensor");
+    zmsg_addstr (msg, "sensorgpio");
     int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS", NULL, 5000, &msg);
     if (rv != 0)
-        zsys_error ("%s:\tRequest sensors list failed", self->name);
+        zsys_error ("%s:\tRequest GPIO sensors list failed", self->name);
     else
-        my_zsys_debug (self->verbose, "%s:\tSensors list request sent successfully", self->name);
+        my_zsys_debug (self->verbose, "%s:\tGPIO sensors list request sent successfully", self->name);
 
     zmsg_destroy (&msg);
 }
@@ -621,19 +622,19 @@ fty_sensor_gpio_assets_test (bool verbose)
         zhash_autofree (aux);
         zhash_autofree (ext);
         zhash_update (aux, "type", (void *) "device");
-        zhash_update (aux, "subtype", (void *) "sensor");
+        zhash_update (aux, "subtype", (void *) "sensorgpio");
         zhash_update (aux, "parent", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPIO-Sensor-Door1");
-        zhash_update (ext, "gpx_number", (void *) "1");
+        zhash_update (ext, "port", (void *) "1");
         zhash_update (ext, "model", (void *) "DCS001");
 
         zmsg_t *msg = fty_proto_encode_asset (
                 aux,
-                "sensor-10",
+                "sensorgpio-10",
                 FTY_PROTO_ASSET_OP_CREATE,
                 ext);
 
-        int rv = mlm_client_send (asset_generator, "device.sensor@sensor-10", &msg);
+        int rv = mlm_client_send (asset_generator, "device.sensorgpio@sensorgpio-10", &msg);
         assert (rv == 0);
         zhash_destroy (&aux);
         zhash_destroy (&ext);
@@ -644,19 +645,19 @@ fty_sensor_gpio_assets_test (bool verbose)
         aux = zhash_new ();
         ext = zhash_new ();
         zhash_update (aux, "type", (void *) "device");
-        zhash_update (aux, "subtype", (void *) "sensor");
+        zhash_update (aux, "subtype", (void *) "sensorgpio");
         zhash_update (aux, "parent", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPIO-Sensor-Waterleak1");
-        zhash_update (ext, "gpx_number", (void *) "2");
+        zhash_update (ext, "port", (void *) "2");
         zhash_update (ext, "model", (void *) "WLD012");
 
         msg = fty_proto_encode_asset (
                 aux,
-                "sensor-11",
+                "sensorgpio-11",
                 FTY_PROTO_ASSET_OP_CREATE,
                 ext);
 
-        rv = mlm_client_send (asset_generator, "device.sensor@sensor-11", &msg);
+        rv = mlm_client_send (asset_generator, "device.sensorgpio@sensorgpio-11", &msg);
         assert (rv == 0);
         zhash_destroy (&aux);
         zhash_destroy (&ext);
@@ -672,7 +673,7 @@ fty_sensor_gpio_assets_test (bool verbose)
         // Test the first sensor
         _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (test_gpx_list);
         assert (gpx_info);
-        assert (streq (gpx_info->asset_name, "sensor-10"));
+        assert (streq (gpx_info->asset_name, "sensorgpio-10"));
         assert (streq (gpx_info->ext_name, "GPIO-Sensor-Door1"));
         assert (streq (gpx_info->part_number, "DCS001"));
         assert (gpx_info->gpx_number == 1);
@@ -687,7 +688,7 @@ fty_sensor_gpio_assets_test (bool verbose)
         // Test the 2nd sensor
         gpx_info = (_gpx_info_t *)zlistx_next (test_gpx_list);
         assert (gpx_info);
-        assert (streq (gpx_info->asset_name, "sensor-11"));
+        assert (streq (gpx_info->asset_name, "sensorgpio-11"));
         assert (streq (gpx_info->ext_name, "GPIO-Sensor-Waterleak1"));
         assert (streq (gpx_info->part_number, "WLD012"));
         assert (gpx_info->gpx_number == 2);
@@ -710,20 +711,20 @@ fty_sensor_gpio_assets_test (bool verbose)
         zhash_autofree (aux);
         zhash_autofree (ext);
         zhash_update (aux, "type", (void *) "device");
-        zhash_update (aux, "subtype", (void *) "sensor");
+        zhash_update (aux, "subtype", (void *) "sensorgpio");
         zhash_update (aux, "parent", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPIO-Sensor-Door1");
         zhash_update (ext, "normal_state", (void *) "opened");
-        zhash_update (ext, "gpx_number", (void *) "1");
+        zhash_update (ext, "port", (void *) "1");
         zhash_update (ext, "model", (void *) "DCS001");
 
         zmsg_t *msg = fty_proto_encode_asset (
                 aux,
-                "sensor-10",
+                "sensorgpio-10",
                 FTY_PROTO_ASSET_OP_UPDATE,
                 ext);
 
-        int rv = mlm_client_send (asset_generator, "device.sensor@sensor-10", &msg);
+        int rv = mlm_client_send (asset_generator, "device.sensorgpio@sensorgpio-10", &msg);
         assert (rv == 0);
         zhash_destroy (&aux);
         zhash_destroy (&ext);
@@ -740,7 +741,7 @@ fty_sensor_gpio_assets_test (bool verbose)
         _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (test_gpx_list);
         gpx_info = (_gpx_info_t *)zlistx_next (test_gpx_list);
         assert (gpx_info);
-        assert (streq (gpx_info->asset_name, "sensor-10"));
+        assert (streq (gpx_info->asset_name, "sensorgpio-10"));
         assert (streq (gpx_info->ext_name, "GPIO-Sensor-Door1"));
         assert (streq (gpx_info->part_number, "DCS001"));
         assert (gpx_info->gpx_number == 1);
@@ -765,15 +766,15 @@ fty_sensor_gpio_assets_test (bool verbose)
         zhash_autofree (aux);
         zhash_autofree (ext);
         zhash_update (aux, "type", (void *) "device");
-        zhash_update (aux, "subtype", (void *) "sensor");
+        zhash_update (aux, "subtype", (void *) "sensorgpio");
 
         zmsg_t *msg = fty_proto_encode_asset (
                 aux,
-                "sensor-10",
+                "sensorgpio-10",
                 FTY_PROTO_ASSET_OP_DELETE,
                 ext);
 
-        int rv = mlm_client_send (asset_generator, "device.sensor@sensor-10", &msg);
+        int rv = mlm_client_send (asset_generator, "device.sensorgpio@sensorgpio-10", &msg);
         assert (rv == 0);
         zhash_destroy (&aux);
         zhash_destroy (&ext);
@@ -786,10 +787,10 @@ fty_sensor_gpio_assets_test (bool verbose)
         assert (test_gpx_list);
         int sensors_count = zlistx_size (test_gpx_list);
         assert (sensors_count == 1);
-        // There must remain only 'sensor-11'
+        // There must remain only 'sensorgpio-11'
         _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (test_gpx_list);
         assert (gpx_info);
-        assert (streq (gpx_info->asset_name, "sensor-11"));
+        assert (streq (gpx_info->asset_name, "sensorgpio-11"));
 
         pthread_mutex_unlock (&gpx_list_mutex);
     }
