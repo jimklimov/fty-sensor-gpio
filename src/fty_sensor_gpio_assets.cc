@@ -739,6 +739,7 @@ fty_sensor_gpio_assets_test (bool verbose)
         assert (sensors_count == 2);
         // Only test the first sensor
         _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (test_gpx_list);
+        assert (gpx_info);
         gpx_info = (_gpx_info_t *)zlistx_next (test_gpx_list);
         assert (gpx_info);
         assert (streq (gpx_info->asset_name, "sensorgpio-10"));
