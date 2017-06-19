@@ -1,0 +1,23 @@
+#!/bin/sh
+
+PATH='/sbin:/bin'
+basedir="/sys/class/gpio"
+devpath=$1
+
+chmod -R 770 $basedir
+chown -R :gpio $basedir
+
+if [ "$1" = "enable" ] ; then
+    for f in export unexport ; do
+        chmod g+w $basedir/$f
+        chown :gpio $basedir/$f
+    done
+else
+    for f in active_low direction edge value ; do
+        chmod g+w /sys${devpath}/$f
+        chown :gpio /sys${devpath}/$f
+    done
+fi
+exit 0
+
+SUBSYSTEM=="gpio*", PROGRAM="/bin/sh -c 'chown -R root:gpio /sys/class/gpio && chmod -R 770 /sys/class/gpio; chown -R root:gpio /sys/devices/virtual/gpio && chmod -R 770 /sys/devices/virtual/gpio; chown -R root:gpio /sys/devices/platform/soc/*.gpio/gpio && chmod -R 770 /sys/devices/platform/soc/*.gpio/gpio'"
