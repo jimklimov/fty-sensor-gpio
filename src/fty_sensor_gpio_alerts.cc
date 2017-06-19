@@ -53,12 +53,12 @@ str_replace(char* string, const char* substr, const char* replacement)
 	int   replacement_len = 0;
 
 	newstr = strdup(string);
-	substr_len = strlen(substr);
-	replacement_len = strlen(replacement);
 
 	if (substr == NULL || replacement == NULL) {
 		return newstr;
 	}
+	substr_len = strlen(substr);
+	replacement_len = strlen(replacement);
 
 	while ((tok = strstr(newstr, substr))) {
 		oldstr = newstr;
