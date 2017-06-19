@@ -1,0 +1,3 @@
+# udev rules for GPIO access
+
+KERNEL=="gpio*", SUBSYSTEM=="gpio*", ACTION=="add", PROGRAM="/lib/udev/42ity-gpio-permissions %p"

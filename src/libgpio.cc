@@ -149,6 +149,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     char path[GPIO_VALUE_MAX];
     char value_str[3];
     int fd;
+    int retries = GPIO_MAX_RETRY;
 
     memset(&value_str[0], 0, 3);
 
@@ -166,9 +167,22 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     if (libgpio_export(self, pin) == -1)
         return -1;
 
-    // Set its direction
-    if (libgpio_set_direction(self, pin, direction) == -1)
-        return -1;
+    // Set its direction, with a possible delay
+    while (libgpio_set_direction(self, pin, direction) == -1) {
+
+        my_zsys_debug (self->verbose, "%s: Failed to set direction, retrying...", __func__);
+
+        // Wait a bit for the sysfs to be created and udev rules to be applied
+        // so that we get the right privileges applied
+        zclock_sleep(500);
+
+        if (retries-- > 0) {
+            continue;
+        }
+
+        zsys_error("%s: Failed to set direction after %i tries. Aborting!", __func__, GPIO_MAX_RETRY);
+            return -1;
+    }
 
     snprintf(path, GPIO_VALUE_MAX, "%s/sys/class/gpio/gpio%d/value",
         (self->test_mode)?SELFTEST_DIR_RW:"", // trick #1 to allow testing
@@ -188,7 +202,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         return -1;
     }
 
-    my_zsys_debug (self->verbose, "%s: result %s", __func__, value_str);
+    my_zsys_debug (self->verbose, "%s: read value '%s'", __func__, value_str);
 
     close(fd);
 
@@ -207,6 +221,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     char path[GPIO_VALUE_MAX];
     int fd;
     int retval = 0;
+    int retries = GPIO_MAX_RETRY;
 
     // Sanity check
     if (GPO_number > self->gpo_count) {
@@ -222,9 +237,22 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     if (libgpio_export(self, pin) == -1)
         return -1;
 
-    // Set its direction
-    if (libgpio_set_direction(self, pin, GPIO_DIRECTION_OUT) == -1)
-        return -1;
+    // Set its direction, with a possible delay
+    while (libgpio_set_direction(self, pin, GPIO_DIRECTION_OUT) == -1) {
+
+        my_zsys_debug (self->verbose, "%s: Failed to set direction, retrying...", __func__);
+
+        // Wait a bit for the sysfs to be created and udev rules to be applied
+        // so that we get the right privileges applied
+        zclock_sleep(500);
+
+        if (retries-- > 0) {
+            continue;
+        }
+
+        zsys_error("%s: Failed to set direction after %i tries. Aborting!", __func__, GPIO_MAX_RETRY);
+            return -1;
+    }
 
     snprintf(path, GPIO_VALUE_MAX, "%s/sys/class/gpio/gpio%d/value",
         (self->test_mode)?SELFTEST_DIR_RW:"", // trick #1 to allow testing
