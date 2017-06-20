@@ -18,4 +18,5 @@ Installation model
     <item path = "/usr/share/fty-sensor-gpio/data/" name = "../src/selftest-ro/data/GPOTEST.tpl" />
     <item path = "/etc/udev/rules.d/"  name = "../src/42-ity-gpio.rules" />
     <item path = "/lib/udev/"  name = "../src/42ity-gpio-permissions" />
+    <item type = "systemd-tmpfiles" />
 </install>
