@@ -60,9 +60,9 @@ The following fields and extended attributes are available:
 * name (mandatory)
 * type (mandatory): set to 'device'
 * sub_type (mandatory): set to 'sensor-gpio'
-* location (optional)
-* status (optional)
-* priority (optional)
+* location (optional): refer to the IPC to which the sensor is connected
+* status (optional): is the standard status 'active' or 'inactive'
+* priority (optional): is the standard priority, from 'P1' to 'P5'
 * model (mandatory): is the part number of the GPIO sensor, use for naming
 the template files
 * port (mandatory): is the GPI or GPO pin number to which the sensor is
@@ -115,6 +115,7 @@ part-number    = <value>
 type           = <value>
 normal-state   = <value>
 gpx-direction  = <value>
+power-source   = <value>
 alarm-severity = <value>
 alarm-message  = <value>
 ```
@@ -127,9 +128,16 @@ part-number    = DCS001
 type           = door-contact-sensor
 normal-state   = closed
 gpx-direction  = GPI
+power-source   = external
 alarm-severity = WARNING
 alarm-message  = Door has been $status
 ```
+
+'power-source' allows to specify if a sensor is:
+
+* self-powered, through the GPI itself (value: 'internal'),
+* external powered, through another GPO or a pure external source
+(value: 'external').
 
 'alarm-message' can be adapted at runtime through the use of some variables, to
 adapt the alert message:
