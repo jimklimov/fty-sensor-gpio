@@ -233,6 +233,9 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
         // No processing if not yet init'ed
         if (gpx_info) {
 
+            my_zsys_debug (self->verbose, "Checking status of GPx sensor '%s'",
+                gpx_info->asset_name);
+
             // If there is a GPO power source, then activate it!
             if ( gpx_info->power_source && (!streq(gpx_info->power_source, "")) ) {
                 my_zsys_debug (self->verbose, "Activating GPO power source %s",
@@ -256,7 +259,8 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                                                     gpx_info->gpx_direction);
 
             if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
-                my_zsys_debug (self->verbose, "Can't read GPI sensor #%i status", gpx_info->gpx_number);
+                my_zsys_debug (self->verbose, "Can't read GPx sensor #%i status",
+                    gpx_info->gpx_number);
             }
             else {
                 my_zsys_debug (self->verbose, "Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
