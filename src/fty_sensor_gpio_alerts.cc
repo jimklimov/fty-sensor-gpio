@@ -349,7 +349,7 @@ fty_sensor_gpio_alerts_test (bool verbose)
             "Eaton", "sensorgpio-10", "GPIO-Sensor-Door1",
             "DCS001", "door-contact-sensor",
             "closed", "1",
-            "GPI", "IPC1",
+            "GPI", "Rack1", "",
             "Door has been $status", "WARNING");
 
         assert (rv == 0);

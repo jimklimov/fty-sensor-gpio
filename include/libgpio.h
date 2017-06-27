@@ -40,6 +40,8 @@
 #define GPIO_VALUE_MAX      64 // 30
 #define GPIO_MAX_RETRY       3
 
+#define GPIO_POWERED_SELF        1
+#define GPIO_POWERED_EXTERNAL    2
 
 #ifdef __cplusplus
 extern "C" {
