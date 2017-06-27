@@ -407,17 +407,65 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
 {
     my_zsys_debug (self->verbose, "%s", __func__);
 
-    my_zsys_debug (self->verbose, "%s:\tRequest GPIO sensors list", self->name);
-    zmsg_t *msg = zmsg_new ();
+     my_zsys_debug (self->verbose, "%s:\tRequest GPIO sensors list", self->name);
+     zmsg_t *msg = zmsg_new ();
+    // Method 1: ASSETS "GET" "sensorgpio"
+    // FIXME: need a "ASSETS_DETAILS" request!
     zmsg_addstr (msg, "GET");
     zmsg_addstr (msg, "sensorgpio");
+    // => DOES NOT WORK!
+
+    // Fallback Method 2.1: ASSETS_IN_CONTAINER "GET" "" "sensorgpio"
+    // (empty container, filter on 'sensorgpio' type)
+    // => DOES NOT WORK!
+
+    // Fallback Method 2.2: ASSETS_IN_CONTAINER "GET" ""
+    // (empty container, no filter on type)
+    // then filter on "sensorgpio-*"
+//    zmsg_addstr (msg, "GET");
+//    zmsg_addstr (msg, "");
+
+//    int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS_IN_CONTAINER", NULL, 5000, &msg);
+    // Method 1: ASSETS "GET" "sensorgpio"
     int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS", NULL, 5000, &msg);
+     if (rv != 0)
+         zsys_error ("%s:\tRequest GPIO sensors list failed", self->name);
+     else
+         my_zsys_debug (self->verbose, "%s:\tGPIO sensors list request sent successfully", self->name);
+
+     zmsg_destroy (&msg);
+
+    // Get the results (list of sensors) and process it
+    // then filter on "sensorgpio-*"
+    // then send REPUBLISH request with the list of sensors
+    msg = zmsg_new ();
+
+    zmsg_t *reply = mlm_client_recv (self->mlm);
+    char *asset = zmsg_popstr(reply);
+    while (asset) {
+        // then filter on "sensorgpio-*"
+        printf ("%s\n", asset);
+
+        if (!strncmp(asset, "sensorgpio-", 11))
+            zmsg_addstr (msg, asset);
+
+        zstr_free (&asset);
+        asset = zmsg_popstr(reply);
+    }
+    zmsg_destroy (&reply);
+
+    // Send the REPUBLISH request
+    rv = mlm_client_sendto (self->mlm, "asset-agent", "REPUBLISH", NULL, 5000, &msg);
+    // Method 1: ASSETS "GET" "sensorgpio"
+    //int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS", NULL, 5000, &msg);
     if (rv != 0)
-        zsys_error ("%s:\tRequest GPIO sensors list failed", self->name);
+        zsys_error ("%s:\tRequest REPUBLISH sensors list failed", self->name);
     else
-        my_zsys_debug (self->verbose, "%s:\tGPIO sensors list request sent successfully", self->name);
+        my_zsys_debug (self->verbose, "%s:\tGPIO sensors REPUBLISH request sent successfully", self->name);
 
     zmsg_destroy (&msg);
+    // Fallback Method 3: REPUBLISH "$all"
+    // Not needed!
 }
 
 //  --------------------------------------------------------------------------
