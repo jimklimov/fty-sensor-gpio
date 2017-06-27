@@ -1,21 +1,21 @@
 /*  =========================================================================
     fty_sensor_gpio_server - Actor
 
-    Copyright (C) 2014 - 2017 Eaton                                        
-                                                                           
-    This program is free software; you can redistribute it and/or modify   
-    it under the terms of the GNU General Public License as published by   
-    the Free Software Foundation; either version 2 of the License, or      
-    (at your option) any later version.                                    
-                                                                           
-    This program is distributed in the hope that it will be useful,        
-    but WITHOUT ANY WARRANTY; without even the implied warranty of         
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          
-    GNU General Public License for more details.                           
-                                                                           
+    Copyright (C) 2014 - 2017 Eaton
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
     You should have received a copy of the GNU General Public License along
     with this program; if not, write to the Free Software Foundation, Inc.,
-    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.            
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
     =========================================================================
 */
 
@@ -53,9 +53,10 @@
         subject: "GPIO_MANIFEST"
         Message is a multipart string message
 
-        /<sensor 1 part number>/.../<sensor N part number>      - get information on sensor(s)
+        <zuuid>/<sensor 1 part number>/.../<sensor N part number>      - get information on sensor(s)
 
         where:
+            <zuuid> = info for REST API so it could match response to request
             <sensor x part number>   = Part number of the sensor(s), to get information on
                                        when empty, return all supported sensors information
 
@@ -354,6 +355,8 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         else if ( (subject == "GPIO_MANIFEST") || (subject == "GPIO_MANIFEST_SUMMARY") ) {
             // FIXME: consolidate code using filters
             zmsg_t *reply = zmsg_new ();
+            char *zuuid = zmsg_popstr (message);
+            zmsg_addstr (reply, zuuid);
             zmsg_addstr (reply, "OK");
             char *asset_partnumber = zmsg_popstr (message);
             // Check for a parameter, to send (a) specific template(s)
@@ -391,7 +394,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     }
 
                     // Get the next one, if there is one
-                    zconfig_destroy (&sensor_template_file);                    
+                    zconfig_destroy (&sensor_template_file);
                     zstr_free(&asset_partnumber);
                     asset_partnumber = zmsg_popstr (message);
                 }
@@ -420,7 +423,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     if (std::regex_match (zfile_filename (item, self->template_dir), file_rex)) {
                         my_zsys_debug (self->verbose, "%s: %s matched", __func__, zfile_filename (item, self->template_dir));
                         string template_filename = zfile_filename (item, NULL);
-                        
+
                         string asset_partnumber = zfile_filename (item, self->template_dir);
                         asset_partnumber.erase (asset_partnumber.size () - 4);
 
@@ -470,7 +473,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 if (!sensor_template_file) {
                     my_zsys_debug (self->verbose, "Can't create sensor template file"); // FIXME: error
                     zmsg_addstr (reply, "ERROR");
-                    zmsg_addstr (reply, "?"); // FIXME: check errno for exact 
+                    zmsg_addstr (reply, "?"); // FIXME: check errno for exact
                 }*/
 
                 char *manufacturer = zmsg_popstr (message);
@@ -479,7 +482,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 char *gpx_direction = zmsg_popstr (message);
                 char *alarm_severity = zmsg_popstr (message);
                 char *alarm_message = zmsg_popstr (message);
-                
+
                 // Sanity check
                 if ( !type || !alarm_message) {
                     zmsg_addstr (reply, "ERROR");
@@ -496,7 +499,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     if (!alarm_severity)
                         alarm_severity = strdup("WARNING");
                     }
-                    
+
                     zconfig_set_comment (root, " Generated through 42ITy web UI");
                     zconfig_put (root, "manufacturer", manufacturer);
                     zconfig_put (root, "part-number", sensor_partnumber);
@@ -535,7 +538,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
 
             zstr_free(&sensor_partnumber);
-            
+
         }
 
         else if (subject == "GPIO_TEST") {
@@ -608,7 +611,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
     zpoller_t *poller = zpoller_new (pipe, mlm_client_msgpipe (self->mlm), NULL);
     assert (poller);
 
-    zsock_signal (pipe, 0); 
+    zsock_signal (pipe, 0);
     zsys_info ("%s_server: Started", self->name);
 
     while (!zsys_interrupted)
@@ -897,6 +900,8 @@ fty_sensor_gpio_server_test (bool verbose)
     // Note: we should receive the template created above only!
     {
         zmsg_t *msg = zmsg_new ();
+        zuuid_t *zuuid = zuuid_new ();
+        zmsg_addstr (msg, zuuid_str_canonical (zuuid));
         int rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPIO_MANIFEST", NULL, 5000, &msg);
         assert ( rv == 0 );
 
@@ -904,6 +909,8 @@ fty_sensor_gpio_server_test (bool verbose)
         zmsg_t *recv = mlm_client_recv (mb_client);
         assert(recv);
         char *recv_str = zmsg_popstr (recv);
+        assert (streq (zuuid_str_canonical (zuuid), recv_str));
+        zstr_free (&recv_str);
         assert ( streq ( recv_str, "OK") );
         zstr_free (&recv_str);
         recv_str = zmsg_popstr (recv);
@@ -981,7 +988,7 @@ fty_sensor_gpio_server_test (bool verbose)
         assert (rc == 1);
         close (handle);
         assert ( readbuf[0] == '1' ); // 1 == GPIO_STATE_OPENED
-        
+
     }
 
     zsys_dir_delete (template_dir.c_str());
