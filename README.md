@@ -60,9 +60,10 @@ The following fields and extended attributes are available:
 * name (mandatory)
 * type (mandatory): set to 'device'
 * sub_type (mandatory): set to 'sensor-gpio'
-* location (optional)
-* status (optional)
-* priority (optional)
+* location (optional): refer to the logical asset to which the sensor is
+connected. It can be for example a rack, a room, or any other asset
+* status (optional): is the standard status 'active' or 'inactive'
+* priority (optional): is the standard priority, from 'P1' to 'P5'
 * model (mandatory): is the part number of the GPIO sensor, use for naming
 the template files
 * port (mandatory): is the GPI or GPO pin number to which the sensor is
@@ -71,13 +72,21 @@ and the configured 'gpi_offset' and 'gpo_offset'.
 * normal_state (optional): is the status of the sensor under nominal conditions.
 Possible values are 'opened' or 'closed'. When not provided, the value from the
 template file is used. Otherwise, the provided value takes precedence.
+* logical_asset (optional): is the deployment location of the sensor. For
+example, a door contact sensor can be located on the door of a rack or room.
+Hence, the value will be the name of this rack or room.
+* power_source.1 (optional): some GPI sensors need an external power supply. IPC
+itself can provide that power (12V) through its GPO. In such cases, use the
+present and below field to indicate the IPC and which GPO.
+* power_plug_src.1 (optional): GPO number used to power a GPI
 
 Example of entries:
 
 ```bash
-name,type,sub_type,location,status,priority,model,port,normal_state
-GPIO-Sensor-Door1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened
-GPIO-GPOTest1,device,sensorgpio,IPC1,active,P1,GPOTEST,1,
+name,type,sub_type,location,status,priority,model,port,normal_state,logical_asset,power_source.1,power_plug_src.1
+GPIO-Sensor-Door1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened,Rack1,,
+GPIO-Sensor-Smoke1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened,Rack1,IPC1,1
+GPIO-GPOTest1,device,sensorgpio,IPC1,active,P1,GPOTEST,1,,Room1,,
 ```
 
 ## Architecture
@@ -115,6 +124,7 @@ part-number    = <value>
 type           = <value>
 normal-state   = <value>
 gpx-direction  = <value>
+power-source   = <value>
 alarm-severity = <value>
 alarm-message  = <value>
 ```
@@ -127,9 +137,16 @@ part-number    = DCS001
 type           = door-contact-sensor
 normal-state   = closed
 gpx-direction  = GPI
+power-source   = external
 alarm-severity = WARNING
 alarm-message  = Door has been $status
 ```
+
+'power-source' allows to specify if a sensor is:
+
+* self-powered, through the GPI itself (value: 'internal'),
+* external powered, through another GPO or a pure external source
+(value: 'external').
 
 'alarm-message' can be adapted at runtime through the use of some variables, to
 adapt the alert message:
@@ -230,7 +247,7 @@ where
 * 'reason' is string detailing reason for error. Possible values are:
 ASSET_NOT_FOUND / BAD_COMMAND
 * 'sensor x description' is a string with details on the sensor with the format:
-sensor_partnumber/manufacturer/type/normal_state/gpx_direction/alarm_severity/alarm_message
+sensor_partnumber/manufacturer/type/normal_state/gpx_direction/power_source/alarm_severity/alarm_message
 
 #### Summary manifest of supported sensors
 
@@ -264,7 +281,7 @@ FTY-SENSOR-GPIO-AGENT ("fty-sensor-gpio") peer:
 
 where
 * 'sensor description' is a string with details on the sensor with the format:
-sensor_partnumber/manufacturer/type/normal_state/gpx_direction/alarm_severity/alarm_message
+sensor_partnumber/manufacturer/type/normal_state/gpx_direction/power_source/alarm_severity/alarm_message
 * subject of the message MUST be "GPIO_TEMPLATE_ADD".
 
 The FTY-SENSOR-GPIO-AGENT peer MUST respond with one of the messages back to USER

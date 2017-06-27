@@ -154,12 +154,12 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     memset(&value_str[0], 0, 3);
 
     // Sanity check
-    if (GPx_number > self->gpi_count) {
+    if (GPx_number > ((direction==GPIO_DIRECTION_IN)?self->gpi_count:self->gpo_count)) {
         zsys_error("Requested GPx is higher than the count of supported GPIO!");
         return -1;
     }
 
-    int pin = (GPx_number + self->gpi_offset);
+    int pin = (GPx_number + ((direction==GPIO_DIRECTION_IN)?self->gpi_offset:self->gpo_offset));
 
     my_zsys_debug (self->verbose, "%s: reading GPx #%i (pin %i)", __func__, GPx_number, pin);
 
@@ -202,7 +202,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         return -1;
     }
 
-    my_zsys_debug (self->verbose, "%s: read value '%s'", __func__, value_str);
+    my_zsys_debug (self->verbose, "%s: read value '%c'", __func__, value_str[0]);
 
     close(fd);
 
@@ -439,11 +439,12 @@ libgpio_export(libgpio_t *self, int pin)
         zsys_error("%s: Failed to open %s for writing! %i", __func__, path, errno);
         return -1;
     }
+    my_zsys_debug (self->verbose, "%s: exporting pin %d", __func__, pin + self->gpio_base_address);
 
     bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin + self->gpio_base_address);
     if (write(fd, buffer, bytes_written) < bytes_written) {
-        my_zsys_debug (self->verbose, "%s: ERROR: wrote less than %i bytes",
-            __func__, bytes_written);
+        my_zsys_debug (self->verbose, "%s: ERROR: wrote less than %i bytes (errno %i)",
+            __func__, bytes_written, errno);
         retval = -1;
     }
 

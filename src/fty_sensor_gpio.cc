@@ -46,8 +46,6 @@
 //   gpi_mapping
 //       <gpi number> = <pin number>
 // To be discussed:
-// * Add 'location' / parent.name (+variable $location)
-//   location is the IPC, we want the installation location (which rack door, ...)
 // * Check for convergence with other dry-contacts (on EMP001 and fty-sensor-env, EMP002, 
 // * Add 'int last_state' to '_gpx_info_t' and only publish state change?
 //   (i.e. last_state != current_state)

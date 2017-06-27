@@ -85,6 +85,9 @@ void sensor_free(void **item)
     if (gpx_info->location)
         free(gpx_info->location);
 
+    if (gpx_info->power_source)
+        free(gpx_info->power_source);
+
     if (gpx_info->alarm_message)
         free(gpx_info->alarm_message);
 
@@ -141,6 +144,7 @@ _gpx_info_t *sensor_new()
     gpx_info->gpx_number = -1;
     gpx_info->pin_number = -1;
     gpx_info->gpx_direction = GPIO_DIRECTION_IN; // Default to GPI
+    gpx_info->power_source = NULL;
     gpx_info->alarm_message = NULL;
     gpx_info->alarm_severity = NULL;
 
@@ -158,7 +162,8 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     const char* asset_subtype, const char* sensor_type,
     const char* sensor_normal_state, const char* sensor_gpx_number,
     const char* sensor_gpx_direction, const char* sensor_location,
-    const char* sensor_alarm_message, const char* sensor_alarm_severity)
+    const char* sensor_power_source, const char* sensor_alarm_message,
+    const char* sensor_alarm_severity)
 {
     // FIXME:
     // * check if already monitored! + sanity on < 10... AND pin not already declared/used
@@ -185,9 +190,16 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
         gpx_info->gpx_direction = GPIO_DIRECTION_OUT;
     else
         gpx_info->gpx_direction = GPIO_DIRECTION_IN;
-    gpx_info->location = strdup(sensor_location);
-    gpx_info->alarm_message = strdup(sensor_alarm_message);
-    gpx_info->alarm_severity = strdup(sensor_alarm_severity);
+    if (sensor_location)
+        gpx_info->location = strdup(sensor_location);
+    // Note: If there is a GPO power source, -server will enable
+    // it in the next status update loop...
+    if (sensor_power_source)
+        gpx_info->power_source = strdup(sensor_power_source);
+    if (sensor_alarm_message)
+        gpx_info->alarm_message = strdup(sensor_alarm_message);
+    if (sensor_alarm_severity)
+        gpx_info->alarm_severity = strdup(sensor_alarm_severity);
 
     pthread_mutex_lock (&gpx_list_mutex);
 
@@ -217,11 +229,11 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     // Don't free gpx_info, it will be done at TERM time
 
     my_zsys_debug (self->verbose, "%s sensor '%s' (%s) %sd with\n\tmanufacturer: %s\n\tmodel: %s \
-    \n\ttype: %s\n\tnormal-state: %s\n\t%s number: %s\n\tlocation: %s \
+    \n\ttype: %s\n\tnormal-state: %s\n\t%s number: %s\n\tlocation: %s\n\tpower source: %s \
     \n\talarm-message: %s\n\talarm-severity: %s",
         sensor_gpx_direction, extname, assetname, operation, manufacturer, asset_subtype,
         sensor_type, sensor_normal_state, sensor_gpx_direction, sensor_gpx_number, sensor_location,
-        sensor_alarm_message, sensor_alarm_severity);
+        sensor_power_source, sensor_alarm_message, sensor_alarm_severity);
 
     return 0;
 }
@@ -342,6 +354,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
         // Get static info from template
         const char *manufacturer = s_get (config_template, "manufacturer", "");
         const char *sensor_type = s_get (config_template, "type", "");
+        // FIXME: can come from user config
         const char *sensor_alarm_message = s_get (config_template, "alarm-message", "");
         // Get from user config
         const char *sensor_gpx_number = fty_proto_ext_string (ftymessage, "port", "");
@@ -351,10 +364,12 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
         sensor_normal_state = fty_proto_ext_string (ftymessage, "normal_state", sensor_normal_state);
         const char *sensor_gpx_direction = s_get (config_template, "gpx-direction", "GPI");
         sensor_gpx_direction = fty_proto_ext_string (ftymessage, "gpx_direction", sensor_gpx_direction);
-        // FIXME: or parent.name or ?
-        const char *sensor_location = fty_proto_ext_string (ftymessage, "location", "");
+        // We use the logical_asset, not the DC location!
+        const char *sensor_location = fty_proto_ext_string (ftymessage, "logical_asset", "");
         const char *sensor_alarm_severity = s_get (config_template, "alarm-severity", "WARNING");
         sensor_alarm_severity = fty_proto_ext_string (ftymessage, "alarm_severity", sensor_alarm_severity);
+        // Get the GPO which power us
+        const char* power_source = fty_proto_ext_string (ftymessage, "power_plug_src.1", "");
 
         // Sanity checks
         if (streq (sensor_normal_state, "")) {
@@ -373,7 +388,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
                     manufacturer, assetname, extname, asset_model,
                     sensor_type, sensor_normal_state,
                     sensor_gpx_number, sensor_gpx_direction, sensor_location,
-                    sensor_alarm_message, sensor_alarm_severity);
+                    power_source, sensor_alarm_message, sensor_alarm_severity);
 
         zconfig_destroy (&config_template);
     }
@@ -392,17 +407,65 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
 {
     my_zsys_debug (self->verbose, "%s", __func__);
 
-    my_zsys_debug (self->verbose, "%s:\tRequest GPIO sensors list", self->name);
-    zmsg_t *msg = zmsg_new ();
+     my_zsys_debug (self->verbose, "%s:\tRequest GPIO sensors list", self->name);
+     zmsg_t *msg = zmsg_new ();
+    // Method 1: ASSETS "GET" "sensorgpio"
+    // FIXME: need a "ASSETS_DETAILS" request!
     zmsg_addstr (msg, "GET");
     zmsg_addstr (msg, "sensorgpio");
+    // => DOES NOT WORK!
+
+    // Fallback Method 2.1: ASSETS_IN_CONTAINER "GET" "" "sensorgpio"
+    // (empty container, filter on 'sensorgpio' type)
+    // => DOES NOT WORK!
+
+    // Fallback Method 2.2: ASSETS_IN_CONTAINER "GET" ""
+    // (empty container, no filter on type)
+    // then filter on "sensorgpio-*"
+//    zmsg_addstr (msg, "GET");
+//    zmsg_addstr (msg, "");
+
+//    int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS_IN_CONTAINER", NULL, 5000, &msg);
+    // Method 1: ASSETS "GET" "sensorgpio"
     int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS", NULL, 5000, &msg);
+     if (rv != 0)
+         zsys_error ("%s:\tRequest GPIO sensors list failed", self->name);
+     else
+         my_zsys_debug (self->verbose, "%s:\tGPIO sensors list request sent successfully", self->name);
+
+     zmsg_destroy (&msg);
+
+    // Get the results (list of sensors) and process it
+    // then filter on "sensorgpio-*"
+    // then send REPUBLISH request with the list of sensors
+    msg = zmsg_new ();
+
+    zmsg_t *reply = mlm_client_recv (self->mlm);
+    char *asset = zmsg_popstr(reply);
+    while (asset) {
+        // then filter on "sensorgpio-*"
+        printf ("%s\n", asset);
+
+        if (!strncmp(asset, "sensorgpio-", 11))
+            zmsg_addstr (msg, asset);
+
+        zstr_free (&asset);
+        asset = zmsg_popstr(reply);
+    }
+    zmsg_destroy (&reply);
+
+    // Send the REPUBLISH request
+    rv = mlm_client_sendto (self->mlm, "asset-agent", "REPUBLISH", NULL, 5000, &msg);
+    // Method 1: ASSETS "GET" "sensorgpio"
+    //int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS", NULL, 5000, &msg);
     if (rv != 0)
-        zsys_error ("%s:\tRequest GPIO sensors list failed", self->name);
+        zsys_error ("%s:\tRequest REPUBLISH sensors list failed", self->name);
     else
-        my_zsys_debug (self->verbose, "%s:\tGPIO sensors list request sent successfully", self->name);
+        my_zsys_debug (self->verbose, "%s:\tGPIO sensors REPUBLISH request sent successfully", self->name);
 
     zmsg_destroy (&msg);
+    // Fallback Method 3: REPUBLISH "$all"
+    // Not needed!
 }
 
 //  --------------------------------------------------------------------------

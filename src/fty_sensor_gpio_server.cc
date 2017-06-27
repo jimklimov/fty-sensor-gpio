@@ -233,13 +233,35 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
 
         // No processing if not yet init'ed
         if (gpx_info) {
+
+            my_zsys_debug (self->verbose, "Checking status of GPx sensor '%s'",
+                gpx_info->asset_name);
+
+            // If there is a GPO power source, then activate it!
+            if ( gpx_info->power_source && (!streq(gpx_info->power_source, "")) ) {
+                my_zsys_debug (self->verbose, "Activating GPO power source %s",
+                    gpx_info->power_source);
+
+                if (libgpio_write ( self->gpio_lib,
+                                    atoi(gpx_info->power_source),
+                                    GPIO_STATE_OPENED) != 0) {
+                    my_zsys_debug (self->verbose, "Failed to activate GPO power source!");
+                }
+                else {
+                    my_zsys_debug (self->verbose, "GPO power source successfully activated.");
+                    // Sleep for a second to have the GPx sensor powered and running
+                    zclock_sleep (1000);
+                }
+            }
+
             // Get the current sensor status
             gpx_info->current_state = libgpio_read( self->gpio_lib,
                                                     gpx_info->gpx_number,
                                                     gpx_info->gpx_direction);
 
             if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
-                my_zsys_debug (self->verbose, "Can't read GPI sensor #%i status", gpx_info->gpx_number);
+                my_zsys_debug (self->verbose, "Can't read GPx sensor #%i status",
+                    gpx_info->gpx_number);
             }
             else {
                 my_zsys_debug (self->verbose, "Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
@@ -435,6 +457,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                         const char *type = s_get (sensor_template_file, "type", "");
                         const char *normal_state = s_get (sensor_template_file, "normal-state", "");
                         const char *gpx_direction = s_get (sensor_template_file, "gpx-direction", "");
+                        const char *gpx_power_source = s_get (sensor_template_file, "power-source", "");
                         const char *alarm_severity = s_get (sensor_template_file, "alarm-severity", "");
                         const char *alarm_message = s_get (sensor_template_file, "alarm-message", "");
 
@@ -444,6 +467,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                             zmsg_addstr (reply, type);
                             zmsg_addstr (reply, normal_state);
                             zmsg_addstr (reply, gpx_direction);
+                            zmsg_addstr (reply, gpx_power_source);
                             zmsg_addstr (reply, alarm_severity);
                             zmsg_addstr (reply, alarm_message);
                         }
@@ -480,6 +504,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 char *type = zmsg_popstr (message);
                 char *normal_state = zmsg_popstr (message);
                 char *gpx_direction = zmsg_popstr (message);
+                char *gpx_power_source = zmsg_popstr (message);
                 char *alarm_severity = zmsg_popstr (message);
                 char *alarm_message = zmsg_popstr (message);
 
@@ -506,6 +531,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     zconfig_put (root, "type", type);
                     zconfig_put (root, "normal-state", normal_state);
                     zconfig_put (root, "gpx-direction", gpx_direction);
+                    zconfig_put (root, "power-source", gpx_power_source);
                     zconfig_put (root, "alarm-severity", alarm_severity);
                     zconfig_put (root, "alarm-message", alarm_message);
 
@@ -525,6 +551,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     zstr_free(&type);
                     zstr_free(&normal_state);
                     zstr_free(&gpx_direction);
+                    zstr_free(&gpx_power_source);
                     zstr_free(&alarm_severity);
                     zstr_free(&alarm_message);
             }
@@ -801,7 +828,7 @@ fty_sensor_gpio_server_test (bool verbose)
         "Eaton", "sensorgpio-10", "GPIO-Sensor-Door1",
         "DCS001", "door-contact-sensor",
         "closed", "1",
-        "GPI", "IPC1",
+        "GPI", "Rack1", "",
         "Door has been $status", "WARNING");
     assert (rv == 0);
 
@@ -809,7 +836,7 @@ fty_sensor_gpio_server_test (bool verbose)
         "Eaton", "sensorgpio-11", "GPIO-Test-GPO1",
         "DCS001", "dummy",
         "closed", "1",
-        "GPO", "IPC1",
+        "GPO", "Room1", "",
         "Dummy has been $status", "WARNING");
     assert (rv == 0);
 
@@ -878,6 +905,7 @@ fty_sensor_gpio_server_test (bool verbose)
         zmsg_addstr (msg, "test");              // type
         zmsg_addstr (msg, "closed");            // normal_state
         zmsg_addstr (msg, "GPI");               // gpx_direction
+        zmsg_addstr (msg, "internal");          // power_source
         zmsg_addstr (msg, "WARNING");           // alarm_severity
         zmsg_addstr (msg, "test triggered");    // alarm_message
 
@@ -927,6 +955,9 @@ fty_sensor_gpio_server_test (bool verbose)
         zstr_free (&recv_str);
         recv_str = zmsg_popstr (recv);
         assert ( streq ( recv_str, "GPI") );
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "internal") );
         zstr_free (&recv_str);
         recv_str = zmsg_popstr (recv);
         assert ( streq ( recv_str, "WARNING") );

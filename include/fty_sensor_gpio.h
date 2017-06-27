@@ -55,6 +55,7 @@ typedef struct _gpx_info_s {
     int gpx_number;       // GPIO number
     int pin_number;       // Pin number for this GPIO
     int gpx_direction;    // GPI(n) or GPO(ut)
+    char* power_source;   // empty for internal, GPO number for externally powered
     char* alarm_message;  // Alert message to publish
     char* alarm_severity; // Applied severity
 } _gpx_info_t;
