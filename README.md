@@ -75,18 +75,17 @@ template file is used. Otherwise, the provided value takes precedence.
 * logical_asset (optional): is the deployment location of the sensor. For
 example, a door contact sensor can be located on the door of a rack or room.
 Hence, the value will be the name of this rack or room.
-* power_source.1 (optional): some GPI sensors need an external power supply. IPC
-itself can provide that power (12V) through its GPO. In such cases, use the
-present and below field to indicate the IPC and which GPO.
-* power_plug_src.1 (optional): GPO number used to power a GPI
+* gpo_powersource (optional): some GPI sensors need an external power supply.
+IPC itself can provide 12V power through its GPO. In such cases, use the
+present field to indicate which GPO number is used to power a GPI.
 
 Example of entries:
 
 ```bash
-name,type,sub_type,location,status,priority,model,port,normal_state,logical_asset,power_source.1,power_plug_src.1
-GPIO-Sensor-Door1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened,Rack1,,
-GPIO-Sensor-Smoke1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened,Rack1,IPC1,1
-GPIO-GPOTest1,device,sensorgpio,IPC1,active,P1,GPOTEST,1,,Room1,,
+name,type,sub_type,location,status,priority,model,port,normal_state,logical_asset,gpo_powersource
+GPIO-Sensor-Door1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened,Rack1,
+GPIO-Sensor-Smoke1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened,Rack1,1
+GPIO-GPOTest1,device,sensorgpio,IPC1,active,P1,GPOGEN,1,,Room1,
 ```
 
 ## Architecture
@@ -146,7 +145,8 @@ alarm-message  = Door has been $status
 
 * self-powered, through the GPI itself (value: 'internal'),
 * external powered, through another GPO or a pure external source
-(value: 'external').
+(value: 'external'). In case where a GPO is powering a GPI, refer to the
+Commissioning chapter above, and look at "gpo_powersource".
 
 'alarm-message' can be adapted at runtime through the use of some variables, to
 adapt the alert message:

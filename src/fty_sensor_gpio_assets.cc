@@ -374,7 +374,9 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
         const char *sensor_alarm_severity = s_get (config_template, "alarm-severity", "WARNING");
         sensor_alarm_severity = fty_proto_ext_string (ftymessage, "alarm_severity", sensor_alarm_severity);
         // Get the GPO which power us
-        const char* power_source = fty_proto_ext_string (ftymessage, "power_plug_src.1", "");
+        const char* power_source = fty_proto_ext_string (ftymessage, "gpo_powersource", "");
+        // FIXME: need a power topology request, for latter expansion
+        request_sensor_power_source(self, assetname);
 
         // Sanity checks
         if (streq (sensor_normal_state, "")) {
@@ -403,6 +405,21 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
     }
 }
 
+//  --------------------------------------------------------------------------
+//  Request the power source of a given 'sensorgpio' assets
+
+void
+request_sensor_power_source(fty_sensor_gpio_assets_t *self, const char* asset_name)
+{
+    my_zsys_debug (self->verbose, "%s", __func__);
+
+// FIXME: need a power topology request:
+/*         subject: "TOPOLOGY"
+         message: is a multipart message A/B
+                 A = "TOPOLOGY_POWER" - mandatory
+                 B = "asset_name" - mandatory
+*/
+}
 
 //  --------------------------------------------------------------------------
 //  Request all 'sensorgpio' assets  from fty-asset, to init our monitoring

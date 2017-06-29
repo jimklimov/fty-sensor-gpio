@@ -45,13 +45,16 @@ FTY_SENSOR_GPIO_EXPORT void
 
 //  List accessor
 FTY_SENSOR_GPIO_EXPORT int
-add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
+    add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     const char* manufacturer, const char* assetname, const char* extname,
     const char* asset_subtype, const char* sensor_type,
     const char* sensor_normal_state, const char* sensor_gpx_number,
     const char* sensor_gpx_direction, const char* sensor_location,
     const char* sensor_power_source, const char* sensor_alarm_message,
     const char* sensor_alarm_severity);
+
+FTY_SENSOR_GPIO_EXPORT void
+    request_sensor_power_source(fty_sensor_gpio_assets_t *self, const char* asset_name);
 
 //  @end
 

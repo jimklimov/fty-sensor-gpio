@@ -33,8 +33,8 @@
         Message is a multipart string message
 
         /sensor/action              - apply action (open | close) on sensor (asset or ext name)
-                                      beside from open and close, opened | high and closed | low
-                                      are also supported
+                                      beside from open and close, enable | enabled |opened | high
+                                      and disable | disabled | closed | low are also supported
 
     REP:
         subject: "GPO_INTERACTION"
@@ -165,7 +165,9 @@ void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int tt
         zhash_autofree (aux);
         char port[6];  // "GPI" + "xx" + '\0'
         memset(&port[0], 0, 6);
-        snprintf(&port[0], 6, "GPI%i", sensor->gpx_number);
+        snprintf(&port[0], 6, "GP%c%i",
+            ((sensor->gpx_direction == GPIO_DIRECTION_IN)?'I':'O'),
+            sensor->gpx_number);
         zhash_insert (aux, "port", (void*) &port[0]);
         string msg_type = string("status.") + &port[0];
 
@@ -180,6 +182,7 @@ void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int tt
         zhash_destroy (&aux);
         if (msg) {
             std::string topic = msg_type + string("@") + sensor->asset_name; //sensor->location;
+//        "status." + port() + "@" + _location;
 
             my_zsys_debug(self->verbose, "\tPort: %s, type: %s, status: %s",
                 &port[0], msg_type.c_str(),
@@ -237,7 +240,32 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
             my_zsys_debug (self->verbose, "Checking status of GPx sensor '%s'",
                 gpx_info->asset_name);
 
-            // If there is a GPO power source, then activate it!
+#if 0
+            // NOTE: this code may be interesting for latter GPO consideration
+            // If it's a GPO, then apply initially normal-state
+            if ( (gpx_info->gpx_direction == GPIO_DIRECTION_OUT)
+                && (gpx_info->current_state == GPIO_STATE_UNKNOWN) ) {
+
+                my_zsys_debug (self->verbose, "Applying initial GPO normal-state.");
+
+                if (libgpio_write ( self->gpio_lib,
+                                    gpx_info->gpx_number,
+                                    gpx_info->normal_state) != 0) {
+                    my_zsys_debug (self->verbose, "Failed to set initial GPO normal-state '%s'!",
+                        libgpio_get_status_string(gpx_info->normal_state).c_str());
+                }
+                else {
+                    my_zsys_debug (self->verbose, "GPO initial normal-state successfully set.");
+                    // Save the current state
+                    gpx_info->current_state = gpx_info->normal_state;
+                    // Sleep for a second to have the GPx sensor powered and running
+                    zclock_sleep (1000);
+                }
+            }
+#endif // #if 0
+
+            // If there is a GPO power source, then activate it prior to
+            // accessing the GPI!
             if ( gpx_info->power_source && (!streq(gpx_info->power_source, "")) ) {
                 my_zsys_debug (self->verbose, "Activating GPO power source %s",
                     gpx_info->power_source);
@@ -249,16 +277,21 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                 }
                 else {
                     my_zsys_debug (self->verbose, "GPO power source successfully activated.");
+                    // Save the current state
+                    gpx_info->current_state = gpx_info->normal_state;
                     // Sleep for a second to have the GPx sensor powered and running
                     zclock_sleep (1000);
                 }
             }
 
-            // Get the current sensor status
-            gpx_info->current_state = libgpio_read( self->gpio_lib,
-                                                    gpx_info->gpx_number,
-                                                    gpx_info->gpx_direction);
-
+            // Get the current sensor status, only for GPIs, or when no status
+            // have been set to GPOs. Otherwise, that reinit GPOs!
+            if ( (gpx_info->gpx_direction != GPIO_DIRECTION_OUT)
+                || (gpx_info->current_state == GPIO_STATE_UNKNOWN) ) {
+                gpx_info->current_state = libgpio_read( self->gpio_lib,
+                                                        gpx_info->gpx_number,
+                                                        gpx_info->gpx_direction);
+            }
             if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
                 my_zsys_debug (self->verbose, "Can't read GPx sensor #%i status",
                     gpx_info->gpx_number);
@@ -352,6 +385,8 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                         }
                         else {
                             zmsg_addstr (reply, "OK");
+                            // Update the GPO state
+                            gpx_info->current_state = status_value;
                         }
                     }
                     else {
