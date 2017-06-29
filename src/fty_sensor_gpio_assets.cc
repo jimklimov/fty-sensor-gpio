@@ -180,14 +180,19 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     gpx_info->ext_name = strdup(extname);
     gpx_info->part_number = strdup(asset_subtype);
     gpx_info->type = strdup(sensor_type);
-    if ( streq (sensor_normal_state, "opened" ) )
-        gpx_info->normal_state = GPIO_STATE_OPENED;
-    else if ( streq (sensor_normal_state, "closed") )
-        gpx_info->normal_state = GPIO_STATE_CLOSED;
+    if (libgpio_get_status_value (sensor_normal_state) != GPIO_STATE_UNKNOWN)
+        gpx_info->normal_state = libgpio_get_status_value (sensor_normal_state);
+    else {
+        zsys_info ("ERROR: provided normal_state '%s' is not valid!", sensor_normal_state);
+        return 1;
+    }
     gpx_info->gpx_number = atoi(sensor_gpx_number);
 //    gpx_info->pin_number = atoi(sensor_pin_number);
-    if ( streq (sensor_gpx_direction, "GPO" ) )
+    if ( streq (sensor_gpx_direction, "GPO" ) ) {
         gpx_info->gpx_direction = GPIO_DIRECTION_OUT;
+        // GPO status can be init'ed with default closed?!
+        // current_state = GPIO_STATE_CLOSED;
+    }
     else
         gpx_info->gpx_direction = GPIO_DIRECTION_IN;
     if (sensor_location)
@@ -292,8 +297,8 @@ is_asset_gpio_sensor (fty_sensor_gpio_assets_t *self, string asset_subtype, stri
     }
     else {
         // Check if it's a sensor, otherwise no need to continue!
-        if (asset_subtype != "sensor") {
-            my_zsys_debug (self->verbose, "Asset is not a sensor, skipping!");
+        if (asset_subtype != "sensorgpio") {
+            my_zsys_debug (self->verbose, "Asset is not a GPIO sensor, skipping!");
             return "";
         }
     }
@@ -397,6 +402,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
         delete_sensor( self, assetname);
     }
 }
+
 
 //  --------------------------------------------------------------------------
 //  Request all 'sensorgpio' assets  from fty-asset, to init our monitoring
