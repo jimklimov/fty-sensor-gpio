@@ -30,15 +30,12 @@
 
 // TODO:
 // * Smart update of existing entries
-// * Tests for _server
+// * Reenable tests for -server
 // * Location of "data" directory into a variable like other components
 //   (even if a hardcode for starters); use configure-script data preferably
 // * Documentation
-// ** README.md
 // ** actors as per https://github.com/zeromq/czmq/blob/master/src/zconfig.c#L15
 // * MAILBOX REQ handling:
-// ** Sensors manifest request with empty sensors list (return all)
-// ** Sensor template addition (create local files with all details provided through UI/CLI)
 // * cleanup, final cppcheck, fix all FIXMEs...
 // * Support for fine grained pin mapping in config file
 //   gpo_mapping
