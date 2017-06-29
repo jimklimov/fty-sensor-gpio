@@ -1,6 +1,6 @@
-manufacturer   = TEST
-part-number    = GPOTEST
-type           = dummy
+manufacturer   = Generic
+part-number    = GPOGEN
+type           = generic
 normal-state   = opened
 gpx-direction  = GPO
 power-source   = internal
