@@ -271,7 +271,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
         retval = -1;
     }
 
-    my_zsys_debug (self->verbose, "%s: result %i", __func__, retval);
+    my_zsys_debug (self->verbose, "%s: wrote value '%i' with result %i", __func__, value, retval);
 
     close(fd);
 
@@ -310,10 +310,14 @@ libgpio_get_status_value (const char* status_name)
 {
     int status_value = GPIO_STATE_CLOSED;
 
-    if ( (streq (status_name, "closed")) || (streq (status_name, "close")) ) {
+    if ( (streq (status_name, "closed")) || (streq (status_name, "close"))
+        || (streq (status_name, "disabled")) || (streq (status_name, "disable"))
+        || (streq (status_name, "low")) ) {
         status_value = GPIO_STATE_CLOSED;
     }
-    else if ( (streq (status_name, "opened")) || (streq (status_name, "open")) ) {
+    else if ( (streq (status_name, "opened")) || (streq (status_name, "open"))
+             || (streq (status_name, "enabled")) || (streq (status_name, "enable"))
+             || (streq (status_name, "high")) ) {
         status_value = GPIO_STATE_OPENED;
     }
     else

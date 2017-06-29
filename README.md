@@ -209,7 +209,9 @@ FTY-SENSOR-GPIO-AGENT ("fty-sensor-gpio") peer:
 where
 * '/' indicates a multipart string message
 * 'sensor' MUST be the sensor asset name or ext name
-* 'action' MUST be one of [ open | opened | high | close | closed | low ]
+* 'action' MUST be one of
+    - [ enable | enabled | open | opened | high ]
+    - [ disable | disabled | close | closed | low ]
 * subject of the message MUST be "GPO_INTERACTION".
 
 The FTY-SENSOR-GPIO-AGENT peer MUST respond with one of the messages back to USER
