@@ -411,7 +411,6 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         }
         else if ( (subject == "GPIO_MANIFEST") || (subject == "GPIO_MANIFEST_SUMMARY") ) {
             // FIXME: consolidate code using filters
-            zmsg_t *reply = zmsg_new ();
             char *zuuid = zmsg_popstr (message);
             zmsg_addstr (reply, zuuid);
             zmsg_addstr (reply, "OK");
@@ -518,10 +517,10 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             if (rv == -1)
                 zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
 
-            zmsg_destroy (&reply);
         }
         else if (subject == "GPIO_TEMPLATE_ADD") {
-
+            char *zuuid = zmsg_popstr (message);
+            zmsg_addstr (reply, zuuid);
             char *sensor_partnumber = zmsg_popstr (message);
             if (sensor_partnumber) {
                 zconfig_t *root = zconfig_new ("root", NULL);
