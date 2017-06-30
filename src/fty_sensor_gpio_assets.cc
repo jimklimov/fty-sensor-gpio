@@ -467,8 +467,6 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
     char *asset = zmsg_popstr(reply);
     while (asset) {
         // then filter on "sensorgpio-*"
-        printf ("%s\n", asset);
-
         if (!strncmp(asset, "sensorgpio-", 11))
             zmsg_addstr (msg, asset);
 
