@@ -84,9 +84,18 @@ Example of entries:
 ```bash
 name,type,sub_type,location,status,priority,model,port,normal_state,logical_asset,gpo_powersource
 GPIO-Sensor-Door1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened,Rack1,
-GPIO-Sensor-Smoke1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened,Rack1,1
-GPIO-GPOTest1,device,sensorgpio,IPC1,active,P1,GPOGEN,1,,Room1,
+GPIO-Sensor-Smoke1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened,Room1,1
+GPIO-Beacon1,device,sensorgpio,IPC1,active,P1,GPOGEN,2,,Room1,
 ```
+
+In the above example, we have:
+
+* One door contact sensor, 'GPIO-Sensor-Door1', connected to the first GPI, and
+located on the door of 'Rack1',
+* One smoke detection sensor, 'GPIO-Sensor-Smoke1', connected to the second GPI,
+powered by the first GPO (gpo_powersource = 1), and located in 'Room1',
+* One beacon, 'GPIO-Beacon1', connected to the second GPO, and located in
+'Room1'.
 
 ## Architecture
 
