@@ -934,6 +934,8 @@ fty_sensor_gpio_server_test (bool verbose)
     // requests
     {
         zmsg_t *msg = zmsg_new ();
+        zuuid_t *zuuid = zuuid_new ();
+        zmsg_addstr (msg, zuuid_str_canonical (zuuid));
         zmsg_addstr (msg, "TEST001");           // sensor_partnumber
         zmsg_addstr (msg, "FooManufacturer");   // manufacturer
         zmsg_addstr (msg, "test");              // type
@@ -950,6 +952,9 @@ fty_sensor_gpio_server_test (bool verbose)
         zmsg_t *recv = mlm_client_recv (mb_client);
         assert(recv);
         char *answer = zmsg_popstr (recv);
+        assert (streq (zuuid_str_canonical (zuuid), answer));
+        zstr_free(&answer);
+        answer = zmsg_popstr (recv);
         assert ( answer );
         zsys_debug("Got answer: '%s'", answer);
         assert ( streq (answer, "OK") );
