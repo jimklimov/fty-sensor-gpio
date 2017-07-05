@@ -273,7 +273,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                 if (libgpio_write ( self->gpio_lib,
                                     atoi(gpx_info->power_source),
                                     GPIO_STATE_OPENED) != 0) {
-                    my_zsys_debug (self->verbose, "Failed to activate GPO power source!");
+                    zsys_error ("Failed to activate GPO power source!");
                 }
                 else {
                     my_zsys_debug (self->verbose, "GPO power source successfully activated.");
@@ -293,8 +293,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                                                         gpx_info->gpx_direction);
             }
             if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
-                my_zsys_debug (self->verbose, "Can't read GPx sensor #%i status",
-                    gpx_info->gpx_number);
+                zsys_error ("Can't read GPx sensor #%i status", gpx_info->gpx_number);
             }
             else {
                 my_zsys_debug (self->verbose, "Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
@@ -379,7 +378,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
 
                     if (status_value != GPIO_STATE_UNKNOWN) {
                         if (libgpio_write (self->gpio_lib, gpx_info->gpx_number, status_value) != 0) {
-                            my_zsys_debug (self->verbose, "GPO_INTERACTION: failed to set value!");
+                            zsys_error ("GPO_INTERACTION: failed to set value!");
                             zmsg_addstr (reply, "ERROR");
                             zmsg_addstr (reply, "SET_VALUE_FAILED");
                         }
