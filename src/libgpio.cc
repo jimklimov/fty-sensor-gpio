@@ -511,13 +511,13 @@ libgpio_set_direction(libgpio_t *self, int pin, int direction)
         mkpath(path, 0777);
     fd = open(path, O_WRONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
-        zsys_error("%s: Failed to open %s for writing!", __func__, path);
+        my_zsys_debug (self->verbose,"%s: Failed to open %s for writing!", __func__, path);
         return -1;
     }
 
     if (write(fd, &s_directions_str[GPIO_DIRECTION_IN == direction ? 0 : 3],
       GPIO_DIRECTION_IN == direction ? 2 : 3) == -1) {
-        zsys_error("%s: Failed to set direction!", __func__);
+        my_zsys_debug (self->verbose,"%s: Failed to set direction!", __func__);
         retval = -1;
     }
 
