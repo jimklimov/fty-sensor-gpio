@@ -147,6 +147,7 @@ _gpx_info_t *sensor_new()
     gpx_info->power_source = NULL;
     gpx_info->alarm_message = NULL;
     gpx_info->alarm_severity = NULL;
+    gpx_info->alert_triggered = false;
 
     return gpx_info;
 }

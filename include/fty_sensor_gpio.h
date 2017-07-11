@@ -58,6 +58,7 @@ typedef struct _gpx_info_s {
     char* power_source;   // empty for internal, GPO number for externally powered
     char* alarm_message;  // Alert message to publish
     char* alarm_severity; // Applied severity
+    bool alert_triggered;   //flag to remember if an alert has been fired
 } _gpx_info_t;
 
 // Config file accessors

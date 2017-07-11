@@ -84,14 +84,14 @@ str_replace(char* string, const char* substr, const char* replacement)
 //  --------------------------------------------------------------------------
 //  Publish an alert for the pointed GPIO sensor
 
-void
-publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl)
+int
+publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl, const char *state)
 {
     my_zsys_debug (self->verbose, "Publishing GPIO sensor %i (%s) alert",
         sensor->gpx_number,
         sensor->asset_name);
 
-    const char *state = "ACTIVE", *severity = sensor->alarm_severity;
+    const char *severity = sensor->alarm_severity;
     char* description = strdup(sensor->alarm_message);
 
     // Adapt alarm message if needed
@@ -122,13 +122,15 @@ publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl)
         ""                  // action ?email
     );
     std::string topic = rule + "/" + severity + "@" + sensor->asset_name;
+    int r=-1;
     if (message) {
-        int r = mlm_client_send (self->mlm, topic.c_str (), &message);
+        r = mlm_client_send (self->mlm, topic.c_str (), &message);
         if( r != 0 )
-            my_zsys_debug (self->verbose, "failed to send alert %s result %", topic.c_str(), r);
+            zsys_error ("failed to send alert %s result %d", topic.c_str(), r);
     }
     zmsg_destroy (&message);
     zstr_free(&description);
+    return r;
 }
 
 //  --------------------------------------------------------------------------
@@ -178,10 +180,18 @@ s_check_gpio_status(fty_sensor_gpio_alerts_t *self)
             && (gpx_info->current_state != GPIO_STATE_UNKNOWN) )
         {
             // Check against normal state
-            if (gpx_info->current_state != gpx_info->normal_state) {
-                my_zsys_debug (self->verbose, "ALARM: state changed");
-                // FIXME: do not repeat alarm?! so maybe flag in self
-                publish_alert (self, gpx_info, 300);
+            if (gpx_info->current_state != gpx_info->normal_state ) {
+                my_zsys_debug (self->verbose, "ALARM: state changed -> ACTIVE");
+                int rv = publish_alert (self, gpx_info, 300, "ACTIVE");
+                if( rv == 0 )
+                    gpx_info->alert_triggered=true; // Alert triggered
+            }
+            if (gpx_info->current_state == gpx_info->normal_state && 
+                    gpx_info->alert_triggered) {
+                my_zsys_debug (self->verbose, "ALARM: state changed -> RESOLVED");
+                int rv = publish_alert (self, gpx_info, 300, "RESOLVED");
+                if( rv == 0 )
+                    gpx_info->alert_triggered=false; // Alert reset triggered
             }
         }
         gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
