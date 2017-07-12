@@ -16,7 +16,7 @@ hardware
     gpi_count         = 10      #   Number of GPI (on IPC3000)
     gpo_count         =  5      #   Number of GPO (on IPC3000)
 #   Offset to apply to access GPO pin, from base chipset address
-    gpo_offset        = 15      #   GPO pins have +15 offset, i.e. GPO 1 is pin 16, ... (on IPC3000)
+    gpo_offset        = 20      #   GPO pins have +20 offset, i.e. GPO 1 is pin 21, ... (on IPC3000)
 #   Offset to apply to access GPI pin, from base chipset address
     gpi_offset        = -1      #   GPI pins have -1 offset, i.e. GPI 1 is pin 0, ... (on IPC3000)
 # More advanced mapping
