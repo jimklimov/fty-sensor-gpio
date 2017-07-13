@@ -229,7 +229,22 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
         return -1;
     }
 
-    int pin = (GPO_number + self->gpo_offset);
+    // Adjust GPO pin number for IPC3000EM v4 (5 GPO)
+    int pin;
+    switch(GPO_number) {                                       
+        case 1:                                         
+        case 2:                                         
+        case 3:                                         
+            pin = (GPO_number + self->gpo_offset);
+            break;
+        case 4:                                         
+        case 5:
+            pin = (GPO_number + self->gpo_offset -10);
+            break;
+        default:
+            pin = (GPO_number + self->gpo_offset);
+            break;
+    }
 
     my_zsys_debug (self->verbose, "%s: writing GPO #%i (pin %i)", __func__, GPO_number, pin);
 
