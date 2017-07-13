@@ -229,7 +229,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
         return -1;
     }
 
-    // Adjust GPO pin number for IPC3000EM v4 (5 GPO)
+    // Adjust GPO pin number for IPC3000EM v4 (with 5 GPO)
     int pin;
     switch(GPO_number) {                                       
         case 1:                                         
