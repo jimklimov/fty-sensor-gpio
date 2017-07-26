@@ -99,6 +99,10 @@ int main (int argc, char *argv [])
             if (param) config_file = param;
             ++argn;
         }
+        else if (streq (argv [argn], "--endpoint") || streq (argv [argn], "-e")) {
+            if (param) endpoint = strdup(param);
+            ++argn;
+        }
         else {
             // FIXME: as per the systemd service file, the config file
             // is provided as the default arg without '-c'!
@@ -137,6 +141,7 @@ int main (int argc, char *argv [])
         gpi_count = s_get (config, "hardware/gpi_count", "0");
 
         my_zsys_debug (verbose, "Polling interval set to %i", poll_interval);
+        if (endpoint) zstr_free(&endpoint);
         endpoint = strdup(s_get (config, "malamute/endpoint", NULL));
         actor_name = strdup(s_get (config, "malamute/address", NULL));
     }
@@ -218,7 +223,7 @@ int main (int argc, char *argv [])
     zstr_sendx (alerts, "CONNECT", endpoint, NULL);
     zstr_sendx (alerts, "PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);
 
-    // Setup an update event message every x seconds, to check GPI status & alerts
+    // Setup an update event message every x microseconds, to check GPI status & alerts
     zloop_t *gpio_status_update = zloop_new();
     zloop_timer (gpio_status_update, poll_interval, 0, s_update_event, server);
     zloop_timer (gpio_status_update, poll_interval, 0, s_update_event, alerts);
