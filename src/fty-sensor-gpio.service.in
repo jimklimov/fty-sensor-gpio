@@ -19,6 +19,7 @@ EnvironmentFile=-@sysconfdir@/default/fty__%n.conf
 Environment="prefix=@prefix@"
 Environment='SYSTEMD_UNIT_FULLNAME=%n'
 ExecStart=@prefix@/bin/fty-sensor-gpio -c @sysconfdir@/@PACKAGE@/fty-sensor-gpio.cfg
+ExecStop=/bin/kill -15 $MAINPID
 Restart=always
 
 [Install]
