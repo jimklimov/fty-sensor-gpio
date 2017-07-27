@@ -23,4 +23,4 @@ ExecStop=/bin/kill -KILL $MAINPID
 Restart=always
 
 [Install]
-WantedBy=bios.target
+WantedBy=bios.target fty-asset.service
