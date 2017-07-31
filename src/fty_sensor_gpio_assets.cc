@@ -82,6 +82,9 @@ void sensor_free(void **item)
     if (gpx_info->type)
         free(gpx_info->type);
 
+    if (gpx_info->parent)
+        free(gpx_info->parent);
+
     if (gpx_info->location)
         free(gpx_info->location);
 
@@ -138,6 +141,7 @@ _gpx_info_t *sensor_new()
     gpx_info->ext_name = NULL;
     gpx_info->part_number = NULL;
     gpx_info->type = NULL;
+    gpx_info->parent = NULL;
     gpx_info->location = NULL;
     gpx_info->normal_state = GPIO_STATE_UNKNOWN;
     gpx_info->current_state = GPIO_STATE_UNKNOWN;
@@ -162,9 +166,9 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     const char* manufacturer, const char* assetname, const char* extname,
     const char* asset_subtype, const char* sensor_type,
     const char* sensor_normal_state, const char* sensor_gpx_number,
-    const char* sensor_gpx_direction, const char* sensor_location,
-    const char* sensor_power_source, const char* sensor_alarm_message,
-    const char* sensor_alarm_severity)
+    const char* sensor_gpx_direction, const char* sensor_parent,
+    const char* sensor_location, const char* sensor_power_source,
+    const char* sensor_alarm_message, const char* sensor_alarm_severity)
 {
     // FIXME:
     // * check if already monitored! + sanity on < 10... AND pin not already declared/used
@@ -194,8 +198,11 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
         // GPO status can be init'ed with default closed?!
         // current_state = GPIO_STATE_CLOSED;
     }
-    else
+    else {
         gpx_info->gpx_direction = GPIO_DIRECTION_IN;
+    }
+    if (sensor_parent)
+        gpx_info->parent = strdup(sensor_parent);
     if (sensor_location)
         gpx_info->location = strdup(sensor_location);
     // Note: If there is a GPO power source, -server will enable
@@ -235,11 +242,11 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     // Don't free gpx_info, it will be done at TERM time
 
     my_zsys_debug (self->verbose, "%s sensor '%s' (%s) %sd with\n\tmanufacturer: %s\n\tmodel: %s \
-    \n\ttype: %s\n\tnormal-state: %s\n\t%s number: %s\n\tlocation: %s\n\tpower source: %s \
-    \n\talarm-message: %s\n\talarm-severity: %s",
+    \n\ttype: %s\n\tnormal-state: %s\n\t%s number: %s\n\tparent: %s\n\tlocation: %s \
+    \n\tpower source: %s\n\talarm-message: %s\n\talarm-severity: %s",
         sensor_gpx_direction, extname, assetname, operation, manufacturer, asset_subtype,
-        sensor_type, sensor_normal_state, sensor_gpx_direction, sensor_gpx_number, sensor_location,
-        sensor_power_source, sensor_alarm_message, sensor_alarm_severity);
+        sensor_type, sensor_normal_state, sensor_gpx_direction, sensor_gpx_number, sensor_parent,
+        sensor_location, sensor_power_source, sensor_alarm_message, sensor_alarm_severity);
 
     return 0;
 }
@@ -370,7 +377,9 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
         sensor_normal_state = fty_proto_ext_string (ftymessage, "normal_state", sensor_normal_state);
         const char *sensor_gpx_direction = s_get (config_template, "gpx-direction", "GPI");
         sensor_gpx_direction = fty_proto_ext_string (ftymessage, "gpx_direction", sensor_gpx_direction);
-        // We use the logical_asset, not the DC location!
+        // Get the parent IPC name
+        const char *sensor_parent = fty_proto_aux_string (ftymessage, "parent_name.1", "");
+        // And deployment location
         const char *sensor_location = fty_proto_ext_string (ftymessage, "logical_asset", "");
         const char *sensor_alarm_severity = s_get (config_template, "alarm-severity", "WARNING");
         sensor_alarm_severity = fty_proto_ext_string (ftymessage, "alarm_severity", sensor_alarm_severity);
@@ -395,8 +404,8 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
         add_sensor( self, operation,
                     manufacturer, assetname, extname, asset_model,
                     sensor_type, sensor_normal_state,
-                    sensor_gpx_number, sensor_gpx_direction, sensor_location,
-                    power_source, sensor_alarm_message, sensor_alarm_severity);
+                    sensor_gpx_number, sensor_gpx_direction, sensor_parent,
+                    sensor_location, power_source, sensor_alarm_message, sensor_alarm_severity);
 
         zconfig_destroy (&config_template);
     }
@@ -708,10 +717,11 @@ fty_sensor_gpio_assets_test (bool verbose)
         zhash_autofree (ext);
         zhash_update (aux, "type", (void *) "device");
         zhash_update (aux, "subtype", (void *) "sensorgpio");
-        zhash_update (aux, "parent", (void *) "rackcontroller-1");
+        zhash_update (aux, "parent_name.1", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPIO-Sensor-Door1");
         zhash_update (ext, "port", (void *) "1");
         zhash_update (ext, "model", (void *) "DCS001");
+        zhash_update (ext, "logical_asset", (void *) "Rack1");
 
         zmsg_t *msg = fty_proto_encode_asset (
                 aux,
@@ -731,10 +741,11 @@ fty_sensor_gpio_assets_test (bool verbose)
         ext = zhash_new ();
         zhash_update (aux, "type", (void *) "device");
         zhash_update (aux, "subtype", (void *) "sensorgpio");
-        zhash_update (aux, "parent", (void *) "rackcontroller-1");
+        zhash_update (aux, "parent_name.1", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPIO-Sensor-Waterleak1");
         zhash_update (ext, "port", (void *) "2");
         zhash_update (ext, "model", (void *) "WLD012");
+        zhash_update (ext, "logical_asset", (void *) "Room1");
 
         msg = fty_proto_encode_asset (
                 aux,
@@ -762,6 +773,8 @@ fty_sensor_gpio_assets_test (bool verbose)
         assert (streq (gpx_info->ext_name, "GPIO-Sensor-Door1"));
         assert (streq (gpx_info->part_number, "DCS001"));
         assert (gpx_info->gpx_number == 1);
+        assert (streq (gpx_info->parent, "rackcontroller-1"));
+        assert (streq (gpx_info->location, "Rack1"));
         // Acquired through the template file
         assert (streq (gpx_info->manufacturer, "Eaton"));
         assert (streq (gpx_info->type, "door-contact-sensor"));
@@ -777,6 +790,8 @@ fty_sensor_gpio_assets_test (bool verbose)
         assert (streq (gpx_info->ext_name, "GPIO-Sensor-Waterleak1"));
         assert (streq (gpx_info->part_number, "WLD012"));
         assert (gpx_info->gpx_number == 2);
+        assert (streq (gpx_info->parent, "rackcontroller-1"));
+        assert (streq (gpx_info->location, "Room1"));
         // Acquired through the template file
         assert (streq (gpx_info->manufacturer, "Eaton"));
         assert (streq (gpx_info->type, "water-leak-detector"));
@@ -797,11 +812,12 @@ fty_sensor_gpio_assets_test (bool verbose)
         zhash_autofree (ext);
         zhash_update (aux, "type", (void *) "device");
         zhash_update (aux, "subtype", (void *) "sensorgpio");
-        zhash_update (aux, "parent", (void *) "rackcontroller-1");
+        zhash_update (aux, "parent_name.1", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPIO-Sensor-Door1");
         zhash_update (ext, "normal_state", (void *) "opened");
         zhash_update (ext, "port", (void *) "1");
         zhash_update (ext, "model", (void *) "DCS001");
+        zhash_update (ext, "logical_asset", (void *) "Rack2");
 
         zmsg_t *msg = fty_proto_encode_asset (
                 aux,
@@ -831,6 +847,8 @@ fty_sensor_gpio_assets_test (bool verbose)
         assert (streq (gpx_info->ext_name, "GPIO-Sensor-Door1"));
         assert (streq (gpx_info->part_number, "DCS001"));
         assert (gpx_info->gpx_number == 1);
+        assert (streq (gpx_info->parent, "rackcontroller-1"));
+        assert (streq (gpx_info->location, "Rack2"));
         // Main point: normal_state is now "opened"!
         assert (gpx_info->normal_state == GPIO_STATE_OPENED);
         // Other data are unchanged

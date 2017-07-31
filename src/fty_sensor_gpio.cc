@@ -30,6 +30,8 @@
 
 // TODO:
 // * Smart update of existing entries
+// * Add zuuid to GPO_INTERACTION too
+// * Ensure we don't return OK/ERROR
 // * Reenable tests for -server
 // * Location of "data" directory into a variable like other components
 //   (even if a hardcode for starters); use configure-script data preferably
