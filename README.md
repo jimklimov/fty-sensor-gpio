@@ -60,8 +60,7 @@ The following fields and extended attributes are available:
 * name (mandatory)
 * type (mandatory): set to 'device'
 * sub_type (mandatory): set to 'sensor-gpio'
-* location (optional): refer to the logical asset to which the sensor is
-connected. It can be for example a rack, a room, or any other asset
+* parent_name.1 (optional): refer to the IPC to which the sensor is connected.
 * status (optional): is the standard status 'active' or 'inactive'
 * priority (optional): is the standard priority, from 'P1' to 'P5'
 * model (mandatory): is the part number of the GPIO sensor, use for naming
@@ -82,7 +81,7 @@ present field to indicate which GPO number is used to power a GPI.
 Example of entries:
 
 ```bash
-name,type,sub_type,location,status,priority,model,port,normal_state,logical_asset,gpo_powersource
+name,type,sub_type,parent_name.1,status,priority,model,port,normal_state,logical_asset,gpo_powersource
 GPIO-Sensor-Door1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened,Rack1,
 GPIO-Sensor-Smoke1,device,sensorgpio,IPC1,active,P1,DCS001,1,opened,Room1,1
 GPIO-Beacon1,device,sensorgpio,IPC1,active,P1,GPOGEN,2,,Room1,
@@ -90,12 +89,13 @@ GPIO-Beacon1,device,sensorgpio,IPC1,active,P1,GPOGEN,2,,Room1,
 
 In the above example, we have:
 
-* One door contact sensor, 'GPIO-Sensor-Door1', connected to the first GPI, and
-located on the door of 'Rack1',
-* One smoke detection sensor, 'GPIO-Sensor-Smoke1', connected to the second GPI,
-powered by the first GPO (gpo_powersource = 1), and located in 'Room1',
-* One beacon, 'GPIO-Beacon1', connected to the second GPO, and located in
-'Room1'.
+* One door contact sensor, 'GPIO-Sensor-Door1', connected to the first GPI of
+the IPC, and located on the door of 'Rack1',
+* One smoke detection sensor, 'GPIO-Sensor-Smoke1', connected to the second GPI
+of the IPC, powered by the first GPO (gpo_powersource = 1), and located in
+'Room1',
+* One beacon, 'GPIO-Beacon1', connected to the second GPO of the IPC, and
+located in 'Room1'.
 
 ## Architecture
 

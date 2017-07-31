@@ -107,7 +107,7 @@ publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl, con
                                   sensor->location);
     }
 
-    std::string rule = string(sensor->type) + ".state_change@" + sensor->asset_name;
+    std::string rule = string(sensor->type) + ".state_change@" + sensor->location; //sensor->asset_name;
 
     my_zsys_debug (self->verbose, "%s: publishing alert %s with description:\n%s", __func__, rule.c_str (), description);
     zmsg_t *message = fty_proto_encode_alert(
@@ -115,7 +115,7 @@ publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl, con
         time (NULL),        // timestamp
         ttl,
         rule.c_str (),      // rule
-        sensor->asset_name, // element
+        sensor->location,   // element
         state,              // state
         severity,           // severity
         description,        // description
@@ -359,7 +359,7 @@ fty_sensor_gpio_alerts_test (bool verbose)
             "Eaton", "sensorgpio-10", "GPIO-Sensor-Door1",
             "DCS001", "door-contact-sensor",
             "closed", "1",
-            "GPI", "Rack1", "",
+            "GPI", "IPC1", "Rack1", "",
             "Door has been $status", "WARNING");
 
         assert (rv == 0);
@@ -385,7 +385,7 @@ fty_sensor_gpio_alerts_test (bool verbose)
         assert (recv);
         fty_proto_t *frecv = fty_proto_decode (&recv);
         assert (frecv);
-        assert (streq (fty_proto_name (frecv), "sensorgpio-10"));
+        assert (streq (fty_proto_name (frecv), "Rack1"));
         assert (streq (fty_proto_state (frecv), "ACTIVE"));
         assert (streq (fty_proto_severity (frecv), "WARNING"));
         assert (streq (fty_proto_description (frecv), "Door has been opened"));
