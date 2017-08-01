@@ -176,12 +176,12 @@ void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int tt
             time (NULL),
             ttl,
             msg_type.c_str (),
-            sensor->asset_name, //sensor->location,
+            sensor->parent, // sensor->asset_name
             libgpio_get_status_string(sensor->current_state).c_str(),
             "");
         zhash_destroy (&aux);
         if (msg) {
-            std::string topic = msg_type + string("@") + sensor->asset_name; //sensor->location;
+            std::string topic = msg_type + string("@") + sensor->parent;
 //        "status." + port() + "@" + _location;
 
             my_zsys_debug(self->verbose, "\tPort: %s, type: %s, status: %s",
@@ -417,6 +417,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             // Check for a parameter, to send (a) specific template(s)
             if (asset_partnumber) {
                 while (asset_partnumber) {
+                    my_zsys_debug (self->verbose, "Asset filter provided: %s", asset_partnumber);
                     // FIXME: use @datadir@ (how?)!
                     string template_filename = string(self->template_dir) + string(asset_partnumber) + string(".tpl");
 
@@ -861,7 +862,7 @@ fty_sensor_gpio_server_test (bool verbose)
         "Eaton", "sensorgpio-10", "GPIO-Sensor-Door1",
         "DCS001", "door-contact-sensor",
         "closed", "1",
-        "GPI", "Rack1", "",
+        "GPI", "IPC1", "Rack1", "",
         "Door has been $status", "WARNING");
     assert (rv == 0);
 
@@ -869,7 +870,7 @@ fty_sensor_gpio_server_test (bool verbose)
         "Eaton", "sensorgpio-11", "GPIO-Test-GPO1",
         "DCS001", "dummy",
         "closed", "1",
-        "GPO", "Room1", "",
+        "GPO", "IPC1", "Room1", "",
         "Dummy has been $status", "WARNING");
     assert (rv == 0);
 

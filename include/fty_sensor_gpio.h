@@ -49,7 +49,8 @@ typedef struct _gpx_info_s {
     char* ext_name;       // sensor name
     char* part_number;    // GPI sensor part number
     char* type;           // GPI sensor type (door-contact, ...)
-    char* location;       // Parent name, to which the GPIO is attached
+    char* parent;         // Parent name, i.e. IPC, to which the GPIO is attached (parent_name.1)
+    char* location;       // Location, i.e. Room/Row/Rack/..., where the GPIO is deployed (logical_asset)
     int normal_state;     // opened | closed
     int current_state;    // opened | closed
     int gpx_number;       // GPIO number
