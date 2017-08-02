@@ -25,4 +25,4 @@ SuccessExitStatus=SIGKILL SIGTERM 143
 Restart=always
 
 [Install]
-WantedBy=bios.target fty-asset.service
+WantedBy=bios.target
