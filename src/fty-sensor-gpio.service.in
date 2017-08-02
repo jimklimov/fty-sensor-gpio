@@ -19,7 +19,9 @@ EnvironmentFile=-@sysconfdir@/default/fty__%n.conf
 Environment="prefix=@prefix@"
 Environment='SYSTEMD_UNIT_FULLNAME=%n'
 ExecStart=@prefix@/bin/fty-sensor-gpio -c @sysconfdir@/@PACKAGE@/fty-sensor-gpio.cfg
-ExecStop=/bin/kill -KILL $MAINPID
+# Try the usual default SIGTERM, but don't wait forever if service locked-up
+TimeoutStopSec=5
+SuccessExitStatus=SIGKILL SIGTERM 143
 Restart=always
 
 [Install]
