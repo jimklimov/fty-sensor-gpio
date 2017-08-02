@@ -1,7 +1,7 @@
 #   fty-sensor-gpio configuration
 
 server
-    poll_interval = 10000       #   Interval between sensors state check, msec
+    check_interval = 10000       #   Interval between sensors state check, msec
     timeout = 10000             #   Client connection timeout, msec
     background = 0              #   Run as background process
     workdir = .                 #   Working directory for daemon
