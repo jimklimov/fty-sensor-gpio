@@ -1,21 +1,21 @@
 /*  =========================================================================
     fty_sensor_gpio_alerts - 42ITy GPIO alerts handler
 
-    Copyright (C) 2014 - 2017 Eaton                                        
-                                                                           
-    This program is free software; you can redistribute it and/or modify   
-    it under the terms of the GNU General Public License as published by   
-    the Free Software Foundation; either version 2 of the License, or      
-    (at your option) any later version.                                    
-                                                                           
-    This program is distributed in the hope that it will be useful,        
-    but WITHOUT ANY WARRANTY; without even the implied warranty of         
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          
-    GNU General Public License for more details.                           
-                                                                           
+    Copyright (C) 2014 - 2017 Eaton
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
     You should have received a copy of the GNU General Public License along
     with this program; if not, write to the Free Software Foundation, Inc.,
-    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.            
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
     =========================================================================
 */
 
@@ -112,7 +112,7 @@ publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl, con
     my_zsys_debug (self->verbose, "%s: publishing alert %s with description:\n%s", __func__, rule.c_str (), description);
     zmsg_t *message = fty_proto_encode_alert(
         NULL,               // aux
-        time (NULL),        // timestamp
+        ::time (NULL),      // timestamp
         ttl,
         rule.c_str (),      // rule
         sensor->location,   // element
@@ -121,7 +121,7 @@ publish_alert (fty_sensor_gpio_alerts_t *self, _gpx_info_t *sensor, int ttl, con
         description,        // description
         ""                  // action ?email
     );
-    std::string topic = rule + "/" + severity + "@" + sensor->asset_name;
+    std::string topic = rule + "/" + severity + "@" + sensor->location;
     int r=-1;
     if (message) {
         r = mlm_client_send (self->mlm, topic.c_str (), &message);
@@ -186,7 +186,7 @@ s_check_gpio_status(fty_sensor_gpio_alerts_t *self)
                 if( rv == 0 )
                     gpx_info->alert_triggered=true; // Alert triggered
             }
-            if (gpx_info->current_state == gpx_info->normal_state && 
+            if (gpx_info->current_state == gpx_info->normal_state &&
                     gpx_info->alert_triggered) {
                 my_zsys_debug (self->verbose, "ALARM: state changed -> RESOLVED");
                 int rv = publish_alert (self, gpx_info, 300, "RESOLVED");
@@ -252,7 +252,7 @@ fty_sensor_gpio_alerts(zsock_t *pipe, void *args)
     zpoller_t *poller = zpoller_new (pipe, mlm_client_msgpipe (self->mlm), NULL);
     assert (poller);
 
-    zsock_signal (pipe, 0); 
+    zsock_signal (pipe, 0);
     zsys_info ("%s_alerts: Started", self->name);
 
     while (!zsys_interrupted)
