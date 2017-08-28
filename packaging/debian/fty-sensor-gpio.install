@@ -1,5 +1,4 @@
 usr/bin/fty-sensor-gpio
-usr/share/man/man1/fty-sensor-gpio.1
 etc/fty-sensor-gpio/fty-sensor-gpio.cfg
 lib/systemd/system/fty-sensor-gpio.service
 
