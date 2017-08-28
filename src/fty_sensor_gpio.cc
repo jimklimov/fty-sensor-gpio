@@ -60,7 +60,7 @@ usage(){
 
 }
 
-// Send an update request over the MQ to check for GPIO status & alerts
+// Send an update request over the MQ to check for GPIO status
 static int
 s_update_event (zloop_t *loop, int timer_id, void *output)
 {
@@ -193,12 +193,10 @@ int main (int argc, char *argv [])
 
     zactor_t *assets = zactor_new (fty_sensor_gpio_assets, (void*)"gpio-assets");
     zactor_t *server = zactor_new (fty_sensor_gpio_server, (void*)actor_name);
-    zactor_t *alerts = zactor_new (fty_sensor_gpio_alerts, (void*)"gpio-alerts");
 
     if (verbose) {
         zstr_sendx (server, "VERBOSE", NULL);
         zstr_sendx (assets, "VERBOSE", NULL);
-        zstr_sendx (alerts, "VERBOSE", NULL);
         zsys_info ("%s - Agent which manages GPI sensors and GPO devices", actor_name);
     }
 
@@ -221,21 +219,15 @@ int main (int argc, char *argv [])
     zstr_sendx (server, "GPI_COUNT", gpi_count, NULL);
     zstr_sendx (server, "GPO_COUNT", gpo_count, NULL);
 
-    // 3rd stream to publish and manage alerts
-    zstr_sendx (alerts, "CONNECT", endpoint, NULL);
-    zstr_sendx (alerts, "PRODUCER", FTY_PROTO_STREAM_ALERTS_SYS, NULL);
-
-    // Setup an update event message every x microseconds, to check GPI status & alerts
+    // Setup an update event message every x microseconds, to check GPI status
     zloop_t *gpio_status_update = zloop_new();
     zloop_timer (gpio_status_update, poll_interval, 0, s_update_event, server);
-    zloop_timer (gpio_status_update, poll_interval, 0, s_update_event, alerts);
     zloop_start (gpio_status_update);
 
     // Cleanup
     zloop_destroy (&gpio_status_update);
     zactor_destroy (&server);
     zactor_destroy (&assets);
-    zactor_destroy (&alerts);
     zstr_free(&template_dir);
     zstr_free(&actor_name);
     zstr_free(&endpoint);

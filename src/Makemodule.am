@@ -19,7 +19,6 @@ include_HEADERS = \
 if ENABLE_DRAFTS
 include_HEADERS += \
     include/libgpio.h \
-    include/fty_sensor_gpio_alerts.h \
     include/fty_sensor_gpio_assets.h \
     include/fty_sensor_gpio_server.h
 
@@ -30,7 +29,6 @@ src_libfty_sensor_gpio_la_SOURCES = \
 if ENABLE_DRAFTS
 src_libfty_sensor_gpio_la_SOURCES += \
     src/libgpio.cc \
-    src/fty_sensor_gpio_alerts.cc \
     src/fty_sensor_gpio_assets.cc \
     src/fty_sensor_gpio_server.cc
 
@@ -107,7 +105,10 @@ src: \
 SELFTEST_DIR_RO = src/selftest-ro
 SELFTEST_DIR_RW = src/selftest-rw
 
+# This is recreated on every invocation (as a selftest dependency),
+# so tests run in a clean environment
 $(abs_top_builddir)/$(SELFTEST_DIR_RW):
+	rm -rf "$@"
 	mkdir -p "$@"
 
 $(abs_top_builddir)/$(SELFTEST_DIR_RO): $(abs_top_srcdir)/$(SELFTEST_DIR_RO)
@@ -142,32 +143,66 @@ clean-local-selftest-rw:
 		fi; \
 	fi
 
+check-empty-selftest-rw:
+	if test -e $(abs_top_builddir)/$(SELFTEST_DIR_RW) ; then \
+		if test `find "$(abs_top_builddir)/$(SELFTEST_DIR_RW)" | wc -l` -lt 1 ; then \
+			echo "FATAL: selftest did not tidy up the data it wrote" >&2 ; \
+			find "$(abs_top_builddir)/$(SELFTEST_DIR_RW)" ; \
+			exit 2; \
+		else true ; fi; \
+	else true ; fi
+
 check-local: src/fty_sensor_gpio_selftest $(abs_top_builddir)/$(SELFTEST_DIR_RW) $(abs_top_builddir)/$(SELFTEST_DIR_RO)
 	$(LIBTOOL) --mode=execute $(builddir)/src/fty_sensor_gpio_selftest
+	$(MAKE) check-empty-selftest-rw
 
 check-verbose: src/fty_sensor_gpio_selftest $(abs_top_builddir)/$(SELFTEST_DIR_RW) $(abs_top_builddir)/$(SELFTEST_DIR_RO)
 	$(LIBTOOL) --mode=execute $(builddir)/src/fty_sensor_gpio_selftest -v
+	$(MAKE) check-empty-selftest-rw
 
 # Run the selftest binary under valgrind to check for memory leaks
 memcheck: src/fty_sensor_gpio_selftest $(abs_top_builddir)/$(SELFTEST_DIR_RW) $(abs_top_builddir)/$(SELFTEST_DIR_RO)
 	$(LIBTOOL) --mode=execute valgrind --tool=memcheck \
 		--leak-check=full --show-reachable=yes --error-exitcode=1 \
 		--suppressions=$(srcdir)/src/.valgrind.supp \
-		$(builddir)/src/fty_sensor_gpio_selftest --verbose
+		$(builddir)/src/fty_sensor_gpio_selftest
+	$(MAKE) check-empty-selftest-rw
+
+memcheck-verbose: src/fty_sensor_gpio_selftest $(abs_top_builddir)/$(SELFTEST_DIR_RW) $(abs_top_builddir)/$(SELFTEST_DIR_RO)
+	$(LIBTOOL) --mode=execute valgrind --tool=memcheck \
+		--leak-check=full --show-reachable=yes --error-exitcode=1 \
+		--suppressions=$(srcdir)/src/.valgrind.supp \
+		$(builddir)/src/fty_sensor_gpio_selftest -v
+	$(MAKE) check-empty-selftest-rw
 
 # Run the selftest binary under valgrind to check for performance leaks
 callcheck: src/fty_sensor_gpio_selftest $(abs_top_builddir)/$(SELFTEST_DIR_RW) $(abs_top_builddir)/$(SELFTEST_DIR_RO)
 	$(LIBTOOL) --mode=execute valgrind --tool=callgrind \
 		$(builddir)/src/fty_sensor_gpio_selftest
+	$(MAKE) check-empty-selftest-rw
+
+callcheck-verbose: src/fty_sensor_gpio_selftest $(abs_top_builddir)/$(SELFTEST_DIR_RW) $(abs_top_builddir)/$(SELFTEST_DIR_RO)
+	$(LIBTOOL) --mode=execute valgrind --tool=callgrind \
+		$(builddir)/src/fty_sensor_gpio_selftest -v
+	$(MAKE) check-empty-selftest-rw
 
 # Run the selftest binary under gdb for debugging
 debug: src/fty_sensor_gpio_selftest $(abs_top_builddir)/$(SELFTEST_DIR_RW) $(abs_top_builddir)/$(SELFTEST_DIR_RO)
 	$(LIBTOOL) --mode=execute gdb -q \
 		$(builddir)/src/fty_sensor_gpio_selftest
+	$(MAKE) check-empty-selftest-rw
+
+debug-verbose: src/fty_sensor_gpio_selftest $(abs_top_builddir)/$(SELFTEST_DIR_RW) $(abs_top_builddir)/$(SELFTEST_DIR_RO)
+	$(LIBTOOL) --mode=execute gdb -q \
+		$(builddir)/src/fty_sensor_gpio_selftest -v
+	$(MAKE) check-empty-selftest-rw
 
 # Run the selftest binary with verbose switch for tracing
 animate: src/fty_sensor_gpio_selftest $(abs_top_builddir)/$(SELFTEST_DIR_RW) $(abs_top_builddir)/$(SELFTEST_DIR_RO)
 	$(LIBTOOL) --mode=execute $(builddir)/src/fty_sensor_gpio_selftest -v
+	$(MAKE) check-empty-selftest-rw
+
+animate-verbose: animate
 
 if WITH_GCOV
 coverage: src/fty_sensor_gpio_selftest $(abs_top_builddir)/$(SELFTEST_DIR_RW) $(abs_top_builddir)/$(SELFTEST_DIR_RO)

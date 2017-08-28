@@ -38,6 +38,7 @@
 
 //  Internal API
 
+
 //  *** To avoid double-definitions, only define if building without draft ***
 #ifndef FTY_SENSOR_GPIO_BUILD_DRAFT_API
 

@@ -95,6 +95,7 @@ This package contains development files for fty-sensor-gpio: manage gpi sensors 
 %{_mandir}/man7/*
 
 %prep
+
 %setup -q
 
 %build
