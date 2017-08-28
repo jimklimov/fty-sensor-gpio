@@ -13,8 +13,6 @@
 # Ignore the source doc texts generated from program sources
 libgpio.txt
 libgpio.doc
-fty_sensor_gpio_alerts.txt
-fty_sensor_gpio_alerts.doc
 fty_sensor_gpio_assets.txt
 fty_sensor_gpio_assets.doc
 fty_sensor_gpio_server.txt
