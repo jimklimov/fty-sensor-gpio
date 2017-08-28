@@ -359,7 +359,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
             return;
         }
         const char *asset_parent_name1 = fty_proto_aux_string (ftymessage, "", "");
-        if (0 != strcmp("rackcontroller", asset_parent_name1)) {
+        if (0 != strncmp ("rackcontroller", asset_parent_name1, strlen ("rackcontroller"))) {
             // This agent should handle only local sensors
             return;
         }
