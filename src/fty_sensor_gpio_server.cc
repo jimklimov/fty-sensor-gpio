@@ -165,7 +165,7 @@ void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int tt
         zhash_autofree (aux);
         char port[6];  // "GPI" + "xx" + '\0'
         memset(&port[0], 0, 6);
-        snprintf(&port[0], 6, "GP%c%i",
+        snprintf(&port[0], 6, "RC-GP%c%i",
             ((sensor->gpx_direction == GPIO_DIRECTION_IN)?'I':'O'),
             sensor->gpx_number);
         zhash_insert (aux, "port", (void*) &port[0]);
