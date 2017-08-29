@@ -358,6 +358,11 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
         if (config_template_filename == "") {
             return;
         }
+        const char *asset_parent_name1 = fty_proto_aux_string (ftymessage, FTY_PROTO_ASSET_AUX_PARENT_NAME_1, "");
+        if (0 != strncmp ("rackcontroller", asset_parent_name1, strlen ("rackcontroller"))) {
+            // This agent should handle only local sensors
+            return;
+        }
         // We have a GPIO sensor, process it
         config_template = zconfig_load (config_template_filename.c_str());
         if (!config_template) {
