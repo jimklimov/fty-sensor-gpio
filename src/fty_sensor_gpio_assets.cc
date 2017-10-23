@@ -449,7 +449,9 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
      zmsg_t *msg = zmsg_new ();
     // Method 1: ASSETS "GET" "sensorgpio"
     // FIXME: need a "ASSETS_DETAILS" request!
+    zuuid_t *uuid = zuuid_new ();
     zmsg_addstr (msg, "GET");
+    zmsg_addstr (msg, zuuid_str_canonical (uuid));
     zmsg_addstr (msg, "sensorgpio");
     // => DOES NOT WORK!
 
@@ -479,6 +481,13 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
     msg = zmsg_new ();
 
     zmsg_t *reply = mlm_client_recv (self->mlm);
+    char *uuid_recv = zmsg_popstr(reply);
+    while (0 != strcmp (zuuid_str_canonical (uuid), uuid_recv)) {
+        zmsg_destroy (&reply);
+        zstr_free (&uuid_recv);
+        reply = mlm_client_recv (self->mlm);
+        uuid_recv = zmsg_popstr(reply);
+    }
     char *asset = zmsg_popstr(reply);
     while (asset) {
         // then filter on "sensorgpio-*"
