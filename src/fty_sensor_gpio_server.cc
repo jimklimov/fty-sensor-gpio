@@ -131,6 +131,7 @@ struct _fty_sensor_gpio_server_t {
     libgpio_t          *gpio_lib;     // GPIO library handle
     bool               test_mode;     // true if we are in test mode, false otherwise
     char               *template_dir; // Location of the template files
+    zhash_t            *gpio_mapping; // mapping for gpio sensors
 };
 
 // Configuration accessors
@@ -627,6 +628,8 @@ fty_sensor_gpio_server_new (const char* name)
     self->template_dir = NULL;
     self->gpio_lib = libgpio_new ();
     assert (self->gpio_lib);
+    self->gpio_mapping = zhash_new ();
+    assert (self->gpio_mapping);
 
     return self;
 }
@@ -643,6 +646,7 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
         fty_sensor_gpio_server_t *self = *self_p;
 
         //  Free class properties
+        zhash_destroy (&self->gpio_mapping);
         libgpio_destroy (&self->gpio_lib);
         zstr_free(&self->name);
         mlm_client_destroy (&self->mlm);
@@ -772,6 +776,13 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     libgpio_set_gpo_count (self->gpio_lib, gpo_count);
                     my_zsys_debug (self->verbose, "fty_sensor_gpio: GPO_COUNT=%i", gpo_count);
                     zstr_free (&str_gpo_count);
+                }
+                else if (streq (cmd, "GPI_MAPPING")) {
+                    char *key = zmsg_popstr (message);
+                    char *value = zmsg_popstr (message);
+                    zhash_insert(self->gpio_mapping, key, value);
+                    zstr_free (&key);
+                    zstr_free (&value);
                 }
                 else {
                     zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
