@@ -131,7 +131,6 @@ struct _fty_sensor_gpio_server_t {
     libgpio_t          *gpio_lib;     // GPIO library handle
     bool               test_mode;     // true if we are in test mode, false otherwise
     char               *template_dir; // Location of the template files
-    zhash_t            *gpio_mapping; // mapping for gpio sensors
 };
 
 // Configuration accessors
@@ -611,6 +610,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
     }
 }
 
+
 //  --------------------------------------------------------------------------
 //  Create a new fty_sensor_gpio_server
 
@@ -628,8 +628,6 @@ fty_sensor_gpio_server_new (const char* name)
     self->template_dir = NULL;
     self->gpio_lib = libgpio_new ();
     assert (self->gpio_lib);
-    self->gpio_mapping = zhash_new ();
-    assert (self->gpio_mapping);
 
     return self;
 }
@@ -646,7 +644,6 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
         fty_sensor_gpio_server_t *self = *self_p;
 
         //  Free class properties
-        zhash_destroy (&self->gpio_mapping);
         libgpio_destroy (&self->gpio_lib);
         zstr_free(&self->name);
         mlm_client_destroy (&self->mlm);
@@ -778,10 +775,27 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     zstr_free (&str_gpo_count);
                 }
                 else if (streq (cmd, "GPI_MAPPING")) {
-                    char *key = zmsg_popstr (message);
+                    const std::string key = zmsg_popstr (message);
                     char *value = zmsg_popstr (message);
-                    zhash_insert(self->gpio_mapping, key, value);
-                    zstr_free (&key);
+                    // drop the port descriptor because zconfig is stupid and doesn't allow number as a key
+                    const std::string port_str (key, 1);
+                    // convert to int
+                    int port_num = (int) strtol (port_str.c_str (), NULL, 10);
+                    int pin_num = (int) strtol (value, NULL, 10);
+                    my_zsys_debug (self->verbose, "port_num = %d->pin_num = %d", port_num, pin_num);
+                    libgpio_add_gpio_mapping (self->gpio_lib, port_num, pin_num);
+                    zstr_free (&value);
+                }
+                else if (streq (cmd, "GPO_MAPPING")) {
+                    const std::string key = zmsg_popstr (message);
+                    char *value = zmsg_popstr (message);
+                    // drop the port descriptor
+                    const std::string port_str (key, 1);
+                    // convert to int
+                    int port_num = (int) strtol (port_str.c_str (), NULL, 10);
+                    int pin_num = (int) strtol (value, NULL, 10);
+                    my_zsys_debug (self->verbose, "port_num = %d->pin_num = %d", port_num, pin_num);
+                    libgpio_add_gpio_mapping (self->gpio_lib, port_num, pin_num);
                     zstr_free (&value);
                 }
                 else {

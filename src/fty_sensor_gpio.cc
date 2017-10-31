@@ -81,8 +81,12 @@ int main (int argc, char *argv [])
     const char* gpi_count = "0";
     const char* gpo_offset = "0";
     const char* gpo_count = "0";
-    char **gpo_mapping[2] = {NULL,NULL};
-    char **gpi_mapping[2] = {NULL,NULL};
+    char ***gpo_mapping = new char**[2];
+    gpo_mapping[0] = (char **) malloc (sizeof (char**));
+    gpo_mapping[1] = (char **) malloc (sizeof (char**));
+    char ***gpi_mapping = new char**[2];
+    gpi_mapping[0] = (char **) malloc (sizeof (char**));
+    gpi_mapping[1] = (char **) malloc (sizeof (char**));
     int gpi_mapping_count = 0;
     int gpo_mapping_count = 0;
     int gpi_mapping_size = 1;
@@ -163,9 +167,10 @@ int main (int argc, char *argv [])
                     }
                     gpo_mapping[1] = tmp;
                 }
+                my_zsys_debug ("Key = %s, value = %s", zconfig_name (item), zconfig_value (item));
+                gpo_mapping[0][gpo_mapping_count] = strdup(zconfig_name(item));
+                gpo_mapping[1][gpo_mapping_count] = strdup(zconfig_value(item));
                 ++gpo_mapping_count;
-                gpo_mapping[gpo_mapping_count][0] = strdup(zconfig_value(item));
-                gpo_mapping[gpo_mapping_count][1] = strdup(zconfig_name(item));
                 item = zconfig_next(item);
             }
         }
@@ -177,7 +182,7 @@ int main (int argc, char *argv [])
         if (NULL != item) {
             item = zconfig_child(item);
             while (NULL != item) {
-                if (gpo_mapping_size == gpo_mapping_count) {
+                if (gpi_mapping_size == gpi_mapping_count) {
                     char **tmp = NULL;
                     gpi_mapping_size *= 2;
                     tmp = (char **)realloc(gpi_mapping[0], sizeof(char *) * gpi_mapping_size);
@@ -193,9 +198,10 @@ int main (int argc, char *argv [])
                     }
                     gpi_mapping[1] = tmp;
                 }
+                my_zsys_debug ("Key = %s, value = %s", zconfig_name (item), zconfig_value (item));
+                gpi_mapping[0][gpi_mapping_count] = strdup(zconfig_name(item));
+                gpi_mapping[1][gpi_mapping_count] = strdup(zconfig_value(item));
                 ++gpi_mapping_count;
-                gpi_mapping[gpi_mapping_count][0] = strdup(zconfig_value(item));
-                gpi_mapping[gpi_mapping_count][1] = strdup(zconfig_name(item));
                 item = zconfig_next(item);
             }
         }
