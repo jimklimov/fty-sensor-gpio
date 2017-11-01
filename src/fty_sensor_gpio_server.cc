@@ -610,7 +610,6 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
     }
 }
 
-
 //  --------------------------------------------------------------------------
 //  Create a new fty_sensor_gpio_server
 
