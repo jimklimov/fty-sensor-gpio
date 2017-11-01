@@ -20,7 +20,9 @@ hardware
 #   Offset to apply to access GPI pin, from base chipset address
     gpi_offset        = -1      #   GPI pins have -1 offset, i.e. GPI 1 is pin 0, ... (on IPC3000)
 # More advanced mapping
-#    gpo_mapping                 #   Mapping between GPO number and HW pin number
+    gpo_mapping                 #   Mapping between GPO number and HW pin number
 #        <gpo number> = <pin number>
+        p4 = 502
+        p5 = 503
 #    gpi_mapping                #   Mapping between GPI number and HW pin number
 #        <gpi number> = <pin number>

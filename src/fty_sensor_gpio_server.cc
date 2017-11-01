@@ -773,6 +773,30 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     my_zsys_debug (self->verbose, "fty_sensor_gpio: GPO_COUNT=%i", gpo_count);
                     zstr_free (&str_gpo_count);
                 }
+                else if (streq (cmd, "GPI_MAPPING")) {
+                    const std::string key = zmsg_popstr (message);
+                    char *value = zmsg_popstr (message);
+                    // drop the port descriptor because zconfig is stupid and doesn't allow number as a key
+                    const std::string port_str (key, 1);
+                    // convert to int
+                    int port_num = (int) strtol (port_str.c_str (), NULL, 10);
+                    int pin_num = (int) strtol (value, NULL, 10);
+                    my_zsys_debug (self->verbose, "port_num = %d->pin_num = %d", port_num, pin_num);
+                    libgpio_add_gpio_mapping (self->gpio_lib, port_num, pin_num);
+                    zstr_free (&value);
+                }
+                else if (streq (cmd, "GPO_MAPPING")) {
+                    const std::string key = zmsg_popstr (message);
+                    char *value = zmsg_popstr (message);
+                    // drop the port descriptor
+                    const std::string port_str (key, 1);
+                    // convert to int
+                    int port_num = (int) strtol (port_str.c_str (), NULL, 10);
+                    int pin_num = (int) strtol (value, NULL, 10);
+                    my_zsys_debug (self->verbose, "port_num = %d->pin_num = %d", port_num, pin_num);
+                    libgpio_add_gpio_mapping (self->gpio_lib, port_num, pin_num);
+                    zstr_free (&value);
+                }
                 else {
                     zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
                 }

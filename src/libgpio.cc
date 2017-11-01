@@ -1,21 +1,21 @@
 /*  =========================================================================
     libgpio - General Purpose Input/Output (GPIO) sensors library
 
-    Copyright (C) 2014 - 2017 Eaton                                        
-                                                                           
-    This program is free software; you can redistribute it and/or modify   
-    it under the terms of the GNU General Public License as published by   
-    the Free Software Foundation; either version 2 of the License, or      
-    (at your option) any later version.                                    
-                                                                           
-    This program is distributed in the hope that it will be useful,        
-    but WITHOUT ANY WARRANTY; without even the implied warranty of         
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          
-    GNU General Public License for more details.                           
-                                                                           
+    Copyright (C) 2014 - 2017 Eaton
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
     You should have received a copy of the GNU General Public License along
     with this program; if not, write to the Free Software Foundation, Inc.,
-    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.            
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
     =========================================================================
 */
 
@@ -38,6 +38,7 @@ struct _libgpio_t {
     int  gpi_offset;         // offset to access GPI pins
     int  gpo_count;          // number of supported GPO
     int  gpi_count;          // number of supported GPI
+    zhashx_t *gpio_mapping; // mapping for gpio sensors
 };
 
 //  Private functions forward declarations
@@ -51,6 +52,27 @@ static int mkpath(char* file_path, mode_t mode);
 //  Test mode variables
 const char *SELFTEST_DIR_RO = "src/selftest-ro";
 const char *SELFTEST_DIR_RW = "src/selftest-rw";
+
+void *dup_int_ptr (const void *ptr)
+{
+    if (ptr == NULL) {
+        zsys_error ("Attempt to dup NULL");
+        return NULL ;
+    }
+    int *new_ptr = (int *) zmalloc (sizeof (int));
+    *new_ptr = *(const int *)ptr;
+    return (void *)new_ptr;
+}
+
+void free_fn (void ** self_ptr)
+{
+    if (!self_ptr || !*self_ptr) {
+        zsys_error ("Attempt to free NULL");
+        return;
+    }
+    free (*self_ptr);
+}
+
 
 //  --------------------------------------------------------------------------
 //  Create a new libgpio
@@ -68,6 +90,11 @@ libgpio_new (void)
     self->gpi_count = 0;
     self->test_mode = false;
     self->verbose = false;
+    self->gpio_mapping = zhashx_new ();
+    zhashx_set_key_duplicator (self->gpio_mapping, dup_int_ptr);
+    zhashx_set_duplicator (self->gpio_mapping, dup_int_ptr);
+    zhashx_set_destructor (self->gpio_mapping, free_fn);
+    assert (self->gpio_mapping);
 
     return self;
 }
@@ -120,7 +147,14 @@ libgpio_set_gpo_count (libgpio_t *self, int gpo_count)
     self->gpo_count = gpo_count;
 }
 
-
+//---------------------------------------------------------------------------
+// Add mapping GPx number -> HW pin number
+void
+libgpio_add_gpio_mapping (libgpio_t *self, int port_num, int pin_num)
+{
+    my_zsys_debug (self->verbose, "%s: adding GPIO mapping from port %d to pin %d", __func__, port_num, pin_num);
+    zhashx_insert (self->gpio_mapping, (void *)&port_num, (void *)&pin_num);
+}
 //  --------------------------------------------------------------------------
 //  Set the test mode
 
@@ -142,6 +176,18 @@ libgpio_set_verbose (libgpio_t *self, bool verbose)
 }
 
 //  --------------------------------------------------------------------------
+//  Compute HW pin number
+int
+libgpio_compute_pin_number (libgpio_t *self, int GPx_number, int direction)
+{
+    int *found_pin_ptr = (int *) zhashx_lookup (self->gpio_mapping, (const void *)&GPx_number);
+    if (found_pin_ptr != NULL)
+        return *found_pin_ptr;
+    int offset = (direction==GPIO_DIRECTION_IN)?self->gpi_offset:self->gpo_offset;
+    return (self->gpio_base_address + offset + GPx_number);
+}
+
+//  --------------------------------------------------------------------------
 //  Read a GPI or GPO status
 int
 libgpio_read (libgpio_t *self, int GPx_number, int direction)
@@ -159,10 +205,9 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         return -1;
     }
 
-    int pin = (GPx_number + ((direction==GPIO_DIRECTION_IN)?self->gpi_offset:self->gpo_offset));
+    int pin = libgpio_compute_pin_number (self, GPx_number, direction);
 
     my_zsys_debug (self->verbose, "%s: reading GPx #%i (pin %i)", __func__, GPx_number, pin);
-
     // Enable the desired GPIO
     if (libgpio_export(self, pin) == -1)
         return -1;
@@ -186,7 +231,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
 
     snprintf(path, GPIO_VALUE_MAX, "%s/sys/class/gpio/gpio%d/value",
         (self->test_mode)?SELFTEST_DIR_RW:"", // trick #1 to allow testing
-        pin + self->gpio_base_address);
+        pin);
     // trick #2 to allow testing
     if (self->test_mode)
         mkpath(path, 0777);
@@ -229,22 +274,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
         return -1;
     }
 
-    // Adjust GPO pin number for IPC3000EM v4 (with 5 GPO)
-    int pin;
-    switch(GPO_number) {                                       
-        case 1:                                         
-        case 2:                                         
-        case 3:                                         
-            pin = (GPO_number + self->gpo_offset);
-            break;
-        case 4:                                         
-        case 5:
-            pin = (GPO_number + self->gpo_offset -10);
-            break;
-        default:
-            pin = (GPO_number + self->gpo_offset);
-            break;
-    }
+    int pin = libgpio_compute_pin_number (self, GPO_number, GPIO_DIRECTION_OUT);
 
     my_zsys_debug (self->verbose, "%s: writing GPO #%i (pin %i)", __func__, GPO_number, pin);
 
@@ -269,10 +299,10 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
             return -1;
     }
 
+    // trick #2 to allow testing
     snprintf(path, GPIO_VALUE_MAX, "%s/sys/class/gpio/gpio%d/value",
         (self->test_mode)?SELFTEST_DIR_RW:"", // trick #1 to allow testing
-        pin + self->gpio_base_address);
-    // trick #2 to allow testing
+        pin);
     if (self->test_mode)
         mkpath(path, 0777);
     fd = open(path, O_WRONLY | ((self->test_mode)?O_CREAT:0), 0777);
@@ -351,6 +381,7 @@ libgpio_destroy (libgpio_t **self_p)
     if (*self_p) {
         libgpio_t *self = *self_p;
         //  Free class properties here
+        zhashx_destroy (&self->gpio_mapping);
         //  Free object itself
         free (self);
         *self_p = NULL;

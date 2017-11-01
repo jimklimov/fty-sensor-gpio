@@ -81,6 +81,16 @@ int main (int argc, char *argv [])
     const char* gpi_count = "0";
     const char* gpo_offset = "0";
     const char* gpo_count = "0";
+    char ***gpo_mapping = new char**[2];
+    gpo_mapping[0] = (char **) malloc (sizeof (char**));
+    gpo_mapping[1] = (char **) malloc (sizeof (char**));
+    char ***gpi_mapping = new char**[2];
+    gpi_mapping[0] = (char **) malloc (sizeof (char**));
+    gpi_mapping[1] = (char **) malloc (sizeof (char**));
+    int gpi_mapping_count = 0;
+    int gpo_mapping_count = 0;
+    int gpi_mapping_size = 1;
+    int gpo_mapping_size = 1;
     bool verbose = false;
     int argn;
 
@@ -137,10 +147,64 @@ int main (int argc, char *argv [])
         // GPO configuration
         gpo_offset = s_get (config, "hardware/gpo_offset", "0");
         gpo_count = s_get (config, "hardware/gpo_count", "0");
+        zconfig_t *item = zconfig_locate(config, "hardware/gpo_mapping");
+        if (NULL != item) {
+            item = zconfig_child(item);
+            while (NULL != item) {
+                if (gpo_mapping_size == gpo_mapping_count) {
+                    char **tmp = NULL;
+                    gpo_mapping_size *= 2;
+                    tmp = (char **)realloc(gpo_mapping[0], sizeof(char *) * gpo_mapping_size);
+                    if (NULL == tmp) {
+                        zsys_error("gpo_mapping reallocation failed, OOM!");
+                        return -1;
+                    }
+                    gpo_mapping[0] = tmp;
+                    tmp = (char **)realloc(gpo_mapping[1], sizeof(char *) * gpo_mapping_size);
+                    if (NULL == tmp) {
+                        zsys_error("gpo_mapping reallocation failed, OOM!");
+                        return -1;
+                    }
+                    gpo_mapping[1] = tmp;
+                }
+                my_zsys_debug ("Key = %s, value = %s", zconfig_name (item), zconfig_value (item));
+                gpo_mapping[0][gpo_mapping_count] = strdup(zconfig_name(item));
+                gpo_mapping[1][gpo_mapping_count] = strdup(zconfig_value(item));
+                ++gpo_mapping_count;
+                item = zconfig_next(item);
+            }
+        }
 
         // GPI configuration
         gpi_offset = s_get (config, "hardware/gpi_offset", "0");
         gpi_count = s_get (config, "hardware/gpi_count", "0");
+        item = zconfig_locate(config, "hardware/gpi_mapping");
+        if (NULL != item) {
+            item = zconfig_child(item);
+            while (NULL != item) {
+                if (gpi_mapping_size == gpi_mapping_count) {
+                    char **tmp = NULL;
+                    gpi_mapping_size *= 2;
+                    tmp = (char **)realloc(gpi_mapping[0], sizeof(char *) * gpi_mapping_size);
+                    if (NULL == tmp) {
+                        zsys_error("gpi_mapping reallocation failed, OOM!");
+                        return -1;
+                    }
+                    gpi_mapping[0] = tmp;
+                    tmp = (char **)realloc(gpi_mapping[1], sizeof(char *) * gpi_mapping_size);
+                    if (NULL == tmp) {
+                        zsys_error("gpi_mapping reallocation failed, OOM!");
+                        return -1;
+                    }
+                    gpi_mapping[1] = tmp;
+                }
+                my_zsys_debug ("Key = %s, value = %s", zconfig_name (item), zconfig_value (item));
+                gpi_mapping[0][gpi_mapping_count] = strdup(zconfig_name(item));
+                gpi_mapping[1][gpi_mapping_count] = strdup(zconfig_value(item));
+                ++gpi_mapping_count;
+                item = zconfig_next(item);
+            }
+        }
 
         my_zsys_debug (verbose, "Polling interval set to %i", poll_interval);
         if (endpoint) zstr_free(&endpoint);
@@ -218,6 +282,13 @@ int main (int argc, char *argv [])
     zstr_sendx (server, "GPO_OFFSET", gpo_offset, NULL);
     zstr_sendx (server, "GPI_COUNT", gpi_count, NULL);
     zstr_sendx (server, "GPO_COUNT", gpo_count, NULL);
+    int i = 0;
+    for (i = 0; i < gpi_mapping_count; ++i) {
+        zstr_sendx (server, "GPI_MAPPING", gpi_mapping[0][i], gpi_mapping[1][i], NULL);
+    }
+    for (i = 0; i < gpo_mapping_count; ++i) {
+        zstr_sendx (server, "GPO_MAPPING", gpo_mapping[0][i], gpo_mapping[1][i], NULL);
+    }
 
     // Setup an update event message every x microseconds, to check GPI status
     zloop_t *gpio_status_update = zloop_new();
@@ -232,6 +303,10 @@ int main (int argc, char *argv [])
     zstr_free(&actor_name);
     zstr_free(&endpoint);
     zconfig_destroy (&config);
+    free(gpi_mapping[0]);
+    free(gpi_mapping[1]);
+    free(gpo_mapping[0]);
+    free(gpo_mapping[1]);
 
     return 0;
 }
