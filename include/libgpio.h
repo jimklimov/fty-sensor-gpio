@@ -53,7 +53,7 @@ FTY_SENSOR_GPIO_EXPORT libgpio_t *
     libgpio_new (void);
 
 //  @interface
-//  Compute HW pin number
+//  Compute and store HW pin number
 FTY_SENSOR_GPIO_EXPORT int
     libgpio_compute_pin_number (libgpio_t *self, int GPx_number, int direction);
 
