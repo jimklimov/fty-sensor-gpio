@@ -76,7 +76,7 @@
 
     REQ:
         subject: "GPIO_MANIFEST_SUMMARY"
-        Message is a multipart string message
+        Message is a multipart string message: <zuuid>
 
               - get the list of supported sensors
                 this is a light version of GPIO_MANIFEST, only returning
@@ -86,8 +86,8 @@
         subject: "GPIO_MANIFEST_SUMMARY"
         Message is a multipart message:
 
-        * OK/<sensor 1 description>/.../<sensor N description> = non-empty
-        * ERROR/<reason>
+        * <zuuid>/OK/<sensor 1 description>/.../<sensor N description> = non-empty
+        * <zuuid>/ERROR/<reason>
 
         where:
             <reason>                 = ASSET_NOT_FOUND / BAD_COMMAND
@@ -517,7 +517,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             int rv = mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), subject.c_str(), NULL, 5000, &reply);
             if (rv == -1)
                 zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
-
+            zstr_free (&zuuid);
         }
         else if (subject == "GPIO_TEMPLATE_ADD") {
             char *zuuid = zmsg_popstr (message);
@@ -600,7 +600,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
 
             zstr_free(&sensor_partnumber);
-
+            zstr_free (&zuuid);
         }
 
         else if (subject == "GPIO_TEST") {
@@ -829,8 +829,8 @@ fty_sensor_gpio_server_test (bool verbose)
     // FIXME: disable -server test for now, while waiting to catch
     // the malamute race-cond leak
     // See https://github.com/42ity/fty-sensor-gpio/issues/11
-    printf ("OK\n");
-    return;
+    //printf ("OK\n");
+    //return;
 
     // Note: If your selftest reads SCMed fixture data, please keep it in
     // src/selftest-ro; if your test creates filesystem objects, please
@@ -894,7 +894,7 @@ fty_sensor_gpio_server_test (bool verbose)
     rv = add_sensor(assets_self, "create",
         "Eaton", "sensorgpio-11", "GPIO-Test-GPO1",
         "DCS001", "dummy",
-        "closed", "1",
+        "closed", "2",
         "GPO", "IPC1", "Room1", "",
         "Dummy has been $status", "WARNING");
     assert (rv == 0);
@@ -909,7 +909,7 @@ fty_sensor_gpio_server_test (bool verbose)
     assert (rc == 1);
     close (handle);
     // and the path for GPO
-    std::string gpo_sys_dir = str_SELFTEST_DIR_RW + "/sys/class/gpio/gpio489";
+    std::string gpo_sys_dir = str_SELFTEST_DIR_RW + "/sys/class/gpio/gpio490";
     zsys_dir_create (gpo_sys_dir.c_str());
 
     // Acquire the list of monitored sensors
@@ -936,24 +936,24 @@ fty_sensor_gpio_server_test (bool verbose)
         // Send an update and check for the generated metric
         zstr_sendx (self, "UPDATE", endpoint, NULL);
 // leak HERE?!
-//        zclock_sleep (500);
+        zclock_sleep (500);
 
         // Check the published metric
         zmsg_t *recv = mlm_client_recv (metrics_listener);
         assert (recv);
         fty_proto_t *frecv = fty_proto_decode (&recv);
         assert (frecv);
-        assert (streq (fty_proto_name (frecv), "sensorgpio-10"));
+        assert (streq (fty_proto_name (frecv), "IPC1"));
         assert (streq (fty_proto_type (frecv), "status.GPI1"));
         assert (streq (fty_proto_aux_string (frecv, "port", NULL), "GPI1"));
         assert (streq (fty_proto_value (frecv), "closed"));
+        assert (streq (fty_proto_aux_string (frecv, FTY_PROTO_METRICS_SENSOR_AUX_SNAME, NULL), "sensorgpio-10"));
 
         fty_proto_destroy (&frecv);
         zmsg_destroy (&recv);
         mlm_client_destroy (&metrics_listener);
     }
 // leak HERE end
-
     // Test #2: Post a GPIO_TEMPLATE_ADD request and check the file created
     // Note: this will serve afterward for the GPIO_MANIFEST / GPIO_MANIFEST_SUMMARY
     // requests
@@ -984,7 +984,8 @@ fty_sensor_gpio_server_test (bool verbose)
         zsys_debug("Got answer: '%s'", answer);
         assert ( streq (answer, "OK") );
         zstr_free(&answer);
-        zmsg_destroy (&msg);
+
+        zuuid_destroy (&zuuid);
         zmsg_destroy (&recv);
     }
 
@@ -1003,6 +1004,7 @@ fty_sensor_gpio_server_test (bool verbose)
         char *recv_str = zmsg_popstr (recv);
         assert (streq (zuuid_str_canonical (zuuid), recv_str));
         zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
         assert ( streq ( recv_str, "OK") );
         zstr_free (&recv_str);
         recv_str = zmsg_popstr (recv);
@@ -1030,13 +1032,16 @@ fty_sensor_gpio_server_test (bool verbose)
         assert ( streq ( recv_str, "test triggered") );
         zstr_free (&recv_str);
 
-        zmsg_destroy (&msg);
+        zuuid_destroy (&zuuid);
         zmsg_destroy (&recv);
     }
 
     // Test #4: Request GPIO_MANIFEST_SUMMARY and check it
     {
         zmsg_t *msg = zmsg_new ();
+        zuuid_t *zuuid = zuuid_new ();
+        zmsg_addstr (msg, zuuid_str_canonical (zuuid));
+
         int rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPIO_MANIFEST_SUMMARY", NULL, 5000, &msg);
         assert ( rv == 0 );
 
@@ -1044,6 +1049,9 @@ fty_sensor_gpio_server_test (bool verbose)
         zmsg_t *recv = mlm_client_recv (mb_client);
         assert(recv);
         char *recv_str = zmsg_popstr (recv);
+        assert (streq (zuuid_str_canonical (zuuid), recv_str));
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
         assert ( streq ( recv_str, "OK") );
         zstr_free (&recv_str);
         recv_str = zmsg_popstr (recv);
@@ -1053,9 +1061,10 @@ fty_sensor_gpio_server_test (bool verbose)
         assert ( streq ( recv_str, "FooManufacturer") );
         zstr_free (&recv_str);
 
-        zmsg_destroy (&msg);
+        zuuid_destroy (&zuuid);
         zmsg_destroy (&recv);
     }
+
     // Test #5: Send GPO_INTERACTION request on GPO 'sensor-11' and check it
     {
         zmsg_t *msg = zmsg_new ();

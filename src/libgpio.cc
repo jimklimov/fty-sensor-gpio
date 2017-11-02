@@ -176,15 +176,19 @@ libgpio_set_verbose (libgpio_t *self, bool verbose)
 }
 
 //  --------------------------------------------------------------------------
-//  Compute HW pin number
+//  Compute and store HW pin number
 int
 libgpio_compute_pin_number (libgpio_t *self, int GPx_number, int direction)
 {
     int *found_pin_ptr = (int *) zhashx_lookup (self->gpio_mapping, (const void *)&GPx_number);
-    if (found_pin_ptr != NULL)
+    if (found_pin_ptr == NULL) {
+        int offset = (direction==GPIO_DIRECTION_IN)?self->gpi_offset:self->gpo_offset;
+        int pin = self->gpio_base_address + offset + GPx_number;
+        zhashx_update (self->gpio_mapping, (const void *)&GPx_number, (void *)&pin);
+        return pin;
+    }
+    else
         return *found_pin_ptr;
-    int offset = (direction==GPIO_DIRECTION_IN)?self->gpi_offset:self->gpo_offset;
-    return (self->gpio_base_address + offset + GPx_number);
 }
 
 //  --------------------------------------------------------------------------
@@ -205,8 +209,12 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         return -1;
     }
 
-    int pin = libgpio_compute_pin_number (self, GPx_number, direction);
-
+    int pin;
+    int *pin_ptr = (int *)(zhashx_lookup (self->gpio_mapping, (const void *)&GPx_number));
+    if (pin_ptr == NULL)
+        pin = libgpio_compute_pin_number (self, GPx_number, direction);
+    else
+        pin = *pin_ptr;
     my_zsys_debug (self->verbose, "%s: reading GPx #%i (pin %i)", __func__, GPx_number, pin);
     // Enable the desired GPIO
     if (libgpio_export(self, pin) == -1)
@@ -274,7 +282,12 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
         return -1;
     }
 
-    int pin = libgpio_compute_pin_number (self, GPO_number, GPIO_DIRECTION_OUT);
+    int pin;
+    int *pin_ptr = (int *)(zhashx_lookup (self->gpio_mapping, (const void *)&GPO_number));
+    if (pin_ptr == NULL)
+        pin = libgpio_compute_pin_number (self, GPO_number, GPIO_DIRECTION_OUT);
+    else
+        pin = *pin_ptr;
 
     my_zsys_debug (self->verbose, "%s: writing GPO #%i (pin %i)", __func__, GPO_number, pin);
 
@@ -551,7 +564,7 @@ libgpio_set_direction(libgpio_t *self, int pin, int direction)
 
     snprintf(path, GPIO_DIRECTION_MAX, "%s/sys/class/gpio/gpio%d/direction",
         ((self->test_mode)?SELFTEST_DIR_RW:""), // trick #1 to allow testing
-        pin + self->gpio_base_address);
+        pin);
     // trick #2 to allow testing
     if (self->test_mode)
         mkpath(path, 0777);
