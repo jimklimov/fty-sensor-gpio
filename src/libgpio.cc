@@ -551,7 +551,7 @@ libgpio_set_direction(libgpio_t *self, int pin, int direction)
 
     snprintf(path, GPIO_DIRECTION_MAX, "%s/sys/class/gpio/gpio%d/direction",
         ((self->test_mode)?SELFTEST_DIR_RW:""), // trick #1 to allow testing
-        pin + self->gpio_base_address);
+        pin);
     // trick #2 to allow testing
     if (self->test_mode)
         mkpath(path, 0777);
