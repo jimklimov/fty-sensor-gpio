@@ -984,7 +984,8 @@ fty_sensor_gpio_server_test (bool verbose)
         zsys_debug("Got answer: '%s'", answer);
         assert ( streq (answer, "OK") );
         zstr_free(&answer);
-        zmsg_destroy (&msg);
+
+        zuuid_destroy (&zuuid);
         zmsg_destroy (&recv);
     }
 
