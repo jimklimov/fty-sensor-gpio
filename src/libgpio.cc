@@ -489,9 +489,9 @@ libgpio_export(libgpio_t *self, int pin)
         zsys_error("%s: Failed to open %s for writing! %i", __func__, path, errno);
         return -1;
     }
-    my_zsys_debug (self->verbose, "%s: exporting pin %d", __func__, pin + self->gpio_base_address);
+    my_zsys_debug (self->verbose, "%s: exporting pin %d", __func__, pin);
 
-    bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin + self->gpio_base_address);
+    bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin);
     if (write(fd, buffer, bytes_written) < bytes_written) {
         my_zsys_debug (self->verbose, "%s: ERROR: wrote less than %i bytes (errno %i)",
             __func__, bytes_written, errno);
@@ -525,7 +525,7 @@ libgpio_unexport(libgpio_t *self, int pin)
       return -1;
     }
 
-    bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin + self->gpio_base_address);
+    bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin);
     if (write(fd, buffer, bytes_written) < bytes_written) {
         my_zsys_debug (self->verbose, "%s: ERROR: wrote less than %i bytes",
             __func__, bytes_written);
