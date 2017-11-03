@@ -32,7 +32,7 @@
         subject: "GPO_INTERACTION"
         Message is a multipart string message
 
-        /sensor/action              - apply action (open | close) on sensor (asset or ext name)
+        <zuuid>/sensor/action              - apply action (open | close) on sensor (asset or ext name)
                                       beside from open and close, enable | enabled |opened | high
                                       and disable | disabled | closed | low are also supported
 
@@ -40,10 +40,11 @@
         subject: "GPO_INTERACTION"
         Message is a multipart message:
 
-        * OK                         = action applied successfully
-        * ERROR/<reason>
+        * <zuuid>/OK                         = action applied successfully
+        * <zuuid>/ERROR/<reason>
 
         where:
+            <zuuid> = info for REST API so it could match response to request
             <reason>          = ASSET_NOT_FOUND / SET_VALUE_FAILED / UNKNOWN_VALUE / BAD_COMMAND
 
      ------------------------------------------------------------------------
@@ -90,6 +91,7 @@
         * <zuuid>/ERROR/<reason>
 
         where:
+            <zuuid> = info for REST API so it could match response to request
             <reason>                 = ASSET_NOT_FOUND / BAD_COMMAND
             <sensor N description> = sensor_partnumber/manufacturer
 
@@ -100,7 +102,7 @@
         subject: "GPIO_TEMPLATE_ADD"
         Message is a multipart string message
 
-        /<sensor description>      - request the creation of a sensor template file
+        <zuuid>/<sensor description>      - request the creation of a sensor template file
 
         where:
             <sensor description> = sensor_partnumber/manufacturer/type/normal_state/gpx_direction/alarm_severity/alarm_message
@@ -109,10 +111,11 @@
         subject: "GPIO_TEMPLATE_ADD"
         Message is a multipart message:
 
-        * OK
-        * ERROR/<reason>
+        * <zuuid>/OK
+        * <zuuid>/ERROR/<reason>
 
         where:
+            <zuuid> = info for REST API so it could match response to request
             <reason>             = ...
 
 
@@ -350,6 +353,8 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         my_zsys_debug (self->verbose, "%s: '%s' requested", self->name, subject.c_str());
 
         if (subject == "GPO_INTERACTION") {
+            char *zuuid = zmsg_popstr (message);
+            zmsg_addstr (reply, zuuid);
             char *sensor_name = zmsg_popstr (message);
             char *action_name = zmsg_popstr (message);
             my_zsys_debug (self->verbose, "GPO_INTERACTION: do '%s' on '%s'",
@@ -408,6 +413,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             pthread_mutex_unlock (&gpx_list_mutex);
             zstr_free(&sensor_name);
             zstr_free(&action_name);
+            zstr_free (&zuuid);
         }
         else if ( (subject == "GPIO_MANIFEST") || (subject == "GPIO_MANIFEST_SUMMARY") ) {
             // FIXME: consolidate code using filters
@@ -1068,6 +1074,8 @@ fty_sensor_gpio_server_test (bool verbose)
     // Test #5: Send GPO_INTERACTION request on GPO 'sensor-11' and check it
     {
         zmsg_t *msg = zmsg_new ();
+        zuuid_t *zuuid = zuuid_new ();
+        zmsg_addstr (msg, zuuid_str_canonical (zuuid));
         zmsg_addstr (msg, "sensorgpio-11");     // sensor
         zmsg_addstr (msg, "open");          // action
         int rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPO_INTERACTION", NULL, 5000, &msg);
@@ -1077,10 +1085,13 @@ fty_sensor_gpio_server_test (bool verbose)
         zmsg_t *recv = mlm_client_recv (mb_client);
         assert(recv);
         char *recv_str = zmsg_popstr (recv);
+        assert (streq (zuuid_str_canonical (zuuid), recv_str));
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
         assert ( streq ( recv_str, "OK") );
         zstr_free (&recv_str);
 
-        zmsg_destroy (&msg);
+        zuuid_destroy (&zuuid);
         zmsg_destroy (&recv);
 
         // Now check the filesystem
