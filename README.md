@@ -229,10 +229,11 @@ It is possible to request the agent GPIO for:
 The USER peer sends the following messages using MAILBOX SEND to
 FTY-SENSOR-GPIO-AGENT ("fty-sensor-gpio") peer:
 
-* GPO_INTERACTION/sensor/action - apply 'action' (open | close) on 'sensor' (asset or ext name)
+* GPO_INTERACTION/<correlation ID>/sensor/action - apply 'action' (open | close) on 'sensor' (asset or ext name)
 
 where
 * '/' indicates a multipart string message
+* 'correlation ID' is a zuuid identifier provided by the caller
 * 'sensor' MUST be the sensor asset name or ext name
 * 'action' MUST be one of
     - [ enable | enabled | open | opened | high ]
@@ -242,11 +243,12 @@ where
 The FTY-SENSOR-GPIO-AGENT peer MUST respond with one of the messages back to USER
 peer using MAILBOX SEND.
 
-* OK
-* ERROR/reason
+* <correlation ID>/OK
+* <correlation ID>/ERROR/reason
 
 where
 * '/' indicates a multipart frame message
+* 'correlation ID' is a zuuid identifier provided by the caller
 * 'reason' is string detailing reason for error. Possible values are:
 ASSET_NOT_FOUND / SET_VALUE_FAILED / UNKNOWN_VALUE / BAD_COMMAND.
 
