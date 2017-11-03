@@ -45,7 +45,7 @@
 
         where:
             <zuuid> = info for REST API so it could match response to request
-            <reason>          = ASSET_NOT_FOUND / SET_VALUE_FAILED / UNKNOWN_VALUE / BAD_COMMAND
+            <reason>          = ASSET_NOT_FOUND / SET_VALUE_FAILED / UNKNOWN_VALUE / BAD_COMMAND / ACTION_NOT_APPLICABLE
 
      ------------------------------------------------------------------------
     ## GPIO_MANIFEST
@@ -381,8 +381,17 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 if ( (gpx_info) && ((streq(gpx_info->asset_name, sensor_name))
                     || streq(gpx_info->ext_name, sensor_name)) ) {
                     int status_value = libgpio_get_status_value (action_name);
+                    int current_state = gpx_info->current_state;
 
                     if (status_value != GPIO_STATE_UNKNOWN) {
+                        // check whether this action is allowed in this state
+                        if (status_value == current_state) {
+                            zsys_error ("Current state is %s, GPO is requested to become %s",
+                                    (libgpio_get_status_string (current_state)).c_str (),
+                                    (libgpio_get_status_string (status_value)).c_str ());
+                            zmsg_addstr (reply, "ERROR");
+                            zmsg_addstr (reply, "ACTION_NOT_APPLICABLE");
+                        }
                         if (libgpio_write (self->gpio_lib, gpx_info->gpx_number, status_value) != 0) {
                             zsys_error ("GPO_INTERACTION: failed to set value!");
                             zmsg_addstr (reply, "ERROR");

@@ -250,7 +250,7 @@ where
 * '/' indicates a multipart frame message
 * 'correlation ID' is a zuuid identifier provided by the caller
 * 'reason' is string detailing reason for error. Possible values are:
-ASSET_NOT_FOUND / SET_VALUE_FAILED / UNKNOWN_VALUE / BAD_COMMAND.
+ASSET_NOT_FOUND / SET_VALUE_FAILED / UNKNOWN_VALUE / BAD_COMMAND / ACTION_NOT_APPLICABLE.
 
 #### Detailed manifest of supported sensors
 
