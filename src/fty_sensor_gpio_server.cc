@@ -378,8 +378,8 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     }
                     gpx_info = (_gpx_info_t *)zlistx_next (gpx_list);
                 }
-                if ( (gpx_info) && ((streq(gpx_info->asset_name, sensor_name))
-                    || streq(gpx_info->ext_name, sensor_name)) ) {
+                if ( (gpx_info) && (gpx_info->gpx_direction == GPIO_DIRECTION_OUT)
+                    && ((streq(gpx_info->asset_name, sensor_name)) || streq(gpx_info->ext_name, sensor_name)) ) {
                     int status_value = libgpio_get_status_value (action_name);
                     int current_state = gpx_info->current_state;
 
@@ -392,15 +392,17 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                             zmsg_addstr (reply, "ERROR");
                             zmsg_addstr (reply, "ACTION_NOT_APPLICABLE");
                         }
-                        if (libgpio_write (self->gpio_lib, gpx_info->gpx_number, status_value) != 0) {
-                            zsys_error ("GPO_INTERACTION: failed to set value!");
-                            zmsg_addstr (reply, "ERROR");
-                            zmsg_addstr (reply, "SET_VALUE_FAILED");
-                        }
                         else {
-                            zmsg_addstr (reply, "OK");
-                            // Update the GPO state
-                            gpx_info->current_state = status_value;
+                            if (libgpio_write (self->gpio_lib, gpx_info->gpx_number, status_value) != 0) {
+                                zsys_error ("GPO_INTERACTION: failed to set value!");
+                                zmsg_addstr (reply, "ERROR");
+                                zmsg_addstr (reply, "SET_VALUE_FAILED");
+                            }
+                            else {
+                                zmsg_addstr (reply, "OK");
+                                // Update the GPO state
+                                gpx_info->current_state = status_value;
+                            }
                         }
                     }
                     else {
