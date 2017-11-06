@@ -1,21 +1,21 @@
 /*  =========================================================================
     fty_sensor_gpio_assets - 42ITy GPIO assets handler
 
-    Copyright (C) 2014 - 2017 Eaton                                        
-                                                                           
-    This program is free software; you can redistribute it and/or modify   
-    it under the terms of the GNU General Public License as published by   
-    the Free Software Foundation; either version 2 of the License, or      
-    (at your option) any later version.                                    
-                                                                           
-    This program is distributed in the hope that it will be useful,        
-    but WITHOUT ANY WARRANTY; without even the implied warranty of         
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          
-    GNU General Public License for more details.                           
-                                                                           
+    Copyright (C) 2014 - 2017 Eaton
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
     You should have received a copy of the GNU General Public License along
     with this program; if not, write to the Free Software Foundation, Inc.,
-    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.            
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
     =========================================================================
 */
 
@@ -53,8 +53,8 @@ get_gpx_list(bool verbose)
     my_zsys_debug (verbose, "%s", __func__);
     if (!_gpx_list)
         my_zsys_debug (verbose, "%s: GPx list not initialized, skipping", __func__);
-    //return zlistx_dup (_gpx_list); 
-    return _gpx_list; 
+    //return zlistx_dup (_gpx_list);
+    return _gpx_list;
 }
 
 //  --------------------------------------------------------------------------
@@ -96,7 +96,7 @@ void sensor_free(void **item)
 
     if (gpx_info->alarm_severity)
         free(gpx_info->alarm_severity);
-    
+
     free(gpx_info);
 }
 
@@ -116,7 +116,7 @@ static int sensor_cmp(const void *item1, const void *item2)
 {
     _gpx_info_t *gpx_info1 = (_gpx_info_t *)item1;
     _gpx_info_t *gpx_info2 = (_gpx_info_t *)item2;
-    
+
     // Compare on asset_name
     if ( streq(gpx_info1->asset_name, gpx_info2->asset_name) )
         return 0;
@@ -258,6 +258,24 @@ static int
 delete_sensor(fty_sensor_gpio_assets_t *self, const char* assetname)
 {
     int retval = 0;
+
+    // We need to find out GPx direction
+    // And we cannot use gpx_info_result because it contains garbage on `gpx_direction` position
+    _gpx_info_t *info = (_gpx_info_t *)zlistx_first (_gpx_list);
+    while (info != NULL) {
+        char *info_name = info->asset_name;
+        if (streq (info_name, assetname)) {
+            int direction = info->gpx_direction;
+            if (direction ==  GPIO_DIRECTION_OUT) {
+                zmsg_t *request = zmsg_new ();
+                zmsg_addstr (request, assetname);
+                zmsg_addstr (request, "-1");
+                mlm_client_sendto (self->mlm, FTY_SENSOR_GPIO_AGENT, "GPOSTATE", NULL, 1000, &request);
+            }
+            break;
+        }
+        info = (_gpx_info_t *)zlistx_next (_gpx_list);
+    }
 
     _gpx_info_t *gpx_info_result = NULL;
     _gpx_info_t *gpx_info = sensor_new();
@@ -404,6 +422,14 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
             my_zsys_debug (self->verbose, "No sensor pin (port) provided! Skipping sensor");
             zconfig_destroy (&config_template);
             return;
+        }
+
+        if (streq (sensor_gpx_direction, "GPO")) {
+            zmsg_t *request = zmsg_new ();
+            zmsg_addstr (request, assetname);
+            zmsg_addstr (request, sensor_gpx_number);
+            zmsg_addstr (request, sensor_normal_state);
+            mlm_client_sendto (self->mlm, FTY_SENSOR_GPIO_AGENT, "GPOSTATE", NULL, 1000, &request);
         }
 
         add_sensor( self, operation,
@@ -583,7 +609,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
     zpoller_t *poller = zpoller_new (pipe, mlm_client_msgpipe (self->mlm), NULL);
     assert (poller);
 
-    zsock_signal (pipe, 0); 
+    zsock_signal (pipe, 0);
     zsys_info ("%s_assets: Started", self->name);
 
     while (!zsys_interrupted)

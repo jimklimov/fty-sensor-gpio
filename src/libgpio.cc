@@ -64,7 +64,7 @@ void *dup_int_ptr (const void *ptr)
     return (void *)new_ptr;
 }
 
-void free_fn (void ** self_ptr)
+static void free_fn (void ** self_ptr)
 {
     if (!self_ptr || !*self_ptr) {
         zsys_error ("Attempt to free NULL");
