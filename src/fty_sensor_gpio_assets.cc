@@ -1,21 +1,21 @@
 /*  =========================================================================
     fty_sensor_gpio_assets - 42ITy GPIO assets handler
 
-    Copyright (C) 2014 - 2017 Eaton                                        
-                                                                           
-    This program is free software; you can redistribute it and/or modify   
-    it under the terms of the GNU General Public License as published by   
-    the Free Software Foundation; either version 2 of the License, or      
-    (at your option) any later version.                                    
-                                                                           
-    This program is distributed in the hope that it will be useful,        
-    but WITHOUT ANY WARRANTY; without even the implied warranty of         
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          
-    GNU General Public License for more details.                           
-                                                                           
+    Copyright (C) 2014 - 2017 Eaton
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
     You should have received a copy of the GNU General Public License along
     with this program; if not, write to the Free Software Foundation, Inc.,
-    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.            
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
     =========================================================================
 */
 
@@ -53,8 +53,8 @@ get_gpx_list(bool verbose)
     my_zsys_debug (verbose, "%s", __func__);
     if (!_gpx_list)
         my_zsys_debug (verbose, "%s: GPx list not initialized, skipping", __func__);
-    //return zlistx_dup (_gpx_list); 
-    return _gpx_list; 
+    //return zlistx_dup (_gpx_list);
+    return _gpx_list;
 }
 
 //  --------------------------------------------------------------------------
@@ -96,7 +96,7 @@ void sensor_free(void **item)
 
     if (gpx_info->alarm_severity)
         free(gpx_info->alarm_severity);
-    
+
     free(gpx_info);
 }
 
@@ -116,7 +116,7 @@ static int sensor_cmp(const void *item1, const void *item2)
 {
     _gpx_info_t *gpx_info1 = (_gpx_info_t *)item1;
     _gpx_info_t *gpx_info2 = (_gpx_info_t *)item2;
-    
+
     // Compare on asset_name
     if ( streq(gpx_info1->asset_name, gpx_info2->asset_name) )
         return 0;
@@ -305,7 +305,7 @@ is_asset_gpio_sensor (fty_sensor_gpio_assets_t *self, string asset_subtype, stri
     }
     else {
         // Check if it's a sensor, otherwise no need to continue!
-        if (asset_subtype != "sensorgpio") {
+        if (asset_subtype != "sensorgpio" && asset_subtype != "gpo") {
             my_zsys_debug (self->verbose, "Asset is not a GPIO sensor, skipping!");
             return "";
         }
@@ -453,7 +453,8 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
     zmsg_addstr (msg, "GET");
     zmsg_addstr (msg, zuuid_str_canonical (uuid));
     zmsg_addstr (msg, "sensorgpio");
-    // => DOES NOT WORK!
+    zmsg_addstr (msg, "gpo");
+    // => DOES NOT WORK! ??
 
     // Fallback Method 2.1: ASSETS_IN_CONTAINER "GET" "" "sensorgpio"
     // (empty container, filter on 'sensorgpio' type)
@@ -476,7 +477,7 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
      zmsg_destroy (&msg);
 
     // Get the results (list of sensors) and process it
-    // then filter on "sensorgpio-*"
+    // then filter on "sensorgpio-*" and "gpo-*"
     // then send REPUBLISH request with the list of sensors
     msg = zmsg_new ();
 
@@ -490,8 +491,8 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
     }
     char *asset = zmsg_popstr(reply);
     while (asset) {
-        // then filter on "sensorgpio-*"
-        if (!strncmp(asset, "sensorgpio-", 11))
+        // then filter on "sensorgpio-*" and "gpo-*"
+        if (!strncmp (asset, "sensorgpio-", 11) || !strncmp (asset, "gpo-", 4))
             zmsg_addstr (msg, asset);
 
         zstr_free (&asset);
@@ -583,7 +584,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
     zpoller_t *poller = zpoller_new (pipe, mlm_client_msgpipe (self->mlm), NULL);
     assert (poller);
 
-    zsock_signal (pipe, 0); 
+    zsock_signal (pipe, 0);
     zsys_info ("%s_assets: Started", self->name);
 
     while (!zsys_interrupted)
