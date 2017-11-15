@@ -440,7 +440,6 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                                 else {
                                     zsys_debug ("last action = %d on port ", last_state->last_action, last_state->gpo_number);
                                     last_state->last_action = status_value;
-                                    zhashx_update (self->gpo_states, (void *)gpx_info->asset_name, (void *)last_state);
                                 }
                             }
                         }
