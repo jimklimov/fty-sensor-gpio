@@ -222,112 +222,129 @@ It is possible to request the agent GPIO for:
 
 * getting the manifest of one, several or all supported GPIO devices, in simple or detailed format,
 * creating a new template file, to add support for a new GPIO sensor,
-* acting on GPO devices, to activate or de-activate.
+* acting on GPO devices, to activate or de-activate,
+* storing GPO in the agent cache.
 
 #### Action on GPO sensors
 
 The USER peer sends the following messages using MAILBOX SEND to
 FTY-SENSOR-GPIO-AGENT ("fty-sensor-gpio") peer:
 
-* GPO_INTERACTION/<correlation ID>/sensor/action - apply 'action' (open | close) on 'sensor' (asset or ext name)
+* GPO\_INTERACTION/correlation\_ID/sensor/action - apply 'action' (open | close) on 'sensor' (asset or ext name)
 
 where
 * '/' indicates a multipart string message
-* 'correlation ID' is a zuuid identifier provided by the caller
+* 'correlation\_ID' is a zuuid identifier provided by the caller
 * 'sensor' MUST be the sensor asset name or ext name
 * 'action' MUST be one of
     - [ enable | enabled | open | opened | high ]
     - [ disable | disabled | close | closed | low ]
-* subject of the message MUST be "GPO_INTERACTION".
+* subject of the message MUST be "GPO\_INTERACTION".
 
 The FTY-SENSOR-GPIO-AGENT peer MUST respond with one of the messages back to USER
 peer using MAILBOX SEND.
 
-* <correlation ID>/OK
-* <correlation ID>/ERROR/reason
+* correlation\_ID/OK
+* correlation\_ID/ERROR/reason
 
 where
 * '/' indicates a multipart frame message
 * 'correlation ID' is a zuuid identifier provided by the caller
 * 'reason' is string detailing reason for error. Possible values are:
-ASSET_NOT_FOUND / SET_VALUE_FAILED / UNKNOWN_VALUE / BAD_COMMAND / ACTION_NOT_APPLICABLE.
+ASSET\_NOT\_FOUND / SET\_VALUE\_FAILED / UNKNOWN\_VALUE / BAD\_COMMAND / ACTION\_NOT\_APPLICABLE.
 
 #### Detailed manifest of supported sensors
 
 The USER peer sends the following messages using MAILBOX SEND to
 FTY-SENSOR-GPIO-AGENT ("fty-sensor-gpio") peer:
 
-* GPIO_MANIFEST/<correlation ID>/<sensor 1 part number>/.../<sensor N part number> - get information on sensor(s)
+* GPIO\_MANIFEST/correlation\_ID/sensor\_1\_part\_number/.../sensor\_N\_part\_number - get information on sensor(s)
 
 where
 * '/' indicates a multipart string message
-* 'correlation ID' is a zuuid identifier provided by the caller
-* 'sensor x part number' is the part number of the sensor(s), to get information
+* 'correlation\_ID' is a zuuid identifier provided by the caller
+* 'sensor\_x\_part\_number' is the part number of the sensor(s), to get information
 on. When empty, the agent returns information on all supported sensors
-* subject of the message MUST be "GPIO_MANIFEST".
+* subject of the message MUST be "GPIO\_MANIFEST".
 
 The FTY-SENSOR-GPIO-AGENT peer MUST respond with one of the messages back to USER
 peer using MAILBOX SEND.
 
-* <correlation ID>/OK/<sensor 1 description>/.../<sensor N description> = non-empty
-* <correlation ID>/ERROR/<reason>
+* correlation\_ID/OK/sensor\_1\_description/.../sensor\_N\_description = non-empty
+* correlation\_ID/ERROR/reason
 
 where
 * '/' indicates a multipart frame message
-* 'correlation ID' is the zuuid identifier provided by the caller to match our answer
+* 'correlation\_ID' is the zuuid identifier provided by the caller to match our answer
 * 'reason' is string detailing reason for error. Possible values are:
-ASSET_NOT_FOUND / BAD_COMMAND
-* 'sensor x description' is a string with details on the sensor with the format:
-sensor_partnumber/manufacturer/type/normal_state/gpx_direction/power_source/alarm_severity/alarm_message
+ASSET\_NOT\_FOUND / BAD\_COMMAND
+* 'sensor\_x\_description' is a string with details on the sensor with the format:
+sensor\_partnumber/manufacturer/type/normal\_state/gpx\_direction/power\_source/alarm\_severity/alarm\_message
 
 #### Summary manifest of supported sensors
 
 The USER peer sends the following messages using MAILBOX SEND to
 FTY-SENSOR-GPIO-AGENT ("fty-sensor-gpio") peer:
 
-* GPIO_MANIFEST_SUMMARY/<correlation ID> - get the list of supported sensors
+* GPIO\_MANIFEST\_SUMMARY/correlation\_ID - get the list of supported sensors
 
 where
 * '/' indicates a multipart string message
-* 'correlation ID' is a zuuid identifier provided by the caller
-* subject of the message MUST be "GPIO_MANIFEST_SUMMARY"
+* 'correlation\_ID' is a zuuid identifier provided by the caller
+* subject of the message MUST be "GPIO\_MANIFEST\_SUMMARY"
 
 The FTY-SENSOR-GPIO-AGENT peer MUST respond with one of the messages back to USER
 peer using MAILBOX SEND.
 
-* <correlation ID>/OK/<sensor 1 description>/.../<sensor N description> = non-empty
-* <correlation ID>/ERROR/<reason>
+* correlation\_ID/OK/sensor\_1\_description/.../sensor\_N\_description = non-empty
+* correlation\_ID/ERROR/reason
 
 where
 * '/' indicates a multipart frame message
-* 'correlation ID' is the zuuid identifier provided by the caller to match our answer
+* 'correlation\_ID' is the zuuid identifier provided by the caller to match our answer
 * 'reason' is string detailing reason for error. Possible values are:
-ASSET_NOT_FOUND / BAD_COMMAND
-* 'sensor x description' is a string with details on the sensor with the format:
-sensor_partnumber/manufacturer
+ASSET\_NOT\_FOUND / BAD\_COMMAND
+* 'sensor\_x\_description' is a string with details on the sensor with the format:
+sensor\_partnumber/manufacturer
 
 #### Create a new sensor template file
 
 The USER peer sends the following messages using MAILBOX SEND to
 FTY-SENSOR-GPIO-AGENT ("fty-sensor-gpio") peer:
 
-* GPIO_TEMPLATE_ADD/<correlation ID>/<sensor description> - request the creation of a sensor template file
+* GPIO\_TEMPLATE\_ADD/correlation\_ID/sensor\_description - request the creation of a sensor template file
 
 where
 * '/' indicates a multipart frame message
-* 'correlation ID' is a zuuid identifier provided by the caller
-* 'sensor description' is a string with details on the sensor with the format:
-sensor_partnumber/manufacturer/type/normal_state/gpx_direction/power_source/alarm_severity/alarm_message
-* subject of the message MUST be "GPIO_TEMPLATE_ADD".
+* 'correlation\_ID' is a zuuid identifier provided by the caller
+* 'sensor\_description' is a string with details on the sensor with the format:
+sensor\_partnumber/manufacturer/type/normal\_state/gpx\_direction/power\_source/alarm\_severity/alarm\_message
+* subject of the message MUST be "GPIO\_TEMPLATE\_ADD".
 
 The FTY-SENSOR-GPIO-AGENT peer MUST respond with one of the messages back to USER
 peer using MAILBOX SEND.
 
-* <correlation ID>/OK
-* <correlation ID>/ERROR/<reason>
+* correlation\_ID/OK
+* correlation\_ID/ERROR/reason
 
 where
 * '/' indicates a multipart frame message
-* 'correlation ID' is the zuuid identifier provided by the caller to match our answer
+* 'correlation\_ID' is the zuuid identifier provided by the caller to match our answer
 * 'reason' is string detailing reason for error. Possible values are:
 ...
+
+#### Store GPO in the agent cache
+
+The USER peer sends the following messages using MAILBOX SEND to
+FTY-SENSOR-GPIO-AGENT ("fty-sensor-gpio") peer:
+
+* GPOSTATE/asset\_name/gpo\_number/default\_state - store GPO with this properties into cache
+
+where
+* '/' indicates a multipart frame message
+* 'asset\_name' is internal name of the GPO
+* 'gpo\_number' is IPC port where the GPO is connected
+* 'default\_state' is default state of the GPO
+* subject of the message MUST be "GPOSTATE".
+
+The FTY-SENSOR-GPIO-AGENT peer MUST NOT respond.

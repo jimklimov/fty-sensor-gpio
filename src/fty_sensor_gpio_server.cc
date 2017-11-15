@@ -118,7 +118,17 @@
             <zuuid> = info for REST API so it could match response to request
             <reason>             = ...
 
+     ------------------------------------------------------------------------
+    ## GPOSTATE
 
+    REQ:
+        subject: "GPOSTATE"
+        Message is a multipart string message
+
+        <asset_name>/<gpo_number>/<default_state>      - store GPO with this properties into cache
+
+    REP:
+        none
 @end
 */
 
@@ -357,7 +367,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
     //we assume all request command are MAILBOX DELIVER, and subject="gpio"
     if ( (subject != "") && (subject != "GPO_INTERACTION") && (subject != "GPIO_TEMPLATE_ADD")
          && (subject != "GPIO_MANIFEST") && (subject != "GPIO_MANIFEST_SUMMARY")
-         && (subject != "GPIO_TEST")) {
+         && (subject != "GPIO_TEST") && (subject != "GPOSTATE")) {
         zsys_warning ("%s: Received unexpected subject '%s'", self->name, subject.c_str());
         zmsg_t *reply = zmsg_new ();
         zmsg_addstr(reply, "ERROR");
@@ -430,7 +440,6 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                                 else {
                                     zsys_debug ("last action = %d on port ", last_state->last_action, last_state->gpo_number);
                                     last_state->last_action = status_value;
-                                    zhashx_update (self->gpo_states, (void *)gpx_info->asset_name, (void *)last_state);
                                 }
                             }
                         }
@@ -1061,6 +1070,14 @@ fty_sensor_gpio_server_test (bool verbose)
         "GPO", "IPC1", "Room1", "",
         "Dummy has been $status", "WARNING");
     assert (rv == 0);
+
+    zmsg_t *msg = zmsg_new ();
+    zmsg_addstr (msg, "sensorgpio-11");
+    zmsg_addstr (msg, "2");
+    zmsg_addstr (msg, "closed");
+
+    rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPOSTATE", NULL, 5000, &msg);
+    assert ( rv == 0 ); // no response
 
     // Also create the dummy file for reading the GPI sensor
     std::string gpi_sys_dir = str_SELFTEST_DIR_RW + "/sys/class/gpio/gpio488";
