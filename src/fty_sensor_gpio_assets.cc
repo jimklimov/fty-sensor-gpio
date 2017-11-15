@@ -259,6 +259,24 @@ delete_sensor(fty_sensor_gpio_assets_t *self, const char* assetname)
 {
     int retval = 0;
 
+    // We need to find out GPx direction
+    // And we cannot use gpx_info_result because it contains garbage on `gpx_direction` position
+    _gpx_info_t *info = (_gpx_info_t *)zlistx_first (_gpx_list);
+    while (info != NULL) {
+        char *info_name = info->asset_name;
+        if (streq (info_name, assetname)) {
+            int direction = info->gpx_direction;
+            if (direction ==  GPIO_DIRECTION_OUT) {
+                zmsg_t *request = zmsg_new ();
+                zmsg_addstr (request, assetname);
+                zmsg_addstr (request, "-1");
+                mlm_client_sendto (self->mlm, FTY_SENSOR_GPIO_AGENT, "GPOSTATE", NULL, 1000, &request);
+            }
+            break;
+        }
+        info = (_gpx_info_t *)zlistx_next (_gpx_list);
+    }
+
     _gpx_info_t *gpx_info_result = NULL;
     _gpx_info_t *gpx_info = sensor_new();
 
@@ -404,6 +422,14 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
             my_zsys_debug (self->verbose, "No sensor pin (port) provided! Skipping sensor");
             zconfig_destroy (&config_template);
             return;
+        }
+
+        if (streq (sensor_gpx_direction, "GPO")) {
+            zmsg_t *request = zmsg_new ();
+            zmsg_addstr (request, assetname);
+            zmsg_addstr (request, sensor_gpx_number);
+            zmsg_addstr (request, sensor_normal_state);
+            mlm_client_sendto (self->mlm, FTY_SENSOR_GPIO_AGENT, "GPOSTATE", NULL, 1000, &request);
         }
 
         add_sensor( self, operation,

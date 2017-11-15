@@ -124,6 +124,15 @@
 
 #include "fty_sensor_gpio_classes.h"
 #include <regex>
+#include <stdio.h>
+
+// Structure for GPO state
+
+struct gpo_state_t {
+    int gpo_number;
+    int default_state;
+    int last_action;
+};
 
 //  Structure of our class
 
@@ -134,6 +143,7 @@ struct _fty_sensor_gpio_server_t {
     libgpio_t          *gpio_lib;     // GPIO library handle
     bool               test_mode;     // true if we are in test mode, false otherwise
     char               *template_dir; // Location of the template files
+    zhashx_t           *gpo_states;
 };
 
 // Configuration accessors
@@ -156,6 +166,14 @@ s_get (zconfig_t *config, const char* key, const char*dfl) {
     return ret;
 }
 
+static void free_fn (void ** self_ptr)
+{
+    if (!self_ptr || !*self_ptr) {
+        zsys_error ("Attempt to free NULL");
+        return;
+    }
+    free (*self_ptr);
+}
 //  --------------------------------------------------------------------------
 //  Publish status of the pointed GPIO sensor
 
@@ -402,6 +420,18 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                                 zmsg_addstr (reply, "OK");
                                 // Update the GPO state
                                 gpx_info->current_state = status_value;
+
+                                gpo_state_t *last_state = (gpo_state_t *) zhashx_lookup (self->gpo_states, gpx_info->asset_name);
+                                if (last_state == NULL) {
+                                    my_zsys_debug (self->verbose, "GPO_INTERACTION: can't find sensor '%s'!", sensor_name);
+                                    zmsg_addstr (reply, "ERROR");
+                                    zmsg_addstr (reply, "ASSET_NOT_FOUND");
+                                }
+                                else {
+                                    zsys_debug ("last action = %d on port ", last_state->last_action, last_state->gpo_number);
+                                    last_state->last_action = status_value;
+                                    zhashx_update (self->gpo_states, (void *)gpx_info->asset_name, (void *)last_state);
+                                }
                             }
                         }
                     }
@@ -619,6 +649,58 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             zstr_free(&sensor_partnumber);
             zstr_free (&zuuid);
         }
+        else if (subject == "GPOSTATE") {
+            // we won't reply
+            zmsg_destroy (&reply);
+
+            char *assetname = zmsg_popstr (message);
+            char *gpo_number = zmsg_popstr (message);
+
+            int num_gpo_number = atoi (gpo_number);
+            // this means DELETE
+            if (num_gpo_number == -1) {
+                zhashx_delete (self->gpo_states, (void *) assetname);
+                zstr_free (&assetname);
+                zstr_free (&gpo_number);
+                return;
+            }
+
+            char *default_state = zmsg_popstr (message);
+
+            gpo_state_t *state = (gpo_state_t *) zhashx_lookup (self->gpo_states, (void *) assetname);
+            if (state != NULL) {
+                // did the port change?
+                if (state->gpo_number != num_gpo_number) {
+                    // turn off the previous port
+                    int rv = libgpio_write (self->gpio_lib, state->gpo_number, GPIO_STATE_CLOSED);
+                    if (rv)
+                        zsys_error ("Error while closing no longer active GPO #%d", state->gpo_number);
+
+                    // do the default action on the new port
+                    int num_default_state = libgpio_get_status_value (default_state);
+                    rv = libgpio_write (self->gpio_lib, num_gpo_number, num_default_state);
+                    if (rv) {
+                        zsys_error ("Error during default action %s on GPO #%d",
+                                    default_state,
+                                    state->gpo_number);
+                    }
+
+                    state->gpo_number = num_gpo_number;
+                    state->last_action = num_default_state;
+                }
+            }
+            else {
+                state = (gpo_state_t *) zmalloc (sizeof (gpo_state_t));
+                state->gpo_number = atoi (gpo_number);
+                state->default_state = libgpio_get_status_value (default_state);
+                state->last_action = libgpio_get_status_value (default_state);
+            }
+
+            zhashx_update (self->gpo_states, (void *) assetname, (void *) state);
+            zstr_free (&assetname);
+            zstr_free (&gpo_number);
+            zstr_free (&default_state);
+        }
 
         else if (subject == "GPIO_TEST") {
             ;
@@ -644,7 +726,8 @@ fty_sensor_gpio_server_new (const char* name)
     self->template_dir = NULL;
     self->gpio_lib = libgpio_new ();
     assert (self->gpio_lib);
-
+    self->gpo_states = zhashx_new ();
+    zhashx_set_destructor (self->gpo_states, free_fn);
     return self;
 }
 
@@ -665,15 +748,69 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
         mlm_client_destroy (&self->mlm);
         if (self->template_dir)
             zstr_free(&self->template_dir);
-
+        zhashx_destroy (&self->gpo_states);
         //  Free object itself
         free (self);
         *self_p = NULL;
     }
 }
 
+static void
+s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
+{
+    FILE *f_state = fopen (state_file, "r");
+    char *asset_name;
+    int gpo_number;
+    int default_state;
+    int last_action;
+    while (fscanf (f_state, "%s %d %d %d", asset_name, &gpo_number, &default_state, &last_action) != EOF) {
+        // existing GPO entry came from fty-sensor-gpio-assets, which takes precendence
+        gpo_state_t *state = (gpo_state_t *) zhashx_lookup (self->gpo_states, (void *)asset_name);
+
+        if (state != NULL) {
+            // did the port change?
+            if (state->gpo_number != gpo_number) {
+                    // turn off the port from state file
+                    int rv = libgpio_write (self->gpio_lib, gpo_number, GPIO_STATE_CLOSED);
+                    if (rv)
+                        zsys_error ("Error while closing no longer active GPO #%d", state->gpo_number);
+                    // default action on the new port was done when adding it
+                }
+            }
+            else {
+                state = (gpo_state_t *) zmalloc (sizeof (gpo_state_t));
+                state->gpo_number = gpo_number;
+                state->default_state = default_state;
+                state->last_action = last_action;
+            }
+
+            char *asset_name_key = strdup (asset_name);
+            zhashx_update (self->gpo_states, (void *) asset_name_key, (void *) state);
+            zstr_free (&asset_name);
+    }
+
+    fclose (f_state);
+}
+
+static void
+s_save_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
+{
+    FILE *f_state = fopen (state_file, "w");
+
+    gpo_state_t *state = (gpo_state_t *) zhashx_first (self->gpo_states);
+    while (state != NULL) {
+        char *asset_name = (char *) zhashx_cursor (self->gpo_states);
+        fprintf (f_state, "%s %d %d %d\n", asset_name, state->gpo_number, state->default_state, state->last_action);
+        zstr_free (&asset_name);
+        state = (gpo_state_t *) zhashx_next (self->gpo_states);
+    }
+
+    fclose (f_state);
+}
+
+
 //  --------------------------------------------------------------------------
-//  Create a new fty_info_server
+//  Create fty_sensor_gpio_server actor
 
 void
 fty_sensor_gpio_server (zsock_t *pipe, void *args)
@@ -683,6 +820,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
         zsys_error ("Adress for fty-sensor-gpio actor is NULL");
         return;
     }
+    char *state_file_path = NULL;
 
     fty_sensor_gpio_server_t *self = fty_sensor_gpio_server_new(name);
     assert (self);
@@ -814,6 +952,11 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     libgpio_add_gpio_mapping (self->gpio_lib, port_num, pin_num);
                     zstr_free (&value);
                 }
+                else if (streq (cmd, "STATEFILE")) {
+                    char *state_file = zmsg_popstr (message);
+                    s_load_state_file (self, state_file);
+                    state_file_path = state_file;
+                }
                 else {
                     zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
                 }
@@ -831,6 +974,9 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
         }
     }
 exit:
+    if (!self->test_mode)
+        s_save_state_file (self, state_file_path);
+    zstr_free (&state_file_path);
     zpoller_destroy (&poller);
     fty_sensor_gpio_server_destroy(&self);
 }
