@@ -767,16 +767,21 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
 static void
 s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
 {
-    FILE *f_state = fopen (state_file, "r");
-    char *asset_name;
-    int gpo_number;
-    int default_state;
-    int last_action;
-
-    if (!f_state)
+    if (!state_file)
+        // no state file - alright
         return;
-
-    while (fscanf (f_state, "%s %d %d %d", asset_name, &gpo_number, &default_state, &last_action) != EOF) {
+    zsys_debug ("state file = %s", state_file);
+    FILE *f_state = fopen (state_file, "r");
+    if (!f_state) {
+        zsys_warning ("Could not load state file, continuing without it...");
+        return;
+    }
+    char asset_name[8]; //gpo-xxx + terminator
+    int gpo_number = -1;
+    int default_state = -1;
+    int last_action = -1;
+    // line read successfully - all 4 items are there
+    while (fscanf (f_state, "%s %d %d %d", asset_name, &gpo_number, &default_state, &last_action) == 4) {
         // existing GPO entry came from fty-sensor-gpio-assets, which takes precendence
         gpo_state_t *state = (gpo_state_t *) zhashx_lookup (self->gpo_states, (void *)asset_name);
 
@@ -795,11 +800,10 @@ s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
                 state->gpo_number = gpo_number;
                 state->default_state = default_state;
                 state->last_action = last_action;
-            }
 
             char *asset_name_key = strdup (asset_name);
             zhashx_update (self->gpo_states, (void *) asset_name_key, (void *) state);
-            zstr_free (&asset_name);
+            }
     }
 
     fclose (f_state);
@@ -812,9 +816,8 @@ s_save_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
 
     gpo_state_t *state = (gpo_state_t *) zhashx_first (self->gpo_states);
     while (state != NULL) {
-        char *asset_name = (char *) zhashx_cursor (self->gpo_states);
+        const char *asset_name = (const char *) zhashx_cursor (self->gpo_states);
         fprintf (f_state, "%s %d %d %d\n", asset_name, state->gpo_number, state->default_state, state->last_action);
-        zstr_free (&asset_name);
         state = (gpo_state_t *) zhashx_next (self->gpo_states);
     }
 
