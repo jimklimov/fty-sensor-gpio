@@ -470,74 +470,58 @@ void
 request_sensor_assets(fty_sensor_gpio_assets_t *self)
 {
     my_zsys_debug (self->verbose, "%s", __func__);
+    my_zsys_debug (self->verbose, "%s:\tRequest GPIO sensors list", self->name);
 
-     my_zsys_debug (self->verbose, "%s:\tRequest GPIO sensors list", self->name);
-     zmsg_t *msg = zmsg_new ();
-    // Method 1: ASSETS "GET" "sensorgpio"
-    // FIXME: need a "ASSETS_DETAILS" request!
+    zmsg_t *msg = zmsg_new ();
     zuuid_t *uuid = zuuid_new ();
     zmsg_addstr (msg, "GET");
     zmsg_addstr (msg, zuuid_str_canonical (uuid));
     zmsg_addstr (msg, "sensorgpio");
     zmsg_addstr (msg, "gpo");
-    // => DOES NOT WORK! ??
 
-    // Fallback Method 2.1: ASSETS_IN_CONTAINER "GET" "" "sensorgpio"
-    // (empty container, filter on 'sensorgpio' type)
-    // => DOES NOT WORK!
-
-    // Fallback Method 2.2: ASSETS_IN_CONTAINER "GET" ""
-    // (empty container, no filter on type)
-    // then filter on "sensorgpio-*"
-//    zmsg_addstr (msg, "GET");
-//    zmsg_addstr (msg, "");
-
-//    int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS_IN_CONTAINER", NULL, 5000, &msg);
-    // Method 1: ASSETS "GET" "sensorgpio"
     int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS", NULL, 5000, &msg);
-     if (rv != 0)
-         zsys_error ("%s:\tRequest GPIO sensors list failed", self->name);
-     else
-         my_zsys_debug (self->verbose, "%s:\tGPIO sensors list request sent successfully", self->name);
-
-     zmsg_destroy (&msg);
-
-    // Get the results (list of sensors) and process it
-    // then filter on "sensorgpio-*" and "gpo-*"
-    // then send REPUBLISH request with the list of sensors
-    msg = zmsg_new ();
+    if (rv != 0)
+        zsys_error ("%s:\tRequest GPIO sensors list failed", self->name);
+    else
+        my_zsys_debug (self->verbose, "%s:\tGPIO sensors list request sent successfully", self->name);
+    zmsg_destroy (&msg);
 
     zmsg_t *reply = mlm_client_recv (self->mlm);
+    if (!reply)
+        zsys_error ("%s: no reply message received", self->name);
+
     char *uuid_recv = zmsg_popstr(reply);
-    while (0 != strcmp (zuuid_str_canonical (uuid), uuid_recv)) {
+
+    if (0 != strcmp (zuuid_str_canonical (uuid), uuid_recv)) {
+        my_zsys_debug (self->verbose, "%s:\tGPIO zuuid doesn't match", self->name);
         zmsg_destroy (&reply);
         zstr_free (&uuid_recv);
-        reply = mlm_client_recv (self->mlm);
-        uuid_recv = zmsg_popstr(reply);
     }
+
+    if (streq (zmsg_popstr (reply), "ERROR"))
+    {
+        char *reason = zmsg_popstr (reply);
+        zsys_error ("%s: error message received %s", self->name, reason);
+    }
+
     char *asset = zmsg_popstr(reply);
+    if (!asset) zmsg_destroy (&reply);
+
     while (asset) {
-        // then filter on "sensorgpio-*" and "gpo-*"
-        if (!strncmp (asset, "sensorgpio-", 11) || !strncmp (asset, "gpo-", 4))
-            zmsg_addstr (msg, asset);
+        uuid = zuuid_new ();
+        msg = zmsg_new ();
+        zmsg_addstr (msg, "GET");
+        zmsg_addstr (msg, zuuid_str_canonical (uuid));
+        zmsg_addstr (msg, asset);
 
-        zstr_free (&asset);
-        asset = zmsg_popstr(reply);
+        rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSET_DETAIL", NULL, 5000, &msg);
+        if (rv != 0)
+            zsys_error ("%s:\tRequest ASSET_DETAIL sensors list failed for %s", self->name, asset);
+
+        asset = zmsg_popstr (reply);
+
+        zmsg_destroy (&msg);
     }
-    zmsg_destroy (&reply);
-
-    // Send the REPUBLISH request
-    rv = mlm_client_sendto (self->mlm, "asset-agent", "REPUBLISH", NULL, 5000, &msg);
-    // Method 1: ASSETS "GET" "sensorgpio"
-    //int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS", NULL, 5000, &msg);
-    if (rv != 0)
-        zsys_error ("%s:\tRequest REPUBLISH sensors list failed", self->name);
-    else
-        my_zsys_debug (self->verbose, "%s:\tGPIO sensors REPUBLISH request sent successfully", self->name);
-
-    zmsg_destroy (&msg);
-    // Fallback Method 3: REPUBLISH "$all"
-    // Not needed!
 }
 
 //  --------------------------------------------------------------------------
