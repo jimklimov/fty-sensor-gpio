@@ -702,10 +702,19 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 state = (gpo_state_t *) zmalloc (sizeof (gpo_state_t));
                 state->gpo_number = atoi (gpo_number);
                 state->default_state = libgpio_get_status_value (default_state);
-                state->last_action = libgpio_get_status_value (default_state);
+                // do the default action
+                int rv = libgpio_write (self->gpio_lib, state->gpo_number, state->default_state);
+                if (rv) {
+                    zsys_error ("Error during default action %s on GPO #%d",
+                                default_state,
+                                state->gpo_number);
+                    state->last_action = GPIO_STATE_UNKNOWN;
+                }
+                else
+                    state->last_action = libgpio_get_status_value (default_state);
+                zhashx_update (self->gpo_states, (void *) assetname, (void *) state);
             }
 
-            zhashx_update (self->gpo_states, (void *) assetname, (void *) state);
             zstr_free (&assetname);
             zstr_free (&gpo_number);
             zstr_free (&default_state);
@@ -799,10 +808,19 @@ s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
                 state = (gpo_state_t *) zmalloc (sizeof (gpo_state_t));
                 state->gpo_number = gpo_number;
                 state->default_state = default_state;
-                state->last_action = last_action;
+                // do the default action
+                int rv = libgpio_write (self->gpio_lib, state->gpo_number, state->default_state);
+                if (rv) {
+                    zsys_error ("Error during default action %s on GPO #%d",
+                                default_state,
+                                state->gpo_number);
+                    state->last_action = GPIO_STATE_UNKNOWN;
+                }
+                else
+                    state->last_action = default_state;
 
-            char *asset_name_key = strdup (asset_name);
-            zhashx_update (self->gpo_states, (void *) asset_name_key, (void *) state);
+                char *asset_name_key = strdup (asset_name);
+                zhashx_update (self->gpo_states, (void *) asset_name_key, (void *) state);
             }
     }
 
@@ -1078,14 +1096,6 @@ fty_sensor_gpio_server_test (bool verbose)
         "Dummy has been $status", "WARNING");
     assert (rv == 0);
 
-    zmsg_t *msg = zmsg_new ();
-    zmsg_addstr (msg, "sensorgpio-11");
-    zmsg_addstr (msg, "2");
-    zmsg_addstr (msg, "closed");
-
-    rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPOSTATE", NULL, 5000, &msg);
-    assert ( rv == 0 ); // no response
-
     // Also create the dummy file for reading the GPI sensor
     std::string gpi_sys_dir = str_SELFTEST_DIR_RW + "/sys/class/gpio/gpio488";
     zsys_dir_create (gpi_sys_dir.c_str());
@@ -1113,6 +1123,14 @@ fty_sensor_gpio_server_test (bool verbose)
 */
     pthread_mutex_unlock (&gpx_list_mutex);
 
+    zmsg_t *msg = zmsg_new ();
+    zmsg_addstr (msg, "sensorgpio-11");
+    zmsg_addstr (msg, "2");
+    zmsg_addstr (msg, "closed");
+    rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPOSTATE", NULL, 5000, &msg);
+    assert ( rv == 0 ); // no response
+
+
 // leak HERE begining
     // Test #1: Get status for an asset through its published metric
     {
@@ -1138,6 +1156,19 @@ fty_sensor_gpio_server_test (bool verbose)
 
         fty_proto_destroy (&frecv);
         zmsg_destroy (&recv);
+
+        recv = mlm_client_recv (metrics_listener);
+        assert (recv);
+        frecv = fty_proto_decode (&recv);
+        assert (frecv);
+        assert (streq (fty_proto_name (frecv), "IPC1"));
+        assert (streq (fty_proto_type (frecv), "status.GPO2"));
+        assert (streq (fty_proto_aux_string (frecv, "port", NULL), "GPO2"));
+        assert (streq (fty_proto_value (frecv), "closed"));
+        assert (streq (fty_proto_aux_string (frecv, FTY_PROTO_METRICS_SENSOR_AUX_SNAME, NULL), "sensorgpio-11"));
+        fty_proto_destroy (&frecv);
+        zmsg_destroy (&recv);
+
         mlm_client_destroy (&metrics_listener);
     }
 // leak HERE end
