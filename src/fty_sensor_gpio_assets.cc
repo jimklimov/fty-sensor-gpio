@@ -505,23 +505,21 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
     }
 
     char *asset = zmsg_popstr(reply);
-    if (!asset) zmsg_destroy (&reply);
+    uuid = zuuid_new ();
+    msg = zmsg_new ();
+    zmsg_addstr (msg, "GET");
+    zmsg_addstr (msg, zuuid_str_canonical (uuid));
 
     while (asset) {
-        uuid = zuuid_new ();
-        msg = zmsg_new ();
-        zmsg_addstr (msg, "GET");
-        zmsg_addstr (msg, zuuid_str_canonical (uuid));
         zmsg_addstr (msg, asset);
-
-        rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSET_DETAIL", NULL, 5000, &msg);
-        if (rv != 0)
-            zsys_error ("%s:\tRequest ASSET_DETAIL sensors list failed for %s", self->name, asset);
-
         asset = zmsg_popstr (reply);
-
-        zmsg_destroy (&msg);
     }
+
+    rv = mlm_client_sendto (self->mlm, "asset-agent", "REPUBLISH", NULL, 5000, &msg);
+    if (rv != 0)
+        zsys_error ("%s:\tRequest REPUBLISH failed for %s", self->name, asset);
+    zmsg_destroy (&reply);
+    zmsg_destroy (&msg);
 }
 
 //  --------------------------------------------------------------------------
