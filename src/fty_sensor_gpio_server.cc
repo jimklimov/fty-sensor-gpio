@@ -767,7 +767,14 @@ fty_sensor_gpio_server_destroy (fty_sensor_gpio_server_t **self_p)
 static void
 s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
 {
+    if (!state_file)
+        // no state file - alright
+        return;
     FILE *f_state = fopen (state_file, "r");
+    if (!f_state) {
+        zsys_warning ("Could not load state file, continuing without it...");
+        return;
+    }
     char *asset_name;
     int gpo_number;
     int default_state;
