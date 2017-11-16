@@ -72,7 +72,7 @@ int main (int argc, char *argv [])
 {
     char *config_file = NULL;
     zconfig_t *config = NULL;
-    const char *state_file = NULL;
+    char *state_file = NULL;
     char* actor_name = NULL;
     char* endpoint = NULL;
     const char* str_poll_interval = NULL;
@@ -138,7 +138,7 @@ int main (int argc, char *argv [])
             verbose = true;
         }
         // State file
-        state_file = s_get (config, "server/statefile", "/var/lib/fty/fty-sensor-gpio/state");
+        state_file = strdup(s_get (config, "server/statefile", DEFAULT_STATEFILE_PATH));
         // Polling interval
         str_poll_interval = s_get (config, "server/check_interval", "2000");
         if (str_poll_interval) {
@@ -219,6 +219,9 @@ int main (int argc, char *argv [])
 
     if (endpoint == NULL)
         endpoint = strdup("ipc://@/malamute");
+
+    if (state_file == NULL)
+        state_file = strdup(DEFAULT_STATEFILE_PATH);
 
     // Guess the template installation directory
     char *template_dir = NULL;
@@ -306,6 +309,7 @@ int main (int argc, char *argv [])
     zstr_free(&template_dir);
     zstr_free(&actor_name);
     zstr_free(&endpoint);
+    zstr_free(&state_file);
     zconfig_destroy (&config);
     free(gpi_mapping[0]);
     free(gpi_mapping[1]);
