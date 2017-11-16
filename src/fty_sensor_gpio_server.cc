@@ -776,12 +776,12 @@ s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
         zsys_warning ("Could not load state file, continuing without it...");
         return;
     }
-    char asset_name[8]; //gpo-xxx + terminator
+    char asset_name[15]; //gpo-[0-9]{10} + terminator, which should be enough for DB UINT
     int gpo_number = -1;
     int default_state = -1;
     int last_action = -1;
     // line read successfully - all 4 items are there
-    while (fscanf (f_state, "%s %d %d %d", asset_name, &gpo_number, &default_state, &last_action) == 4) {
+    while (fscanf (f_state, "%14s %3d %d %d", asset_name, &gpo_number, &default_state, &last_action) == 4) {
         // existing GPO entry came from fty-sensor-gpio-assets, which takes precendence
         gpo_state_t *state = (gpo_state_t *) zhashx_lookup (self->gpo_states, (void *)asset_name);
 
