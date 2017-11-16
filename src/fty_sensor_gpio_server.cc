@@ -779,6 +779,10 @@ s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
     int gpo_number;
     int default_state;
     int last_action;
+
+    if (!f_state)
+        return;
+
     while (fscanf (f_state, "%s %d %d %d", asset_name, &gpo_number, &default_state, &last_action) != EOF) {
         // existing GPO entry came from fty-sensor-gpio-assets, which takes precendence
         gpo_state_t *state = (gpo_state_t *) zhashx_lookup (self->gpo_states, (void *)asset_name);
