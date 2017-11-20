@@ -272,30 +272,6 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
             my_zsys_debug (self->verbose, "Checking status of GPx sensor '%s'",
                 gpx_info->asset_name);
 
-#if 0
-            // NOTE: this code may be interesting for latter GPO consideration
-            // If it's a GPO, then apply initially normal-state
-            if ( (gpx_info->gpx_direction == GPIO_DIRECTION_OUT)
-                && (gpx_info->current_state == GPIO_STATE_UNKNOWN) ) {
-
-                my_zsys_debug (self->verbose, "Applying initial GPO normal-state.");
-
-                if (libgpio_write ( self->gpio_lib,
-                                    gpx_info->gpx_number,
-                                    gpx_info->normal_state) != 0) {
-                    my_zsys_debug (self->verbose, "Failed to set initial GPO normal-state '%s'!",
-                        libgpio_get_status_string(gpx_info->normal_state).c_str());
-                }
-                else {
-                    my_zsys_debug (self->verbose, "GPO initial normal-state successfully set.");
-                    // Save the current state
-                    gpx_info->current_state = gpx_info->normal_state;
-                    // Sleep for a second to have the GPx sensor powered and running
-                    zclock_sleep (1000);
-                }
-            }
-#endif // #if 0
-
             // If there is a GPO power source, then activate it prior to
             // accessing the GPI!
             if ( gpx_info->power_source && (!streq(gpx_info->power_source, "")) ) {
@@ -1089,7 +1065,7 @@ fty_sensor_gpio_server_test (bool verbose)
     assert (rv == 0);
 
     rv = add_sensor(assets_self, "create",
-        "Eaton", "sensorgpio-11", "GPIO-Test-GPO1",
+        "Eaton", "gpo-11", "GPIO-Test-GPO1",
         "DCS001", "dummy",
         "closed", "2",
         "GPO", "IPC1", "Room1", "",
@@ -1165,7 +1141,7 @@ fty_sensor_gpio_server_test (bool verbose)
         assert (streq (fty_proto_type (frecv), "status.GPO2"));
         assert (streq (fty_proto_aux_string (frecv, "port", NULL), "GPO2"));
         assert (streq (fty_proto_value (frecv), "closed"));
-        assert (streq (fty_proto_aux_string (frecv, FTY_PROTO_METRICS_SENSOR_AUX_SNAME, NULL), "sensorgpio-11"));
+        assert (streq (fty_proto_aux_string (frecv, FTY_PROTO_METRICS_SENSOR_AUX_SNAME, NULL), "gpo-11"));
         fty_proto_destroy (&frecv);
         zmsg_destroy (&recv);
 
@@ -1288,7 +1264,7 @@ fty_sensor_gpio_server_test (bool verbose)
         zmsg_t *msg = zmsg_new ();
         zuuid_t *zuuid = zuuid_new ();
         zmsg_addstr (msg, zuuid_str_canonical (zuuid));
-        zmsg_addstr (msg, "sensorgpio-11");     // sensor
+        zmsg_addstr (msg, "gpo-11");     // sensor
         zmsg_addstr (msg, "open");          // action
         int rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPO_INTERACTION", NULL, 5000, &msg);
         assert ( rv == 0 );
