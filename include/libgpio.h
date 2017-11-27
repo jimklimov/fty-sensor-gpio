@@ -103,9 +103,14 @@ FTY_SENSOR_GPIO_EXPORT void
     libgpio_set_gpo_count (libgpio_t *self, int gpo_count);
 
 //  @interface
-// Add mapping GPx number -> HW pin number
+// Add mapping GPI number -> HW pin number
 FTY_SENSOR_GPIO_EXPORT void
-    libgpio_add_gpio_mapping (libgpio_t *self, int port_num, int pin_num);
+    libgpio_add_gpi_mapping (libgpio_t *self, int port_num, int pin_num);
+
+//  @interface
+// Add mapping GPO number -> HW pin number
+FTY_SENSOR_GPIO_EXPORT void
+    libgpio_add_gpo_mapping (libgpio_t *self, int port_num, int pin_num);
 
 //  @interface
 //  Set the test mode

@@ -30,20 +30,13 @@
 
 // TODO:
 // * Smart update of existing entries
-// * Add zuuid to GPO_INTERACTION too
 // * Ensure we don't return OK/ERROR
-// * Reenable tests for -server
 // * Location of "data" directory into a variable like other components
 //   (even if a hardcode for starters); use configure-script data preferably
 // * Documentation
 // ** actors as per https://github.com/zeromq/czmq/blob/master/src/zconfig.c#L15
 // * MAILBOX REQ handling:
 // * cleanup, final cppcheck, fix all FIXMEs...
-// * Support for fine grained pin mapping in config file
-//   gpo_mapping
-//       <gpo number> = <pin number>
-//   gpi_mapping
-//       <gpi number> = <pin number>
 // To be discussed:
 // * Check for convergence with other dry-contacts (on EMP001 and fty-sensor-env, EMP002,
 // * Add 'int last_state' to '_gpx_info_t' and only publish state change?

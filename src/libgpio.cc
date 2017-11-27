@@ -38,7 +38,8 @@ struct _libgpio_t {
     int  gpi_offset;         // offset to access GPI pins
     int  gpo_count;          // number of supported GPO
     int  gpi_count;          // number of supported GPI
-    zhashx_t *gpio_mapping; // mapping for gpio sensors
+    zhashx_t *gpi_mapping;   // mapping for GPIs
+    zhashx_t *gpo_mapping;   // mapping for GPOs
 };
 
 //  Private functions forward declarations
@@ -90,11 +91,16 @@ libgpio_new (void)
     self->gpi_count = 0;
     self->test_mode = false;
     self->verbose = false;
-    self->gpio_mapping = zhashx_new ();
-    zhashx_set_key_duplicator (self->gpio_mapping, dup_int_ptr);
-    zhashx_set_duplicator (self->gpio_mapping, dup_int_ptr);
-    zhashx_set_destructor (self->gpio_mapping, free_fn);
-    assert (self->gpio_mapping);
+    self->gpi_mapping = zhashx_new ();
+    zhashx_set_key_duplicator (self->gpi_mapping, dup_int_ptr);
+    zhashx_set_duplicator (self->gpi_mapping, dup_int_ptr);
+    zhashx_set_destructor (self->gpi_mapping, free_fn);
+    assert (self->gpi_mapping);
+    self->gpo_mapping = zhashx_new ();
+    zhashx_set_key_duplicator (self->gpo_mapping, dup_int_ptr);
+    zhashx_set_duplicator (self->gpo_mapping, dup_int_ptr);
+    zhashx_set_destructor (self->gpo_mapping, free_fn);
+    assert (self->gpo_mapping);
 
     return self;
 }
@@ -148,12 +154,21 @@ libgpio_set_gpo_count (libgpio_t *self, int gpo_count)
 }
 
 //---------------------------------------------------------------------------
-// Add mapping GPx number -> HW pin number
+// Add mapping GPI number -> HW pin number
 void
-libgpio_add_gpio_mapping (libgpio_t *self, int port_num, int pin_num)
+libgpio_add_gpi_mapping (libgpio_t *self, int port_num, int pin_num)
+{
+    my_zsys_debug (self->verbose, "%s: adding GPI mapping from port %d to pin %d", __func__, port_num, pin_num);
+    zhashx_insert (self->gpi_mapping, (void *)&port_num, (void *)&pin_num);
+}
+
+//---------------------------------------------------------------------------
+// Add mapping GPO number -> HW pin number
+void
+libgpio_add_gpo_mapping (libgpio_t *self, int port_num, int pin_num)
 {
     my_zsys_debug (self->verbose, "%s: adding GPIO mapping from port %d to pin %d", __func__, port_num, pin_num);
-    zhashx_insert (self->gpio_mapping, (void *)&port_num, (void *)&pin_num);
+    zhashx_insert (self->gpo_mapping, (void *)&port_num, (void *)&pin_num);
 }
 //  --------------------------------------------------------------------------
 //  Set the test mode
@@ -180,15 +195,26 @@ libgpio_set_verbose (libgpio_t *self, bool verbose)
 int
 libgpio_compute_pin_number (libgpio_t *self, int GPx_number, int direction)
 {
-    int *found_pin_ptr = (int *) zhashx_lookup (self->gpio_mapping, (const void *)&GPx_number);
-    if (found_pin_ptr == NULL) {
-        int offset = (direction==GPIO_DIRECTION_IN)?self->gpi_offset:self->gpo_offset;
-        int pin = self->gpio_base_address + offset + GPx_number;
-        zhashx_update (self->gpio_mapping, (const void *)&GPx_number, (void *)&pin);
-        return pin;
+    if (direction == GPIO_DIRECTION_IN) {
+        int *found_pin_ptr = (int *) zhashx_lookup (self->gpi_mapping, (const void *)&GPx_number);
+        if (found_pin_ptr == NULL) {
+            int pin = self->gpio_base_address + self->gpi_offset + GPx_number;
+            zhashx_update (self->gpi_mapping, (const void *)&GPx_number, (void *)&pin);
+            return pin;
+        }
+        else
+            return *found_pin_ptr;
     }
-    else
-        return *found_pin_ptr;
+    else {
+        int *found_pin_ptr = (int *) zhashx_lookup (self->gpo_mapping, (const void *)&GPx_number);
+        if (found_pin_ptr == NULL) {
+            int pin = self->gpio_base_address + self->gpo_offset + GPx_number;
+            zhashx_update (self->gpo_mapping, (const void *)&GPx_number, (void *)&pin);
+            return pin;
+        }
+        else
+            return *found_pin_ptr;
+    }
 }
 
 //  --------------------------------------------------------------------------
@@ -210,7 +236,11 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     }
 
     int pin;
-    int *pin_ptr = (int *)(zhashx_lookup (self->gpio_mapping, (const void *)&GPx_number));
+    int *pin_ptr;
+    if (direction == GPIO_DIRECTION_IN)
+        pin_ptr = (int *)(zhashx_lookup (self->gpi_mapping, (const void *)&GPx_number));
+    else
+        pin_ptr = (int *)(zhashx_lookup (self->gpo_mapping, (const void *)&GPx_number));
     if (pin_ptr == NULL)
         pin = libgpio_compute_pin_number (self, GPx_number, direction);
     else
@@ -283,7 +313,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     }
 
     int pin;
-    int *pin_ptr = (int *)(zhashx_lookup (self->gpio_mapping, (const void *)&GPO_number));
+    int *pin_ptr = (int *)(zhashx_lookup (self->gpo_mapping, (const void *)&GPO_number));
     if (pin_ptr == NULL)
         pin = libgpio_compute_pin_number (self, GPO_number, GPIO_DIRECTION_OUT);
     else
@@ -394,7 +424,8 @@ libgpio_destroy (libgpio_t **self_p)
     if (*self_p) {
         libgpio_t *self = *self_p;
         //  Free class properties here
-        zhashx_destroy (&self->gpio_mapping);
+        zhashx_destroy (&self->gpi_mapping);
+        zhashx_destroy (&self->gpo_mapping);
         //  Free object itself
         free (self);
         *self_p = NULL;

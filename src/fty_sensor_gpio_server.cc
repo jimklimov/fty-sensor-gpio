@@ -788,7 +788,7 @@ s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
                 int rv = libgpio_write (self->gpio_lib, state->gpo_number, state->default_state);
                 if (rv) {
                     zsys_error ("Error during default action %s on GPO #%d",
-                                default_state,
+                                libgpio_get_status_string (default_state).c_str (),
                                 state->gpo_number);
                     state->last_action = GPIO_STATE_UNKNOWN;
                 }
@@ -947,7 +947,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     int port_num = (int) strtol (port_str.c_str (), NULL, 10);
                     int pin_num = (int) strtol (value, NULL, 10);
                     my_zsys_debug (self->verbose, "port_num = %d->pin_num = %d", port_num, pin_num);
-                    libgpio_add_gpio_mapping (self->gpio_lib, port_num, pin_num);
+                    libgpio_add_gpi_mapping (self->gpio_lib, port_num, pin_num);
                     zstr_free (&value);
                 }
                 else if (streq (cmd, "GPO_MAPPING")) {
@@ -959,7 +959,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     int port_num = (int) strtol (port_str.c_str (), NULL, 10);
                     int pin_num = (int) strtol (value, NULL, 10);
                     my_zsys_debug (self->verbose, "port_num = %d->pin_num = %d", port_num, pin_num);
-                    libgpio_add_gpio_mapping (self->gpio_lib, port_num, pin_num);
+                    libgpio_add_gpo_mapping (self->gpio_lib, port_num, pin_num);
                     zstr_free (&value);
                 }
                 else if (streq (cmd, "STATEFILE")) {
