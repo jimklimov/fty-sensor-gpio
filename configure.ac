@@ -39,6 +39,9 @@ AC_SUBST(PACKAGE_VERSION)
 LTVER="0:0:0"
 AC_SUBST(LTVER)
 
+# building in a subdirectory?
+AM_CONDITIONAL([USING_VPATH], [test "x${srcdir}" != "x."])
+
 # Capture c flags
 FTY_SENSOR_GPIO_ORIG_CFLAGS="${CFLAGS:-none}"
 
@@ -53,6 +56,9 @@ AC_PROG_LIBTOOL
 AC_PROG_SED
 AC_PROG_AWK
 PKG_PROG_PKG_CONFIG
+
+# Check endianess of the system
+AC_C_BIGENDIAN
 
 # Code coverage
 AC_MSG_CHECKING([whether to enable GCov])
@@ -495,6 +501,9 @@ else
     AC_CHECK_PROG(fty_sensor_gpio_have_asciidoc, asciidoc, yes, no)
     AC_CHECK_PROG(fty_sensor_gpio_have_xmlto, xmlto, yes, no)
     if test "x$fty_sensor_gpio_have_asciidoc" = "xno" -o "x$fty_sensor_gpio_have_xmlto" = "xno"; then
+        if test "x$with_docs" = "xyes" ; then
+            AC_MSG_ERROR([Build with docs was explicitly requested, but tools are not available])
+        fi
         fty_sensor_gpio_build_doc="no"
         # Tarballs built with 'make dist' ship with prebuilt documentation.
         if ! test -f doc/fty-sensor-gpio.7; then
