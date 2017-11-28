@@ -264,10 +264,11 @@ int main (int argc, char *argv [])
     }
 
     // 1rst stream to handle assets
+    zstr_sendx (assets, "TEMPLATE_DIR", template_dir, NULL);
     zstr_sendx (assets, "CONNECT", endpoint, NULL);
     zstr_sendx (assets, "PRODUCER", FTY_PROTO_STREAM_ASSETS, NULL);
     zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
-    zstr_sendx (assets, "TEMPLATE_DIR", template_dir, NULL);
+
 
     // 2nd (main) stream to handle GPx polling, metrics publication and mailbox requests
     zstr_sendx (server, "CONNECT", endpoint, NULL);
