@@ -292,6 +292,13 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                 }
             }
 
+            // get the correct GPO status if applicable
+            gpo_state_t *state = (gpo_state_t *) zhashx_lookup (self->gpo_states, (void *) gpx_info->asset_name);
+            if ((state && (gpx_info->current_state == GPIO_STATE_UNKNOWN))) {
+                gpx_info->current_state = state->last_action;
+                zsys_debug ("changed GPO state from GPIO_STATE_UNKNOWN to %s", libgpio_get_status_string (gpx_info->current_state).c_str ());
+            }
+
             // Get the current sensor status, only for GPIs, or when no status
             // have been set to GPOs. Otherwise, that reinit GPOs!
             if ( (gpx_info->gpx_direction != GPIO_DIRECTION_OUT)
@@ -299,6 +306,8 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                 gpx_info->current_state = libgpio_read( self->gpio_lib,
                                                         gpx_info->gpx_number,
                                                         gpx_info->gpx_direction);
+                if (state)
+                    state->last_action = gpx_info->current_state;
             }
             if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
                 zsys_error ("Can't read GPx sensor #%i status", gpx_info->gpx_number);
