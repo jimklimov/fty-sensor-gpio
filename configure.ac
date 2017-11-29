@@ -489,6 +489,8 @@ AC_ARG_WITH([docs],
         [Build and install man pages [default=yes]]),
     [with_docs=$withval])
 
+AC_MSG_NOTICE([Current value of with_docs='$with_docs'])
+
 if test "x$with_docs" = "xno"; then
     fty_sensor_gpio_build_doc="no"
     fty_sensor_gpio_install_man="no"
