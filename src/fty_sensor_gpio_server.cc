@@ -142,6 +142,7 @@ struct gpo_state_t {
     int gpo_number;
     int default_state;
     int last_action;
+    int in_alert;
 };
 
 //  Structure of our class
@@ -425,6 +426,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                                 else {
                                     zsys_debug ("last action = %d on port ", last_state->last_action, last_state->gpo_number);
                                     last_state->last_action = status_value;
+                                    last_state->in_alert = 1;
                                 }
                             }
                         }
@@ -663,6 +665,20 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
 
             gpo_state_t *state = (gpo_state_t *) zhashx_lookup (self->gpo_states, (void *) assetname);
             if (state != NULL) {
+                int num_default_state = libgpio_get_status_value (default_state);
+                //did the default state changed?
+                if (state->default_state != num_default_state) {
+                    state->default_state = num_default_state;
+                    if (!state->in_alert) {
+                        int rv = libgpio_write (self->gpio_lib, state->gpo_number, num_default_state);
+                        if (rv) {
+                            zsys_error ("Error during default action %s on GPO #%d",
+                                        default_state,
+                                        state->gpo_number);
+                        }
+                        state->last_action = num_default_state;
+                    }
+                }
                 // did the port change?
                 if (state->gpo_number != num_gpo_number) {
                     // turn off the previous port
@@ -681,6 +697,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
 
                     state->gpo_number = num_gpo_number;
                     state->last_action = num_default_state;
+                    state->in_alert = 0;
                 }
             }
             else {
@@ -697,6 +714,8 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 }
                 else
                     state->last_action = libgpio_get_status_value (default_state);
+                state->in_alert = 0;
+
                 zhashx_update (self->gpo_states, (void *) assetname, (void *) state);
             }
 
@@ -803,6 +822,7 @@ s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
                 }
                 else
                     state->last_action = default_state;
+                state->in_alert = 0;
 
                 char *asset_name_key = strdup (asset_name);
                 zhashx_update (self->gpo_states, (void *) asset_name_key, (void *) state);
