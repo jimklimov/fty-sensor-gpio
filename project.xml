@@ -41,8 +41,8 @@
     <use project = "fty-proto" libname = "libfty_proto" header="ftyproto.h" prefix="fty_proto"
         min_major = "1" min_minor = "0" min_patch = "0"
         repository = "https://github.com/42ity/fty-proto.git"
-        test = "fty_proto_test">
-        <use project = "malamute"/>
+        test = "fty_proto_test" >
+        <use project = "malamute" />
     </use>
 
     <class name = "libgpio" stable = "1">General Purpose Input/Output (GPIO) sensors library</class>
