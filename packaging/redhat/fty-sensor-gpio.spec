@@ -51,6 +51,7 @@ BuildRequires:  systemd
 %{?systemd_requires}
 BuildRequires:  xmlto
 BuildRequires:  gcc-c++
+BuildRequires:  libsodium-devel
 BuildRequires:  zeromq-devel
 BuildRequires:  czmq-devel
 BuildRequires:  malamute-devel
@@ -78,6 +79,7 @@ This package contains shared library for fty-sensor-gpio: manage gpi sensors and
 Summary:        manage gpi sensors and gpo devices
 Group:          System/Libraries
 Requires:       libfty_sensor_gpio0 = %{version}
+Requires:       libsodium-devel
 Requires:       zeromq-devel
 Requires:       czmq-devel
 Requires:       malamute-devel
