@@ -224,6 +224,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
 {
     char path[GPIO_VALUE_MAX];
     char value_str[3];
+    int retvalue = -1;
     int fd;
     int retries = GPIO_MAX_RETRY;
 
@@ -247,8 +248,10 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         pin = *pin_ptr;
     my_zsys_debug (self->verbose, "%s: reading GPx #%i (pin %i)", __func__, GPx_number, pin);
     // Enable the desired GPIO
-    if (libgpio_export(self, pin) == -1)
-        return -1;
+    if (libgpio_export(self, pin) == -1) {
+        my_zsys_debug (self->verbose, "%s: Failed to export, aborting...", __func__);
+        goto end;
+    }
 
     // Set its direction, with a possible delay
     while (libgpio_set_direction(self, pin, direction) == -1) {
@@ -264,7 +267,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         }
 
         zsys_error("%s: Failed to set direction after %i tries. Aborting!", __func__, GPIO_MAX_RETRY);
-            return -1;
+        goto end;
     }
 
     snprintf(path, GPIO_VALUE_MAX, "%s/sys/class/gpio/gpio%d/value",
@@ -276,24 +279,27 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     fd = open(path, O_RDONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
         zsys_error("Failed to open gpio '%s' for reading!", path);
-        return -1;
+        goto end;
     }
 
     if (read(fd, value_str, 3) <= 0) {
         zsys_error("Failed to read value!");
         close(fd);
-        return -1;
+        goto end;
     }
+    retvalue = atoi(&value_str[0]);
 
     my_zsys_debug (self->verbose, "%s: read value '%c'", __func__, value_str[0]);
 
     close(fd);
 
+end:
     if (libgpio_unexport(self, pin) == -1) {
+        my_zsys_debug (self->verbose, "%s: Failed to unexport...", __func__);
         return -1;
     }
 
-    return(atoi(&value_str[0]));
+    return retvalue;
 }
 //  --------------------------------------------------------------------------
 //  Write a GPO (to enable or disable it)
@@ -302,7 +308,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
 {
     static const char s_values_str[] = "01";
     char path[GPIO_VALUE_MAX];
-    int fd;
+    int fd = -1;
     int retval = 0;
     int retries = GPIO_MAX_RETRY;
 
@@ -322,8 +328,10 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     my_zsys_debug (self->verbose, "%s: writing GPO #%i (pin %i)", __func__, GPO_number, pin);
 
     // Enable the desired GPIO
-    if (libgpio_export(self, pin) == -1)
-        return -1;
+    if (libgpio_export(self, pin) == -1) {
+        my_zsys_debug (self->verbose, "%s: Failed to export, aborting...", __func__);
+        goto end;
+    }
 
     // Set its direction, with a possible delay
     while (libgpio_set_direction(self, pin, GPIO_DIRECTION_OUT) == -1) {
@@ -339,7 +347,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
         }
 
         zsys_error("%s: Failed to set direction after %i tries. Aborting!", __func__, GPIO_MAX_RETRY);
-            return -1;
+        goto end;
     }
 
     // trick #2 to allow testing
@@ -351,7 +359,8 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     fd = open(path, O_WRONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
         zsys_error("Failed to open gpio value for writing (path: %s)!", path);
-        return(-1);
+        retval = -1;
+        goto end;
     }
 
     if (write(fd, &s_values_str[GPIO_STATE_CLOSED == value ? 0 : 1], 1) != 1) {
@@ -362,7 +371,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     my_zsys_debug (self->verbose, "%s: wrote value '%i' with result %i", __func__, value, retval);
 
     close(fd);
-
+end:
     if (libgpio_unexport(self, pin) == -1) {
         retval = -1;
     }
