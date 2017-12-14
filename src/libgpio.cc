@@ -309,7 +309,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     static const char s_values_str[] = "01";
     char path[GPIO_VALUE_MAX];
     int fd = -1;
-    int retval = 0;
+    int retval = -1;
     int retries = GPIO_MAX_RETRY;
 
     // Sanity check
@@ -367,6 +367,8 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
         zsys_error("Failed to write value!");
         retval = -1;
     }
+    else
+        retval = 0;
 
     my_zsys_debug (self->verbose, "%s: wrote value '%i' with result %i", __func__, value, retval);
 
