@@ -373,6 +373,20 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
         const char* asset_subtype = fty_proto_aux_string (ftymessage, "subtype", "");
         zsys_debug ("asset_subtype = %s", asset_subtype);
 
+        // Only consider active assets!
+        // Default to 'active' for inventory
+        if (!streq (fty_proto_aux_string (ftymessage, "status", "active"), "active")) {
+            // when updating from active to inactive, delete the sensor
+            if (streq (operation, "update")) {
+                my_zsys_debug (self->verbose, "%s: deleting de-actived sensor %s", self->name, assetname);
+                delete_sensor( self, assetname);
+            }
+            else
+                my_zsys_debug (self->verbose, "%s: discarded non active sensor %s", self->name, assetname);
+
+            return;
+        }
+
         if (streq (asset_subtype, "sensorgpio")) {
             const char* asset_model = fty_proto_ext_string (ftymessage, "model", "");
 
@@ -574,6 +588,7 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
                 {
                     my_zsys_debug (self->verbose, "%s: Processing sensor %s", self->name, asset);
                     fty_proto_print (fmessage);
+
                     fty_sensor_gpio_handle_asset (self, fmessage);
                 }
                 fty_proto_destroy (&fmessage);
@@ -581,7 +596,7 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
             else
             {
                 if (streq (zmsg_popstr (reply2), "ERROR"))
-                    zsys_debug ("%s: error recieved %s", self->name, zmsg_popstr (reply2));
+                    zsys_debug ("%s: error received %s", self->name, zmsg_popstr (reply2));
             }
             asset = zmsg_popstr (reply);
             zmsg_destroy (&reply2);
@@ -813,6 +828,7 @@ fty_sensor_gpio_assets_test (bool verbose)
         zhash_autofree (ext);
         zhash_update (aux, "type", (void *) "device");
         zhash_update (aux, "subtype", (void *) "sensorgpio");
+        zhash_update (aux, "status", (void *) "active");
         zhash_update (aux, "parent_name.1", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPIO-Sensor-Door1");
         zhash_update (ext, "port", (void *) "1");
@@ -837,6 +853,7 @@ fty_sensor_gpio_assets_test (bool verbose)
         ext = zhash_new ();
         zhash_update (aux, "type", (void *) "device");
         zhash_update (aux, "subtype", (void *) "sensorgpio");
+        zhash_update (aux, "status", (void *) "active");
         zhash_update (aux, "parent_name.1", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPIO-Sensor-Waterleak1");
         zhash_update (ext, "port", (void *) "2");
@@ -861,6 +878,7 @@ fty_sensor_gpio_assets_test (bool verbose)
         ext = zhash_new ();
         zhash_update (aux, "type", (void *) "device");
         zhash_update (aux, "subtype", (void *) "gpo");
+        zhash_update (aux, "status", (void *) "active");
         zhash_update (aux, "parent_name.1", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPO-Beacon");
         zhash_update (ext, "port", (void *) "2");
@@ -872,6 +890,29 @@ fty_sensor_gpio_assets_test (bool verbose)
                 ext);
 
         rv = mlm_client_send (asset_generator, "device.gpo@gpo-12", &msg);
+        assert (rv == 0);
+        zhash_destroy (&aux);
+        zhash_destroy (&ext);
+        zclock_sleep (1000);
+        zmsg_destroy (&msg);
+
+        // Asset 4: inactive GPO-Beacon
+        aux = zhash_new ();
+        ext = zhash_new ();
+        zhash_update (aux, "type", (void *) "device");
+        zhash_update (aux, "subtype", (void *) "gpo");
+        zhash_update (aux, "status", (void *) "nonactive");
+        zhash_update (aux, "parent_name.1", (void *) "rackcontroller-1");
+        zhash_update (ext, "name", (void *) "GPO-Beacon");
+        zhash_update (ext, "port", (void *) "3");
+
+        msg = fty_proto_encode_asset (
+                aux,
+                "gpo-13",
+                FTY_PROTO_ASSET_OP_CREATE,
+                ext);
+
+        rv = mlm_client_send (asset_generator, "device.gpo@gpo-13", &msg);
         assert (rv == 0);
         zhash_destroy (&aux);
         zhash_destroy (&ext);
@@ -959,6 +1000,7 @@ fty_sensor_gpio_assets_test (bool verbose)
         assert (test_gpx_list);
         int sensors_count = zlistx_size (test_gpx_list);
         assert (sensors_count == 2);
+        my_zsys_debug(verbose, "test_gpx_list = %i", sensors_count);
 
         pthread_mutex_unlock (&gpx_list_mutex);
     }
@@ -973,6 +1015,7 @@ fty_sensor_gpio_assets_test (bool verbose)
         zhash_autofree (ext);
         zhash_update (aux, "type", (void *) "device");
         zhash_update (aux, "subtype", (void *) "sensorgpio");
+        zhash_update (aux, "status", (void *) "active");
         zhash_update (aux, "parent_name.1", (void *) "rackcontroller-1");
         zhash_update (ext, "name", (void *) "GPIO-Sensor-Door1");
         zhash_update (ext, "normal_state", (void *) "opened");
@@ -1052,10 +1095,53 @@ fty_sensor_gpio_assets_test (bool verbose)
         assert (test_gpx_list);
         int sensors_count = zlistx_size (test_gpx_list);
         assert (sensors_count == 1);
+        my_zsys_debug(verbose, "test_gpx_list = %i", sensors_count);
         // There must remain only 'sensorgpio-11'
         _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (test_gpx_list);
         assert (gpx_info);
         assert (streq (gpx_info->asset_name, "sensorgpio-11"));
+
+        pthread_mutex_unlock (&gpx_list_mutex);
+    }
+
+    // Test #5: Using the list of assets from #1, update asset 2 with
+    // 'status=nonactive' and check the list
+    {
+        my_zsys_debug (verbose, "fty-sensor-gpio-assets-test: Test #5");
+        // Asset 1: DCS001
+        zhash_t* aux = zhash_new ();
+        zhash_t *ext = zhash_new ();
+        zhash_autofree (aux);
+        zhash_autofree (ext);
+        zhash_update (aux, "type", (void *) "device");
+        zhash_update (aux, "subtype", (void *) "sensorgpio");
+        zhash_update (aux, "status", (void *) "nonactive");
+        zhash_update (aux, "parent_name.1", (void *) "rackcontroller-1");
+        zhash_update (ext, "name", (void *) "GPIO-Sensor-Waterleak1");
+        zhash_update (ext, "port", (void *) "2");
+        zhash_update (ext, "model", (void *) "WLD012");
+        zhash_update (ext, "logical_asset", (void *) "Room1");
+
+        zmsg_t *msg = fty_proto_encode_asset (
+                aux,
+                "sensorgpio-11",
+                FTY_PROTO_ASSET_OP_UPDATE,
+                ext);
+
+        int rv = mlm_client_send (asset_generator, "device.sensorgpio@sensorgpio-11", &msg);
+        assert (rv == 0);
+        zhash_destroy (&aux);
+        zhash_destroy (&ext);
+        zclock_sleep (1000);
+        zmsg_destroy (&msg);
+
+        // Check the result list
+        pthread_mutex_lock (&gpx_list_mutex);
+        zlistx_t *test_gpx_list = get_gpx_list(verbose);
+        assert (test_gpx_list);
+        int sensors_count = zlistx_size (test_gpx_list);
+        my_zsys_debug(verbose, "test_gpx_list = %i", sensors_count);
+        assert (sensors_count == 0);
 
         pthread_mutex_unlock (&gpx_list_mutex);
     }
