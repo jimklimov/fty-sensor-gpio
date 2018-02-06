@@ -371,7 +371,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
         ||  (streq (operation, "create"))
         ||  (streq (operation, "update")) ) {
         const char* asset_subtype = fty_proto_aux_string (ftymessage, "subtype", "");
-        zsys_debug ("asset_subtype = %s", asset_subtype);
+        my_zsys_debug (self->verbose, "asset_subtype = %s", asset_subtype);
 
         // Only consider active assets!
         // Default to 'active' for inventory
@@ -568,7 +568,7 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
         if (rv != 0)
             zsys_error ("%s:\tRequest ASSET_DETAIL failed for %s", self->name, asset);
 
-        zsys_debug ("sending reply 2");
+        my_zsys_debug (self->verbose, "sending ASSET_DETAIL request");
         zmsg_t *reply2 = mlm_client_recv (self->mlm);
 
         if (reply2)
@@ -587,7 +587,8 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
                 if (fty_proto_id (fmessage) == FTY_PROTO_ASSET)
                 {
                     my_zsys_debug (self->verbose, "%s: Processing sensor %s", self->name, asset);
-                    fty_proto_print (fmessage);
+                    if (self->verbose)
+                        fty_proto_print (fmessage);
 
                     fty_sensor_gpio_handle_asset (self, fmessage);
                 }
@@ -596,7 +597,7 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
             else
             {
                 if (streq (zmsg_popstr (reply2), "ERROR"))
-                    zsys_debug ("%s: error received %s", self->name, zmsg_popstr (reply2));
+                    my_zsys_debug (self->verbose, "%s: error received %s", self->name, zmsg_popstr (reply2));
             }
             asset = zmsg_popstr (reply);
             zmsg_destroy (&reply2);

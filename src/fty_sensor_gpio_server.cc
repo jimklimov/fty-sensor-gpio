@@ -297,7 +297,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
             gpo_state_t *state = (gpo_state_t *) zhashx_lookup (self->gpo_states, (void *) gpx_info->asset_name);
             if ((state && (gpx_info->current_state == GPIO_STATE_UNKNOWN))) {
                 gpx_info->current_state = state->last_action;
-                zsys_debug ("changed GPO state from GPIO_STATE_UNKNOWN to %s", libgpio_get_status_string (gpx_info->current_state).c_str ());
+                my_zsys_debug (self->verbose, "changed GPO state from GPIO_STATE_UNKNOWN to %s", libgpio_get_status_string (gpx_info->current_state).c_str ());
             }
 
             // Get the current sensor status, only for GPIs, or when no status
@@ -424,7 +424,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                                     zmsg_addstr (reply, "ASSET_NOT_FOUND");
                                 }
                                 else {
-                                    zsys_debug ("last action = %d on port ", last_state->last_action, last_state->gpo_number);
+                                    my_zsys_debug (self->verbose, "last action = %d on port ", last_state->last_action, last_state->gpo_number);
                                     last_state->last_action = status_value;
                                     last_state->in_alert = 1;
                                 }
@@ -783,7 +783,7 @@ s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
     if (!state_file)
         // no state file - alright
         return;
-    zsys_debug ("state file = %s", state_file);
+    my_zsys_debug (self->verbose, "state file = %s", state_file);
     FILE *f_state = fopen (state_file, "r");
     if (!f_state) {
         zsys_warning ("Could not load state file, continuing without it...");
@@ -847,7 +847,6 @@ s_save_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
     fclose (f_state);
 }
 
-
 //  --------------------------------------------------------------------------
 //  Create fty_sensor_gpio_server actor
 
@@ -896,7 +895,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     int r = mlm_client_connect (self->mlm, endpoint, 5000, self->name);
                     if (r == -1)
                         zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
-                    zsys_debug("fty-gpio-sensor-server: CONNECT %s/%s", endpoint, self->name);
+                    my_zsys_debug(self->verbose, "fty-gpio-sensor-server: CONNECT %s/%s", endpoint, self->name);
                     zstr_free (&endpoint);
                 }
                 else if (streq (cmd, "PRODUCER")) {
@@ -1204,7 +1203,7 @@ fty_sensor_gpio_server_test (bool verbose)
         zstr_free(&answer);
         answer = zmsg_popstr (recv);
         assert ( answer );
-        zsys_debug("Got answer: '%s'", answer);
+        my_zsys_debug(verbose, "Got answer: '%s'", answer);
         assert ( streq (answer, "OK") );
         zstr_free(&answer);
 
