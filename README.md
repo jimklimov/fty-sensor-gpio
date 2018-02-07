@@ -35,21 +35,27 @@ For the other options available, refer to the manual page of fty-sensor-gpio
 systemctl start fty-sensor-gpio
 ```
 
-### Configuration file
+### Configuration file and request
 
 To configure fty-sensor-gpio, a configuration file exists: fty-sensor-gpio.cfg
 
 Beside from the standard configuration directives, under the server and malamute
-sections, the following are also available to adapt to the specific hardware,
-under the 'hardware' section:
+sections, hardware capabilities are requested to the fty-info agents, to adapt
+to the behavior of fty-sensor-gpio, using:
 
-* gpio_base_address: the target address of the GPIO chipset (488 for the
-gpiochip488 on IPC3000)
-* gpi_count: the number of GPI (10 on IPC3000)
-* gpo_count: the number of GPO (5 on IPC3000)
-* gpo_offset: the offset to apply to access GPO pins, from base chipset address.
+* HW_CAP/'msg-correlation-id'/gpi
+* HW_CAP/'msg-correlation-id'/gpo
+
+This answer will allow to get: 
+* gpi_count: (mandatory) the number of GPI (10 on IPC3000)
+* gpo_count: (mandatory) the number of GPO (5 on IPC3000)
+* gpio_base_address: (optional) the target address of the GPIO chipset (488 for
+the gpiochip488 on IPC3000)
+* gpo_offset: (optional) the offset to apply to access GPO pins, from base
+chipset address.
 15 on IPC3000, so GPO pins have +15 offset, i.e. GPO 1 is pin 16, ...
-* gpi_offset: the offset to apply to access GPI pins, from base chipset address.
+* gpi_offset: (optional) the offset to apply to access GPI pins, from base
+chipset address.
 -1 on IPC3000, so GPI pins have -1 offset, i.e. GPI 1 is pin 0, ...
 
 ### Commissioning using CSV file
