@@ -157,6 +157,9 @@ struct _fty_sensor_gpio_server_t {
     zhashx_t           *gpo_states;
 };
 
+// Flag to share if HW capabilities were successfully received
+bool hw_cap_inited = false;
+
 // Declare our testing HW_CAP reply, to be able to manage our tests
 zmsg_t *hw_cap_test_reply_gpi = NULL;
 zmsg_t *hw_cap_test_reply_gpo = NULL;
@@ -188,6 +191,27 @@ static void free_fn (void ** self_ptr)
         return;
     }
     free (*self_ptr);
+}
+
+// FIXME: Malamute still lacks that!
+// receive message with timeout
+static zmsg_t *
+my_mlm_client_recv (mlm_client_t *client, int timeout)
+{
+    static zpoller_t *poller = NULL;
+
+    if (zsys_interrupted)
+        return NULL;
+
+    poller = zpoller_new (mlm_client_msgpipe (client), NULL);
+
+    zsock_t *which = (zsock_t *) zpoller_wait (poller, timeout);
+    zpoller_destroy (&poller);
+    if (which == mlm_client_msgpipe (client)) {
+        zmsg_t *reply = mlm_client_recv (client);
+        return reply;
+    }
+    return NULL;
 }
 //  --------------------------------------------------------------------------
 //  Publish status of the pointed GPIO sensor
@@ -855,8 +879,8 @@ s_save_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
 
 //  --------------------------------------------------------------------------
 //  Request GPI/GPO capabilities from fty-info, to init our structures.
-
-void
+//  Return 1 on error, 0 otherwise
+int
 request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
 {
     my_zsys_debug (self->verbose, "%s", __func__);
@@ -865,7 +889,7 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
     // Sanity check
     if ((!streq (type, "gpi")) && (!streq (type, "gpo"))) {
         my_zsys_debug (self->verbose, "%s: error: only 'gpi' and 'gpo' are supported", __func__);
-        return;
+        return 1;
     }
 
     zmsg_t *reply;
@@ -882,14 +906,16 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
             zsys_error ("%s:\tRequest %s sensors list failed", self->name, type);
             zmsg_destroy (&msg);
             zuuid_destroy (&uuid);
-            return;
+            return 1;
         }
         else
             my_zsys_debug (self->verbose, "%s: %s capability request sent successfully", self->name, type);
 
-        reply = mlm_client_recv (self->mlm);
-        if (!reply)
+        reply = my_mlm_client_recv (self->mlm, 5000);
+        if (!reply) {
             zsys_error ("%s: no reply message received", self->name);
+            return 1;
+        }
 
         char *uuid_recv = zmsg_popstr(reply);
 
@@ -897,13 +923,13 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
             my_zsys_debug (self->verbose, "%s: zuuid reply doesn't match request", self->name);
             zmsg_destroy (&reply);
             zstr_free (&uuid_recv);
-            return;
+            return 1;
         }
 
         if (streq (zmsg_popstr (reply), "ERROR")) {
             char *reason = zmsg_popstr (reply);
             zsys_error ("%s: error message received %s", self->name, reason);
-            return;
+            return 1;
         }
     } else { // TEST mode
         // Use the forged reply
@@ -920,7 +946,7 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
         zsys_error ("%s: mismatch in reply on the type received (should be %s ; is %s)",
             self->name, type, value);
         zstr_free (&value);
-        return;
+        return 1;
     }
     zstr_free (&value);
 
@@ -937,7 +963,7 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
 
     if (ivalue == 0) {
         my_zsys_debug (self->verbose, "%s count is 0, no further processing", type);
-        return;
+        return 0;
     }
 
     // Process the GPIO chipset base address
@@ -980,6 +1006,7 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
         value = zmsg_popstr (reply);
     }
     zmsg_destroy (&reply);
+    return 0;
 }
 
 //  --------------------------------------------------------------------------
@@ -1068,8 +1095,13 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                 }
                 else if (streq (cmd, "HW_CAP")) {
                     // Request our config
-                    request_capabilities_info(self, "gpi");
-                    request_capabilities_info(self, "gpo");
+                    int rvi = request_capabilities_info(self, "gpi");
+                    int rvo = request_capabilities_info(self, "gpo");
+                    // We can now stop the reschedule loop
+                    if (!rvi && !rvo) {
+                        my_zsys_debug (self->verbose, "HW_CAP request succeeded");
+                        hw_cap_inited = true;
+                    }
                 }
                 else if (streq (cmd, "STATEFILE")) {
                     char *state_file = zmsg_popstr (message);

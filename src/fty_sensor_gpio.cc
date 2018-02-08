@@ -61,6 +61,18 @@ s_update_event (zloop_t *loop, int timer_id, void *output)
     return 0;
 }
 
+// Schedule HW_CAP request to do the initial configuration for local GPI/GPO
+static int
+s_request_hwcap_event (zloop_t *loop, int timer_id, void *output)
+{
+    if (!hw_cap_inited) {
+        zstr_send (output, "HW_CAP");
+        return 0;
+    }
+    else // we can stop this timer, valid reply received
+        return zloop_timer_end (loop, timer_id);
+}
+
 int main (int argc, char *argv [])
 {
     char *config_file = NULL;
@@ -188,13 +200,16 @@ int main (int argc, char *argv [])
     zstr_sendx (server, "CONNECT", endpoint, NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
     zstr_sendx (server, "TEMPLATE_DIR", template_dir, NULL);
-    zstr_sendx (server, "HW_CAP", NULL);
+    //zstr_sendx (server, "HW_CAP", NULL);
     zstr_sendx (server, "STATEFILE", state_file, NULL);
 
-    // Setup an update event message every x microseconds, to check GPI status
-    zloop_t *gpio_status_update = zloop_new();
-    zloop_timer (gpio_status_update, poll_interval, 0, s_update_event, server);
-    zloop_start (gpio_status_update);
+    // Setup:
+    // * an update event message every x microseconds, to check GPI status
+    // * a request event message every 5 seconds, to request local HW capabilities
+    zloop_t *gpio_events = zloop_new();
+    zloop_timer (gpio_events, poll_interval, 0, s_update_event, server);
+    zloop_timer (gpio_events, 5000, 0, s_request_hwcap_event, server);
+    zloop_start (gpio_events);
 
     // 2nd stream to handle assets
     zstr_sendx (assets, "TEMPLATE_DIR", template_dir, NULL);
@@ -203,7 +218,7 @@ int main (int argc, char *argv [])
     zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
 
     // Cleanup
-    zloop_destroy (&gpio_status_update);
+    zloop_destroy (&gpio_events);
     zactor_destroy (&server);
     zactor_destroy (&assets);
     zstr_free(&template_dir);
