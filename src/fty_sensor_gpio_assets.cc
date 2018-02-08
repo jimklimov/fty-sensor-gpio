@@ -41,6 +41,7 @@ struct _fty_sensor_gpio_assets_t {
     mlm_client_t       *mlm;          // malamute client
     zlistx_t           *gpx_list;     // List of monitored GPx _gpx_info_t (10xGPI / 5xGPO on IPC3000)
     char               *template_dir; // Location of the template files
+    bool               test_mode;     // true if we are in test mode, false otherwise
 };
 
 
@@ -159,6 +160,7 @@ _gpx_info_t *sensor_new()
 //  --------------------------------------------------------------------------
 //  Sensors handling
 //  Add a new entry to our zlist of monitored sensors
+//  Returns 1 on error, 0 otherwise
 
 //static
 int
@@ -170,9 +172,23 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     const char* sensor_location, const char* sensor_power_source,
     const char* sensor_alarm_message, const char* sensor_alarm_severity)
 {
-    // FIXME:
-    // * check if already monitored! + sanity on < 10... AND pin not already declared/used
-
+    int gpx_number = atoi(sensor_gpx_number);
+    // FIXME: libgpio should be shared with -asset too
+    // Sanity check on the sensor_gpx_number Vs number of supported (count)
+    if (!self->test_mode) {
+        if ( streq (sensor_gpx_direction, "GPO" ) ) {
+            if (gpx_number > libgpio_get_gpo_count ()) {
+                zsys_info ("ERROR: GPO number is higher than the number of supported GPO");
+                return 1;
+            }
+        }
+        else {
+            if (gpx_number > libgpio_get_gpi_count ()) {
+                zsys_info ("ERROR: GPI number is higher than the number of supported GPI");
+                return 1;
+            }
+        }
+    }
     _gpx_info_t *prev_gpx_info = NULL;
     _gpx_info_t *gpx_info = sensor_new();
     if (!gpx_info) {
@@ -191,7 +207,7 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
         zsys_info ("ERROR: provided normal_state '%s' is not valid!", sensor_normal_state);
         return 1;
     }
-    gpx_info->gpx_number = atoi(sensor_gpx_number);
+    gpx_info->gpx_number = gpx_number;
 //    gpx_info->pin_number = atoi(sensor_pin_number);
     if ( streq (sensor_gpx_direction, "GPO" ) ) {
         gpx_info->gpx_direction = GPIO_DIRECTION_OUT;
@@ -620,6 +636,7 @@ fty_sensor_gpio_assets_new (const char* name)
     self->mlm         = mlm_client_new();
     self->name        = strdup(name);
     self->verbose     = false;
+    self->test_mode   = false;
     self->template_dir = NULL;
     // Declare our zlist for GPIOs tracking
     // Instanciated here and provided to all actors
@@ -731,6 +748,10 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                     self->verbose = true;
                     my_zsys_debug (self->verbose, "fty-gpio-sensor-assets: VERBOSE=true");
                 }
+                else if (streq (cmd, "TEST")) {
+                    self->test_mode = true;
+                    my_zsys_debug (self->verbose, "fty-gpio-sensor-assets: TEST=true");
+                }
                 else if (streq (cmd, "TEMPLATE_DIR")) {
                     self->template_dir = zmsg_popstr (message);
                     my_zsys_debug (self->verbose, "fty_sensor_gpio: Using sensors template directory: %s", self->template_dir);
@@ -810,6 +831,7 @@ fty_sensor_gpio_assets_test (bool verbose)
 
     if (verbose)
         zstr_send (assets, "VERBOSE");
+    zstr_sendx (assets, "TEST", NULL);
     zstr_sendx (assets, "CONNECT", endpoint, NULL);
     zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
     // Use source-provided templates

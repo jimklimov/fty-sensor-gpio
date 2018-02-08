@@ -1,7 +1,7 @@
 [Unit]
 Description=fty-sensor-gpio service
-Requires=network.target malamute.service fty-asset.service
-After=network.target malamute.service fty-asset.service
+Requires=network.target malamute.service fty-asset.service fty-info.service
+After=network.target malamute.service fty-asset.service fty-info.service
 PartOf=bios.target
 
 [Service]

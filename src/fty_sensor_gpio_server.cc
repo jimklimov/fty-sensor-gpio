@@ -157,6 +157,13 @@ struct _fty_sensor_gpio_server_t {
     zhashx_t           *gpo_states;
 };
 
+// Flag to share if HW capabilities were successfully received
+bool hw_cap_inited = false;
+
+// Declare our testing HW_CAP reply, to be able to manage our tests
+zmsg_t *hw_cap_test_reply_gpi = NULL;
+zmsg_t *hw_cap_test_reply_gpo = NULL;
+
 // Configuration accessors
 // FIXME: why do we need that? zconfig_get should already do this, no?
 const char*
@@ -184,6 +191,27 @@ static void free_fn (void ** self_ptr)
         return;
     }
     free (*self_ptr);
+}
+
+// FIXME: Malamute still lacks that!
+// receive message with timeout
+static zmsg_t *
+my_mlm_client_recv (mlm_client_t *client, int timeout)
+{
+    static zpoller_t *poller = NULL;
+
+    if (zsys_interrupted)
+        return NULL;
+
+    poller = zpoller_new (mlm_client_msgpipe (client), NULL);
+
+    zsock_t *which = (zsock_t *) zpoller_wait (poller, timeout);
+    zpoller_destroy (&poller);
+    if (which == mlm_client_msgpipe (client)) {
+        zmsg_t *reply = mlm_client_recv (client);
+        return reply;
+    }
+    return NULL;
 }
 //  --------------------------------------------------------------------------
 //  Publish status of the pointed GPIO sensor
@@ -746,9 +774,11 @@ fty_sensor_gpio_server_new (const char* name)
     self->verbose      = false;
     self->test_mode    = false;
     self->template_dir = NULL;
+// FIXME: we should share access to libgpio for both -server and -asset
+// for the sanity checks on count/offset/...
     self->gpio_lib = libgpio_new ();
     assert (self->gpio_lib);
-    self->gpo_states = zhashx_new ();
+    self->gpo_states   = zhashx_new ();
     zhashx_set_destructor (self->gpo_states, free_fn);
     return self;
 }
@@ -848,6 +878,138 @@ s_save_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
 }
 
 //  --------------------------------------------------------------------------
+//  Request GPI/GPO capabilities from fty-info, to init our structures.
+//  Return 1 on error, 0 otherwise
+int
+request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
+{
+    my_zsys_debug (self->verbose, "%s", __func__);
+    my_zsys_debug (self->verbose, "%s:\tRequest GPIO capabilities info for '%s'", self->name, type);
+
+    // Sanity check
+    if ((!streq (type, "gpi")) && (!streq (type, "gpo"))) {
+        my_zsys_debug (self->verbose, "%s: error: only 'gpi' and 'gpo' are supported", __func__);
+        return 1;
+    }
+
+    zmsg_t *reply;
+    if (!self->test_mode) {
+        // Request HW_CAP info for <type>
+        zmsg_t *msg = zmsg_new ();
+        zuuid_t *uuid = zuuid_new ();
+        zmsg_addstr (msg, "HW_CAP");
+        zmsg_addstr (msg, zuuid_str_canonical (uuid));
+        zmsg_addstr (msg, type);
+
+        int rv = mlm_client_sendto (self->mlm, "fty-info", "info", NULL, 5000, &msg);
+        if (rv != 0) {
+            zsys_error ("%s:\tRequest %s sensors list failed", self->name, type);
+            zmsg_destroy (&msg);
+            zuuid_destroy (&uuid);
+            return 1;
+        }
+        else
+            my_zsys_debug (self->verbose, "%s: %s capability request sent successfully", self->name, type);
+
+        reply = my_mlm_client_recv (self->mlm, 5000);
+        if (!reply) {
+            zsys_error ("%s: no reply message received", self->name);
+            return 1;
+        }
+
+        char *uuid_recv = zmsg_popstr(reply);
+
+        if (0 != strcmp (zuuid_str_canonical (uuid), uuid_recv)) {
+            my_zsys_debug (self->verbose, "%s: zuuid reply doesn't match request", self->name);
+            zmsg_destroy (&reply);
+            zstr_free (&uuid_recv);
+            return 1;
+        }
+
+        if (streq (zmsg_popstr (reply), "ERROR")) {
+            char *reason = zmsg_popstr (reply);
+            zsys_error ("%s: error message received %s", self->name, reason);
+            return 1;
+        }
+    } else { // TEST mode
+        // Use the forged reply
+        if (streq (type, "gpi")) {
+            reply = hw_cap_test_reply_gpi;
+        } else if (streq (type, "gpo")) {
+            reply = hw_cap_test_reply_gpo;
+        }
+    }
+
+    // sanity check on type requested Vs received
+    char *value = zmsg_popstr (reply);
+    if (!streq (value, type)) {
+        zsys_error ("%s: mismatch in reply on the type received (should be %s ; is %s)",
+            self->name, type, value);
+        zstr_free (&value);
+        return 1;
+    }
+    zstr_free (&value);
+
+    // Process the GPx count
+    value = zmsg_popstr (reply);
+    int ivalue = atoi(value);
+    my_zsys_debug (self->verbose, "%s count=%i", type, ivalue);
+    if (streq (type, "gpi")) {
+        libgpio_set_gpi_count (self->gpio_lib, ivalue);
+    } else if (streq (type, "gpo")) {
+        libgpio_set_gpo_count (self->gpio_lib, ivalue);
+    }
+    zstr_free (&value);
+
+    if (ivalue == 0) {
+        my_zsys_debug (self->verbose, "%s count is 0, no further processing", type);
+        return 0;
+    }
+
+    // Process the GPIO chipset base address
+    value = zmsg_popstr (reply);
+    ivalue = atoi(value);
+    my_zsys_debug (self->verbose, "%s chipset base address: %i", type, ivalue);
+    libgpio_set_gpio_base_address (self->gpio_lib, ivalue);
+    zstr_free (&value);
+
+    // Process the offset of the GPI/O
+    value = zmsg_popstr (reply);
+    ivalue = atoi(value);
+    my_zsys_debug (self->verbose, "%s offset=%i", type, ivalue);
+    if (streq (type, "gpi")) {
+        libgpio_set_gpi_offset (self->gpio_lib, ivalue);
+    } else if (streq (type, "gpo")) {
+        libgpio_set_gpo_offset (self->gpio_lib, ivalue);
+    }
+    zstr_free (&value);
+
+    // Process port mapping
+    value = zmsg_popstr (reply);
+    while (value) {
+        // GPx pin name
+        // drop the port descriptor because zconfig is stupid and
+        // doesn't allow number as a key
+        const std::string port_str (value+1, 1);
+        // convert to int
+        int port_num = (int) strtol (port_str.c_str (), NULL, 10);
+        zstr_free (&value);
+        // GPx pin number
+        value = zmsg_popstr (reply);
+        int pin_num = (int) strtol (value, NULL, 10);
+        if (streq (type, "gpi"))
+            libgpio_add_gpi_mapping (self->gpio_lib, port_num, pin_num);
+        else
+            libgpio_add_gpo_mapping (self->gpio_lib, port_num, pin_num);
+        zstr_free (&value);
+        // Pop the next pin name
+        value = zmsg_popstr (reply);
+    }
+    zmsg_destroy (&reply);
+    return 0;
+}
+
+//  --------------------------------------------------------------------------
 //  Create fty_sensor_gpio_server actor
 
 void
@@ -931,64 +1093,15 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     self->template_dir = zmsg_popstr (message);
                     my_zsys_debug (self->verbose, "fty_sensor_gpio: Using sensors template directory: %s", self->template_dir);
                 }
-                else if (streq (cmd, "GPIO_CHIP_ADDRESS")) {
-                    char *str_gpio_base_address = zmsg_popstr (message);
-                    int gpio_base_address = atoi(str_gpio_base_address);
-                    libgpio_set_gpio_base_address (self->gpio_lib, gpio_base_address);
-                    my_zsys_debug (self->verbose, "fty_sensor_gpio: GPIO_CHIP_ADDRESS=%i", gpio_base_address);
-                    zstr_free (&str_gpio_base_address);
-                }
-                else if (streq (cmd, "GPI_OFFSET")) {
-                    char *str_gpi_offset = zmsg_popstr (message);
-                    int gpi_offset = atoi(str_gpi_offset);
-                    libgpio_set_gpi_offset (self->gpio_lib, gpi_offset);
-                    my_zsys_debug (self->verbose, "fty_sensor_gpio: GPI_OFFSET=%i", gpi_offset);
-                    zstr_free (&str_gpi_offset);
-                }
-                else if (streq (cmd, "GPO_OFFSET")) {
-                    char *str_gpo_offset = zmsg_popstr (message);
-                    int gpo_offset = atoi(str_gpo_offset);
-                    libgpio_set_gpo_offset (self->gpio_lib, gpo_offset);
-                    my_zsys_debug (self->verbose, "fty_sensor_gpio: GPO_OFFSET=%i", gpo_offset);
-                    zstr_free (&str_gpo_offset);
-                }
-                else if (streq (cmd, "GPI_COUNT")) {
-                    char *str_gpi_count = zmsg_popstr (message);
-                    int gpi_count = atoi(str_gpi_count);
-                    libgpio_set_gpi_count (self->gpio_lib, gpi_count);
-                    my_zsys_debug (self->verbose, "fty_sensor_gpio: GPI_COUNT=%i", gpi_count);
-                    zstr_free (&str_gpi_count);
-                }
-                else if (streq (cmd, "GPO_COUNT")) {
-                    char *str_gpo_count = zmsg_popstr (message);
-                    int gpo_count = atoi(str_gpo_count);
-                    libgpio_set_gpo_count (self->gpio_lib, gpo_count);
-                    my_zsys_debug (self->verbose, "fty_sensor_gpio: GPO_COUNT=%i", gpo_count);
-                    zstr_free (&str_gpo_count);
-                }
-                else if (streq (cmd, "GPI_MAPPING")) {
-                    const std::string key = zmsg_popstr (message);
-                    char *value = zmsg_popstr (message);
-                    // drop the port descriptor because zconfig is stupid and doesn't allow number as a key
-                    const std::string port_str (key, 1);
-                    // convert to int
-                    int port_num = (int) strtol (port_str.c_str (), NULL, 10);
-                    int pin_num = (int) strtol (value, NULL, 10);
-                    my_zsys_debug (self->verbose, "port_num = %d->pin_num = %d", port_num, pin_num);
-                    libgpio_add_gpi_mapping (self->gpio_lib, port_num, pin_num);
-                    zstr_free (&value);
-                }
-                else if (streq (cmd, "GPO_MAPPING")) {
-                    const std::string key = zmsg_popstr (message);
-                    char *value = zmsg_popstr (message);
-                    // drop the port descriptor
-                    const std::string port_str (key, 1);
-                    // convert to int
-                    int port_num = (int) strtol (port_str.c_str (), NULL, 10);
-                    int pin_num = (int) strtol (value, NULL, 10);
-                    my_zsys_debug (self->verbose, "port_num = %d->pin_num = %d", port_num, pin_num);
-                    libgpio_add_gpo_mapping (self->gpio_lib, port_num, pin_num);
-                    zstr_free (&value);
+                else if (streq (cmd, "HW_CAP")) {
+                    // Request our config
+                    int rvi = request_capabilities_info(self, "gpi");
+                    int rvo = request_capabilities_info(self, "gpo");
+                    // We can now stop the reschedule loop
+                    if (!rvi && !rvo) {
+                        my_zsys_debug (self->verbose, "HW_CAP request succeeded");
+                        hw_cap_inited = true;
+                    }
                 }
                 else if (streq (cmd, "STATEFILE")) {
                     char *state_file = zmsg_popstr (message);
@@ -1065,19 +1178,39 @@ fty_sensor_gpio_server_test (bool verbose)
     zactor_t *self = zactor_new (fty_sensor_gpio_server, (void*)FTY_SENSOR_GPIO_AGENT);
     assert (self);
 
+    // Forge a HW_CAP reply message
+    //msg-correlation-id'/OK/'type'/'count'/'base_address'/'offset'/'mapping1'/'mapping_val1'/'mapping2'/'mapping_val2'/ ...
+    hw_cap_test_reply_gpi = zmsg_new ();
+    hw_cap_test_reply_gpo = zmsg_new ();
+    // zuuid_t can be omitted, since it's already been pop'ed
+    // Same for "OK"
+    // GPI
+    // Offset '-1' means GPI '1' address is '488'
+    zmsg_addstr (hw_cap_test_reply_gpi, "gpi");
+    zmsg_addstr (hw_cap_test_reply_gpi, "10");
+    zmsg_addstr (hw_cap_test_reply_gpi, "488");
+    zmsg_addstr (hw_cap_test_reply_gpi, "-1");
+    // GPO
+    // We'll use GPO port '2', so address will be '490'
+    zmsg_addstr (hw_cap_test_reply_gpo, "gpo");
+    zmsg_addstr (hw_cap_test_reply_gpo, "5");
+    zmsg_addstr (hw_cap_test_reply_gpo, "488");
+    zmsg_addstr (hw_cap_test_reply_gpo, "0");
+    // FIXME: add some mapping for testing
+    zmsg_addstr (hw_cap_test_reply_gpo, "p4");
+    zmsg_addstr (hw_cap_test_reply_gpo, "502");
+    zmsg_addstr (hw_cap_test_reply_gpo, "p5");
+    zmsg_addstr (hw_cap_test_reply_gpo, "503");
+
     // Configure the server
-    zstr_sendx (self, "CONNECT", endpoint, NULL);
     if (verbose)
-        zstr_send (self, "VERBOSE");
+        zstr_sendx (self, "VERBOSE", NULL);
+    // TEST *MUST* be set first, before HW_CAP, for HW capabilities
+    zstr_sendx (self, "TEST", NULL);
+    zstr_sendx (self, "CONNECT", endpoint, NULL);
     zstr_sendx (self, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
     zstr_sendx (self, "TEMPLATE_DIR", template_dir.c_str(), NULL);
-    zstr_sendx (self, "GPIO_CHIP_ADDRESS", "488", NULL);
-    zstr_sendx (self, "GPI_OFFSET", "-1", NULL);    // Only 1 GPI
-    zstr_sendx (self, "GPO_OFFSET", "0", NULL);     // Only 1 GPO
-    zstr_sendx (self, "GPI_COUNT", "10", NULL);
-    zstr_sendx (self, "GPO_COUNT", "5", NULL);
-    zstr_send (self, "TEST");
-
+    zstr_sendx (self, "HW_CAP", NULL);
     mlm_client_t *mb_client = mlm_client_new ();
     mlm_client_connect (mb_client, endpoint, 1000, "fty_sensor_gpio_client");
 
@@ -1112,6 +1245,8 @@ fty_sensor_gpio_server_test (bool verbose)
     // and the path for GPO
     std::string gpo_sys_dir = str_SELFTEST_DIR_RW + "/sys/class/gpio/gpio490";
     zsys_dir_create (gpo_sys_dir.c_str());
+    std::string gpo_mapping_sys_dir = str_SELFTEST_DIR_RW + "/sys/class/gpio/gpio503";
+    zsys_dir_create (gpo_mapping_sys_dir.c_str());
 
     // Acquire the list of monitored sensors
     pthread_mutex_lock (&gpx_list_mutex);
@@ -1134,8 +1269,6 @@ fty_sensor_gpio_server_test (bool verbose)
     rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPOSTATE", NULL, 5000, &msg);
     assert ( rv == 0 ); // no response
 
-
-// leak HERE begining
     // Test #1: Get status for an asset through its published metric
     {
         mlm_client_t *metrics_listener = mlm_client_new ();
@@ -1144,7 +1277,6 @@ fty_sensor_gpio_server_test (bool verbose)
 
         // Send an update and check for the generated metric
         zstr_sendx (self, "UPDATE", endpoint, NULL);
-// leak HERE?!
         zclock_sleep (500);
 
         // Check the published metric
@@ -1175,7 +1307,7 @@ fty_sensor_gpio_server_test (bool verbose)
 
         mlm_client_destroy (&metrics_listener);
     }
-// leak HERE end
+
     // Test #2: Post a GPIO_TEMPLATE_ADD request and check the file created
     // Note: this will serve afterward for the GPIO_MANIFEST / GPIO_MANIFEST_SUMMARY
     // requests
@@ -1287,7 +1419,7 @@ fty_sensor_gpio_server_test (bool verbose)
         zmsg_destroy (&recv);
     }
 
-    // Test #5: Send GPO_INTERACTION request on GPO 'sensor-11' and check it
+    // Test #5: Send GPO_INTERACTION request on GPO 'gpo-11' and check it
     {
         zmsg_t *msg = zmsg_new ();
         zuuid_t *zuuid = zuuid_new ();
@@ -1306,7 +1438,6 @@ fty_sensor_gpio_server_test (bool verbose)
         recv_str = zmsg_popstr (recv);
         assert ( streq ( recv_str, "OK") );
         zstr_free (&recv_str);
-
         zuuid_destroy (&zuuid);
         zmsg_destroy (&recv);
 
@@ -1319,7 +1450,72 @@ fty_sensor_gpio_server_test (bool verbose)
         assert (rc == 1);
         close (handle);
         assert ( readbuf[0] == '1' ); // 1 == GPIO_STATE_OPENED
+    }
 
+    // Test #6: Add another GPO (5) to test the special pin mapping
+    // end GPO_INTERACTION request on GPO 'gpo-12' and check it
+    {
+        rv = add_sensor(assets_self, "create",
+            "Eaton", "gpo-12", "GPIO-Test-GPO2",
+            "DCS001", "dummy",
+            "closed", "5",
+            "GPO", "IPC1", "Room1", "",
+            "Dummy has been $status", "WARNING");
+        assert (rv == 0);
+
+        zmsg_t *msg = zmsg_new ();
+        zuuid_t *zuuid = zuuid_new ();
+        zmsg_addstr (msg, zuuid_str_canonical (zuuid));
+        zmsg_addstr (msg, "gpo-12");     // sensor
+        zmsg_addstr (msg, "open");       // action
+        int rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPO_INTERACTION", NULL, 5000, &msg);
+        assert ( rv == 0 );
+
+        // Check the server answer
+        zmsg_t *recv = mlm_client_recv (mb_client);
+        assert(recv);
+        char *recv_str = zmsg_popstr (recv);
+        assert (streq (zuuid_str_canonical (zuuid), recv_str));
+        zstr_free (&recv_str);
+        recv_str = zmsg_popstr (recv);
+        assert ( streq ( recv_str, "OK") );
+        zstr_free (&recv_str);
+        zuuid_destroy (&zuuid);
+        zmsg_destroy (&recv);
+
+        // Now check the filesystem
+        std::string gpo2_fn = gpo_mapping_sys_dir + "/value";
+        int handle = open (gpo2_fn.c_str(), O_RDONLY, 0);
+        assert (handle >= 0);
+        char readbuf[2];
+        int rc = read (handle, &readbuf[0], 1);
+        assert (rc == 1);
+        close (handle);
+        assert ( readbuf[0] == '1' ); // 1 == GPIO_STATE_OPENED
+    }
+
+    // Test #7: Disable all GPI/GPO (as on OVA),
+    // Create a sensor and verify that it fails
+    {
+        // Forge the HW_CAP messages
+        hw_cap_test_reply_gpi = zmsg_new ();
+        hw_cap_test_reply_gpo = zmsg_new ();
+        zmsg_addstr (hw_cap_test_reply_gpi, "gpi");
+        zmsg_addstr (hw_cap_test_reply_gpi, "0");
+        zmsg_addstr (hw_cap_test_reply_gpo, "gpo");
+        zmsg_addstr (hw_cap_test_reply_gpo, "0");
+        // Update our -server
+        zstr_sendx (self, "HW_CAP", NULL);
+
+        zclock_sleep (500);
+
+        rv = add_sensor(assets_self, "create",
+            "Eaton", "gpo-13", "GPIO-Test-GPO2",
+            "DCS001", "dummy",
+            "closed", "1",
+            "GPO", "IPC1", "Room1", "",
+            "Dummy has been $status", "WARNING");
+        assert (rv == 1);
     }
 
     zsys_dir_delete (template_dir.c_str());

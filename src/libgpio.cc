@@ -41,6 +41,9 @@ struct _libgpio_t {
     zhashx_t *gpi_mapping;   // mapping for GPIs
     zhashx_t *gpo_mapping;   // mapping for GPOs
 };
+// FIXME: libgpio should be shared with -server and -asset too
+int  _gpo_count = 0;
+int  _gpi_count = 0;
 
 //  Private functions forward declarations
 
@@ -142,6 +145,15 @@ libgpio_set_gpi_count (libgpio_t *self, int gpi_count)
 {
     my_zsys_debug (self->verbose, "%s: setting GPI count to %i", __func__, gpi_count);
     self->gpi_count = gpi_count;
+    _gpi_count = gpi_count;
+}
+
+//  --------------------------------------------------------------------------
+//  Get the number of supported GPI
+int
+libgpio_get_gpi_count ()
+{
+    return _gpi_count;
 }
 
 //  --------------------------------------------------------------------------
@@ -151,6 +163,15 @@ libgpio_set_gpo_count (libgpio_t *self, int gpo_count)
 {
     my_zsys_debug (self->verbose, "%s: setting GPO count to %i", __func__, gpo_count);
     self->gpo_count = gpo_count;
+    _gpo_count = gpo_count;
+}
+
+//  --------------------------------------------------------------------------
+//  Get the number of supported GPO
+int
+libgpio_get_gpo_count ()
+{
+    return _gpo_count;
 }
 
 //---------------------------------------------------------------------------

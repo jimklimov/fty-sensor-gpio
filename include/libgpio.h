@@ -98,9 +98,19 @@ FTY_SENSOR_GPIO_EXPORT void
     libgpio_set_gpi_count (libgpio_t *self, int gpi_count);
 
 //  @interface
+//  Get the number of supported GPI
+FTY_SENSOR_GPIO_EXPORT int
+    libgpio_get_gpi_count ();
+
+//  @interface
 //  Set the number of supported GPO
 FTY_SENSOR_GPIO_EXPORT void
     libgpio_set_gpo_count (libgpio_t *self, int gpo_count);
+
+//  @interface
+//  Get the number of supported GPO
+FTY_SENSOR_GPIO_EXPORT int
+    libgpio_get_gpo_count ();
 
 //  @interface
 // Add mapping GPI number -> HW pin number

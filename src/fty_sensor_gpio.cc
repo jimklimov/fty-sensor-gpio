@@ -61,6 +61,32 @@ s_update_event (zloop_t *loop, int timer_id, void *output)
     return 0;
 }
 
+// Schedule HW_CAP request to do the initial configuration for local GPI/GPO
+static int
+s_request_hwcap_event (zloop_t *loop, int timer_id, void *output)
+{
+    if (!hw_cap_inited) {
+        zstr_send (output, "HW_CAP");
+        return 0;
+    }
+    else // we can stop this timer, valid reply received
+        return zloop_timer_end (loop, timer_id);
+}
+
+// Condition asset actor on the successful configuration of server actor (HW_CAP)
+static int
+s_server_ready_event (zloop_t *loop, int timer_id, void *output)
+{
+    if (hw_cap_inited) {
+        zstr_sendx (output, "PRODUCER", FTY_PROTO_STREAM_ASSETS, NULL);
+        zstr_sendx (output, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
+        // we can now stop this timer
+        return zloop_timer_end (loop, timer_id);
+    }
+    else // continue to loop
+        return 0;
+}
+
 int main (int argc, char *argv [])
 {
     char *config_file = NULL;
@@ -70,21 +96,6 @@ int main (int argc, char *argv [])
     char* endpoint = NULL;
     const char* str_poll_interval = NULL;
     int poll_interval = DEFAULT_POLL_INTERVAL;
-    const char* gpio_base_address = "-1";
-    const char* gpi_offset = "0";
-    const char* gpi_count = "0";
-    const char* gpo_offset = "0";
-    const char* gpo_count = "0";
-    char ***gpo_mapping = new char**[2];
-    gpo_mapping[0] = (char **) malloc (sizeof (char**));
-    gpo_mapping[1] = (char **) malloc (sizeof (char**));
-    char ***gpi_mapping = new char**[2];
-    gpi_mapping[0] = (char **) malloc (sizeof (char**));
-    gpi_mapping[1] = (char **) malloc (sizeof (char**));
-    int gpi_mapping_count = 0;
-    int gpo_mapping_count = 0;
-    int gpi_mapping_size = 1;
-    int gpo_mapping_size = 1;
     bool verbose = false;
     int argn;
 
@@ -137,71 +148,6 @@ int main (int argc, char *argv [])
         if (str_poll_interval) {
             poll_interval = atoi(str_poll_interval);
         }
-        // Target address of the GPIO chipset
-        gpio_base_address = s_get (config, "hardware/gpio_base_address", "-1");
-
-        // GPO configuration
-        gpo_offset = s_get (config, "hardware/gpo_offset", "0");
-        gpo_count = s_get (config, "hardware/gpo_count", "0");
-        zconfig_t *item = zconfig_locate(config, "hardware/gpo_mapping");
-        if (NULL != item) {
-            item = zconfig_child(item);
-            while (NULL != item) {
-                if (gpo_mapping_size == gpo_mapping_count) {
-                    char **tmp = NULL;
-                    gpo_mapping_size *= 2;
-                    tmp = (char **)realloc(gpo_mapping[0], sizeof(char *) * gpo_mapping_size);
-                    if (NULL == tmp) {
-                        zsys_error("gpo_mapping reallocation failed, OOM!");
-                        return -1;
-                    }
-                    gpo_mapping[0] = tmp;
-                    tmp = (char **)realloc(gpo_mapping[1], sizeof(char *) * gpo_mapping_size);
-                    if (NULL == tmp) {
-                        zsys_error("gpo_mapping reallocation failed, OOM!");
-                        return -1;
-                    }
-                    gpo_mapping[1] = tmp;
-                }
-                my_zsys_debug ("Key = %s, value = %s", zconfig_name (item), zconfig_value (item));
-                gpo_mapping[0][gpo_mapping_count] = strdup(zconfig_name(item));
-                gpo_mapping[1][gpo_mapping_count] = strdup(zconfig_value(item));
-                ++gpo_mapping_count;
-                item = zconfig_next(item);
-            }
-        }
-
-        // GPI configuration
-        gpi_offset = s_get (config, "hardware/gpi_offset", "0");
-        gpi_count = s_get (config, "hardware/gpi_count", "0");
-        item = zconfig_locate(config, "hardware/gpi_mapping");
-        if (NULL != item) {
-            item = zconfig_child(item);
-            while (NULL != item) {
-                if (gpi_mapping_size == gpi_mapping_count) {
-                    char **tmp = NULL;
-                    gpi_mapping_size *= 2;
-                    tmp = (char **)realloc(gpi_mapping[0], sizeof(char *) * gpi_mapping_size);
-                    if (NULL == tmp) {
-                        zsys_error("gpi_mapping reallocation failed, OOM!");
-                        return -1;
-                    }
-                    gpi_mapping[0] = tmp;
-                    tmp = (char **)realloc(gpi_mapping[1], sizeof(char *) * gpi_mapping_size);
-                    if (NULL == tmp) {
-                        zsys_error("gpi_mapping reallocation failed, OOM!");
-                        return -1;
-                    }
-                    gpi_mapping[1] = tmp;
-                }
-                my_zsys_debug ("Key = %s, value = %s", zconfig_name (item), zconfig_value (item));
-                gpi_mapping[0][gpi_mapping_count] = strdup(zconfig_name(item));
-                gpi_mapping[1][gpi_mapping_count] = strdup(zconfig_value(item));
-                ++gpi_mapping_count;
-                item = zconfig_next(item);
-            }
-        }
-
         my_zsys_debug (verbose, "Polling interval set to %i", poll_interval);
         if (endpoint) zstr_free(&endpoint);
         endpoint = strdup(s_get (config, "malamute/endpoint", NULL));
@@ -254,8 +200,8 @@ int main (int argc, char *argv [])
     if (getenv ("BIOS_LOG_LEVEL") && streq (getenv ("BIOS_LOG_LEVEL"), "LOG_DEBUG"))
         verbose = true;
 
-    zactor_t *assets = zactor_new (fty_sensor_gpio_assets, (void*)"gpio-assets");
     zactor_t *server = zactor_new (fty_sensor_gpio_server, (void*)actor_name);
+    zactor_t *assets = zactor_new (fty_sensor_gpio_assets, (void*)"gpio-assets");
 
     if (verbose) {
         zstr_sendx (server, "VERBOSE", NULL);
@@ -263,41 +209,30 @@ int main (int argc, char *argv [])
         zsys_info ("%s - Agent which manages GPI sensors and GPO devices", actor_name);
     }
 
-    // 1rst stream to handle assets
-    zstr_sendx (assets, "TEMPLATE_DIR", template_dir, NULL);
-    zstr_sendx (assets, "CONNECT", endpoint, NULL);
-    zstr_sendx (assets, "PRODUCER", FTY_PROTO_STREAM_ASSETS, NULL);
-    zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
-
-
-    // 2nd (main) stream to handle GPx polling, metrics publication and mailbox requests
+    // 1rst (main) stream to handle GPx polling, metrics publication and mailbox requests
+    // -server MUST be init'ed prior to -asset
     zstr_sendx (server, "CONNECT", endpoint, NULL);
     zstr_sendx (server, "PRODUCER", FTY_PROTO_STREAM_METRICS_SENSOR, NULL);
     zstr_sendx (server, "TEMPLATE_DIR", template_dir, NULL);
-    if (!streq(gpio_base_address, "-1")) {
-        my_zsys_debug (verbose, "Target address of the GPIO chipset set to %s", gpio_base_address);
-        zstr_sendx (server, "GPIO_CHIP_ADDRESS", gpio_base_address, NULL);
-    }
-    zstr_sendx (server, "GPI_OFFSET", gpi_offset, NULL);
-    zstr_sendx (server, "GPO_OFFSET", gpo_offset, NULL);
-    zstr_sendx (server, "GPI_COUNT", gpi_count, NULL);
-    zstr_sendx (server, "GPO_COUNT", gpo_count, NULL);
-    int i = 0;
-    for (i = 0; i < gpi_mapping_count; ++i) {
-        zstr_sendx (server, "GPI_MAPPING", gpi_mapping[0][i], gpi_mapping[1][i], NULL);
-    }
-    for (i = 0; i < gpo_mapping_count; ++i) {
-        zstr_sendx (server, "GPO_MAPPING", gpo_mapping[0][i], gpo_mapping[1][i], NULL);
-    }
+    //zstr_sendx (server, "HW_CAP", NULL);
     zstr_sendx (server, "STATEFILE", state_file, NULL);
 
-    // Setup an update event message every x microseconds, to check GPI status
-    zloop_t *gpio_status_update = zloop_new();
-    zloop_timer (gpio_status_update, poll_interval, 0, s_update_event, server);
-    zloop_start (gpio_status_update);
+    // 2nd stream to handle assets
+    zstr_sendx (assets, "TEMPLATE_DIR", template_dir, NULL);
+    zstr_sendx (assets, "CONNECT", endpoint, NULL);
+
+    // Setup:
+    // * an update event message every x microseconds, to check GPI status
+    // * a request event message every 5 seconds, to request local HW capabilities
+    // * asset actor production/consumption when server actor has received local HW capabilities
+    zloop_t *gpio_events = zloop_new();
+    zloop_timer (gpio_events, poll_interval, 0, s_update_event, server);
+    zloop_timer (gpio_events, 5000, 0, s_request_hwcap_event, server);
+    zloop_timer (gpio_events, 2000, 0, s_server_ready_event, assets);
+    zloop_start (gpio_events);
 
     // Cleanup
-    zloop_destroy (&gpio_status_update);
+    zloop_destroy (&gpio_events);
     zactor_destroy (&server);
     zactor_destroy (&assets);
     zstr_free(&template_dir);
@@ -305,10 +240,6 @@ int main (int argc, char *argv [])
     zstr_free(&endpoint);
     zstr_free(&state_file);
     zconfig_destroy (&config);
-    free(gpi_mapping[0]);
-    free(gpi_mapping[1]);
-    free(gpo_mapping[0]);
-    free(gpo_mapping[1]);
 
     return 0;
 }
