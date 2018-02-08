@@ -73,6 +73,20 @@ s_request_hwcap_event (zloop_t *loop, int timer_id, void *output)
         return zloop_timer_end (loop, timer_id);
 }
 
+// Condition asset actor on the successful configuration of server actor (HW_CAP)
+static int
+s_server_ready_event (zloop_t *loop, int timer_id, void *output)
+{
+    if (hw_cap_inited) {
+        zstr_sendx (output, "PRODUCER", FTY_PROTO_STREAM_ASSETS, NULL);
+        zstr_sendx (output, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
+        // we can now stop this timer
+        return zloop_timer_end (loop, timer_id);
+    }
+    else // continue to loop
+        return 0;
+}
+
 int main (int argc, char *argv [])
 {
     char *config_file = NULL;
@@ -203,19 +217,19 @@ int main (int argc, char *argv [])
     //zstr_sendx (server, "HW_CAP", NULL);
     zstr_sendx (server, "STATEFILE", state_file, NULL);
 
-    // Setup:
-    // * an update event message every x microseconds, to check GPI status
-    // * a request event message every 5 seconds, to request local HW capabilities
-    zloop_t *gpio_events = zloop_new();
-    zloop_timer (gpio_events, poll_interval, 0, s_update_event, server);
-    zloop_timer (gpio_events, 5000, 0, s_request_hwcap_event, server);
-    zloop_start (gpio_events);
-
     // 2nd stream to handle assets
     zstr_sendx (assets, "TEMPLATE_DIR", template_dir, NULL);
     zstr_sendx (assets, "CONNECT", endpoint, NULL);
-    zstr_sendx (assets, "PRODUCER", FTY_PROTO_STREAM_ASSETS, NULL);
-    zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
+
+    // Setup:
+    // * an update event message every x microseconds, to check GPI status
+    // * a request event message every 5 seconds, to request local HW capabilities
+    // * asset actor production/consumption when server actor has received local HW capabilities
+    zloop_t *gpio_events = zloop_new();
+    zloop_timer (gpio_events, poll_interval, 0, s_update_event, server);
+    zloop_timer (gpio_events, 5000, 0, s_request_hwcap_event, server);
+    zloop_timer (gpio_events, 2000, 0, s_server_ready_event, assets);
+    zloop_start (gpio_events);
 
     // Cleanup
     zloop_destroy (&gpio_events);
