@@ -1,7 +1,7 @@
 manufacturer   = Eaton
 part-number    = VIB001
 type           = vibration-sensor
-normal-state   = opened
+normal-state   = closed
 gpx-direction  = GPI
 power-source   = internal
 alarm-severity = WARNING
