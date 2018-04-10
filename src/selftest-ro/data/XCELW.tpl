@@ -1,7 +1,7 @@
 manufacturer   = Eaton
 part-number    = XCELW
 type           = pir-motion-detector
-normal-state   = opened
+normal-state   = closed
 gpx-direction  = GPI
 power-source   = external
 alarm-severity = WARNING
