@@ -381,8 +381,8 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
     //we assume all request command are MAILBOX DELIVER, and subject="gpio"
     if ( (subject != "") && (subject != "GPO_INTERACTION") && (subject != "GPIO_TEMPLATE_ADD")
          && (subject != "GPIO_MANIFEST") && (subject != "GPIO_MANIFEST_SUMMARY")
-         && (subject != "GPIO_TEST") && (subject != "GPOSTATE")) {
-        zsys_warning ("%s: Received unexpected subject '%s'", self->name, subject.c_str());
+         && (subject != "GPIO_TEST") && (subject != "GPOSTATE") && (subject != "ERROR")) {
+        zsys_warning ("%s: Received unexpected subject '%s' from '%s'", self->name, subject.c_str(), mlm_client_sender (self->mlm));
         zmsg_t *reply = zmsg_new ();
         zmsg_addstr(reply, "ERROR");
         zmsg_addstr (reply, "BAD_COMMAND");
@@ -754,6 +754,11 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
 
         else if (subject == "GPIO_TEST") {
             ;
+        }
+
+        else if (subject == "ERROR") {
+            // Don't reply to ERROR messages
+            zsys_warning ("%s: Received ERROR subject from '%s', ignoring", self->name, mlm_client_sender (self->mlm));
         }
         zmsg_destroy (&reply);
     }
