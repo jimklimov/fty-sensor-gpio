@@ -1,6 +1,9 @@
 # This is a skeleton created by zproject.
 # You can add hand-written code here.
+### Note: Customized after generation; take care upon regens
+
 save.xml
+
 # Object files
 *.o
 *.so
@@ -29,10 +32,10 @@ src/fty_sensor_gpio_selftest
 *.app
 core
 
- # Distcheck workspace and archives
-fty-sensor-gpio-1.0.0/
-fty-sensor-gpio-1.0.0.tar.gz
-fty-sensor-gpio-1.0.0.zip
+# Distcheck workspace and archives
+fty-sensor-gpio-*/
+fty-sensor-gpio-*.tar.gz
+fty-sensor-gpio-*.zip
 
 # Man pages
 doc/*.1
@@ -71,11 +74,14 @@ compile_commands.json
 DartConfiguration.tcl
 install_manifest.txt
 Testing/
+
+# CMake in general
 builds/cmake/
-*.cmake
 CMake*
+*.cmake
 
 # Repositories downloaded by CI integration scripts
+libsodium/
 libzmq/
 czmq/
 malamute/
@@ -108,7 +114,7 @@ src/app/gen/
 src/app/obj/
 src/app/local.properties
 
-# Android -dependencies
+# Android - dependencies
 src/app/jni/output
 
 # Python build directory
@@ -129,6 +135,9 @@ bindings/qt/selftest/selftest
 *.swp
 *.bak
 .test*
+
+# Netbeans directory
+nbproject/
 
 # editor backups
 *~
