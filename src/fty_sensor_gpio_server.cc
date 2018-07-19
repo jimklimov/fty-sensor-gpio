@@ -482,9 +482,9 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
         }
         else if ( (subject == "GPIO_MANIFEST") || (subject == "GPIO_MANIFEST_SUMMARY") ) {
             // FIXME: consolidate code using filters
+            bool first = true;
             char *zuuid = zmsg_popstr (message);
             zmsg_addstr (reply, zuuid);
-            zmsg_addstr (reply, "OK");
             char *asset_partnumber = zmsg_popstr (message);
             // Check for a parameter, to send (a) specific template(s)
             if (asset_partnumber) {
@@ -512,6 +512,10 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                         const char *alarm_severity = s_get (sensor_template_file, "alarm-severity", "");
                         const char *alarm_message = s_get (sensor_template_file, "alarm-message", "");
 
+                        if (first) {
+                            zmsg_addstr (reply, "OK");
+                            first = false;
+                        }
                         zmsg_addstr (reply, asset_partnumber);
                         zmsg_addstr (reply, manufacturer);
                         zmsg_addstr (reply, type);
@@ -547,6 +551,8 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 std::regex file_rex (".+\\.tpl");
 
                 zfile_t *item = (zfile_t *) zlist_first (files);
+                if (item)
+                    zmsg_addstr (reply, "OK");
                 while (item) {
                     if (std::regex_match (zfile_filename (item, self->template_dir), file_rex)) {
                         my_zsys_debug (self->verbose, "%s: %s matched", __func__, zfile_filename (item, self->template_dir));
