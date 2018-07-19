@@ -49,6 +49,17 @@
         <use project = "malamute" />
     </use>
 
+    <use project = "fty-common-logging" libname = "libfty_common_logging" header="fty_log.h"
+        repository = "https://github.com/42ity/fty-common-logging.git"
+        release = "master"
+        test = "fty_log_selftest" >
+
+        <use project = "log4cplus" header = "log4cplus/logger.h" test = "appender_test"
+            repository = "https://github.com/42ity/log4cplus.git"
+            release = "1.1.2-FTY-master"
+            />
+    </use>
+
     <class name = "libgpio" stable = "1">General Purpose Input/Output (GPIO) sensors library</class>
     <class name = "fty-sensor-gpio-assets">42ITy GPIO assets handler</class>
     <class name = "fty-sensor-gpio-server">42ITy GPIO server</class>

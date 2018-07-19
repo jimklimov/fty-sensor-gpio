@@ -148,7 +148,6 @@ struct gpo_state_t {
 //  Structure of our class
 
 struct _fty_sensor_gpio_server_t {
-    bool               verbose;       // is actor verbose or not
     char               *name;         // actor name
     mlm_client_t       *mlm;          // malamute client
     libgpio_t          *gpio_lib;     // GPIO library handle
@@ -218,7 +217,7 @@ my_mlm_client_recv (mlm_client_t *client, int timeout)
 
 void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int ttl)
 {
-    my_zsys_debug(self->verbose, "Publishing GPIO sensor %i (%s) status",
+    log_debug("Publishing GPIO sensor %i (%s) status",
         sensor->gpx_number, sensor->asset_name);
 
         zhash_t *aux = zhash_new ();
@@ -245,13 +244,13 @@ void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int tt
             std::string topic = msg_type + string("@") + sensor->parent;
 //        "status." + port() + "@" + _location;
 
-            my_zsys_debug(self->verbose, "\tPort: %s, type: %s, status: %s",
+            log_debug("\tPort: %s, type: %s, status: %s",
                 &port[0], msg_type.c_str(),
                 libgpio_get_status_string(sensor->current_state).c_str());
 
             int r = mlm_client_send (self->mlm, topic.c_str (), &msg);
             if( r != 0 )
-                my_zsys_debug(self->verbose, "failed to send measurement %s result %", topic.c_str(), r);
+                log_debug("failed to send measurement %s result %", topic.c_str(), r);
             zmsg_destroy (&msg);
         }
 }
@@ -262,14 +261,14 @@ void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int tt
 static void
 s_check_gpio_status(fty_sensor_gpio_server_t *self)
 {
-    my_zsys_debug (self->verbose, "%s_server: %s", self->name, __func__);
+    log_debug ("%s_server: %s", self->name, __func__);
 
     pthread_mutex_lock (&gpx_list_mutex);
 
     // number of sensors monitored in gpx_list
-    zlistx_t *gpx_list = get_gpx_list(self->verbose);
+    zlistx_t *gpx_list = get_gpx_list();
     if (!gpx_list) {
-        my_zsys_debug (self->verbose, "GPx list not initialized, skipping");
+        log_debug ("GPx list not initialized, skipping");
         pthread_mutex_unlock (&gpx_list_mutex);
         return;
     }
@@ -277,12 +276,12 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
     _gpx_info_t *gpx_info = NULL;
 
     if (sensors_count == 0) {
-        my_zsys_debug (self->verbose, "No sensors monitored");
+        log_debug ("No sensors monitored");
         pthread_mutex_unlock (&gpx_list_mutex);
         return;
     }
     else
-        my_zsys_debug (self->verbose, "%i sensor(s) monitored", sensors_count);
+        log_debug ("%i sensor(s) monitored", sensors_count);
 
     if(!mlm_client_connected(self->mlm)) {
         pthread_mutex_unlock (&gpx_list_mutex);
@@ -298,13 +297,13 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
         // No processing if not yet init'ed
         if (gpx_info) {
 
-            my_zsys_debug (self->verbose, "Checking status of GPx sensor '%s'",
+            log_debug ("Checking status of GPx sensor '%s'",
                 gpx_info->asset_name);
 
             // If there is a GPO power source, then activate it prior to
             // accessing the GPI!
             if ( gpx_info->power_source && (!streq(gpx_info->power_source, "")) ) {
-                my_zsys_debug (self->verbose, "Activating GPO power source %s",
+                log_debug ("Activating GPO power source %s",
                     gpx_info->power_source);
 
                 if (libgpio_write ( self->gpio_lib,
@@ -313,7 +312,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                     zsys_error ("Failed to activate GPO power source!");
                 }
                 else {
-                    my_zsys_debug (self->verbose, "GPO power source successfully activated.");
+                    log_debug ("GPO power source successfully activated.");
                     // Save the current state
                     gpx_info->current_state = gpx_info->normal_state;
                     // Sleep for a second to have the GPx sensor powered and running
@@ -325,7 +324,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
             gpo_state_t *state = (gpo_state_t *) zhashx_lookup (self->gpo_states, (void *) gpx_info->asset_name);
             if ((state && (gpx_info->current_state == GPIO_STATE_UNKNOWN))) {
                 gpx_info->current_state = state->last_action;
-                my_zsys_debug (self->verbose, "changed GPO state from GPIO_STATE_UNKNOWN to %s", libgpio_get_status_string (gpx_info->current_state).c_str ());
+                log_debug ("changed GPO state from GPIO_STATE_UNKNOWN to %s", libgpio_get_status_string (gpx_info->current_state).c_str ());
             }
 
             // Get the current sensor status, only for GPIs, or when no status
@@ -342,7 +341,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                 zsys_error ("Can't read GPx sensor #%i status", gpx_info->gpx_number);
             }
             else {
-                my_zsys_debug (self->verbose, "Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
+                log_debug ("Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
                     libgpio_get_status_string(gpx_info->current_state).c_str(),
                     gpx_info->current_state, gpx_info->gpx_number,
                     gpx_info->ext_name, gpx_info->asset_name);
@@ -392,18 +391,18 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
     }
     else {
         zmsg_t *reply = zmsg_new ();
-        my_zsys_debug (self->verbose, "%s: '%s' requested", self->name, subject.c_str());
+        log_debug ("%s: '%s' requested", self->name, subject.c_str());
 
         if (subject == "GPO_INTERACTION") {
             char *zuuid = zmsg_popstr (message);
             zmsg_addstr (reply, zuuid);
             char *sensor_name = zmsg_popstr (message);
             char *action_name = zmsg_popstr (message);
-            my_zsys_debug (self->verbose, "GPO_INTERACTION: do '%s' on '%s'",
+            log_debug ("GPO_INTERACTION: do '%s' on '%s'",
                 action_name, sensor_name);
             // Get the GPO entry for details
             pthread_mutex_lock (&gpx_list_mutex);
-            zlistx_t *gpx_list = get_gpx_list(self->verbose);
+            zlistx_t *gpx_list = get_gpx_list();
             if (gpx_list) {
                 int sensors_count = zlistx_size (gpx_list);
                 _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (gpx_list);
@@ -411,7 +410,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 for (int cur_sensor_num = 0; cur_sensor_num < sensors_count; cur_sensor_num++) {
                     // Check both asset and ext name
                     if (gpx_info && gpx_info->asset_name && gpx_info->ext_name) {
-                        my_zsys_debug (self->verbose, "GPO_INTERACTION: checking sensor %s/%s",
+                        log_debug ("GPO_INTERACTION: checking sensor %s/%s",
                             gpx_info->asset_name, gpx_info->ext_name);
                         if ( streq(gpx_info->asset_name, sensor_name)
                             || streq(gpx_info->ext_name, sensor_name) ) {
@@ -447,12 +446,12 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
 
                                 gpo_state_t *last_state = (gpo_state_t *) zhashx_lookup (self->gpo_states, gpx_info->asset_name);
                                 if (last_state == NULL) {
-                                    my_zsys_debug (self->verbose, "GPO_INTERACTION: can't find sensor '%s'!", sensor_name);
+                                    log_debug ("GPO_INTERACTION: can't find sensor '%s'!", sensor_name);
                                     zmsg_addstr (reply, "ERROR");
                                     zmsg_addstr (reply, "ASSET_NOT_FOUND");
                                 }
                                 else {
-                                    my_zsys_debug (self->verbose, "last action = %d on port ", last_state->last_action, last_state->gpo_number);
+                                    log_debug ("last action = %d on port ", last_state->last_action, last_state->gpo_number);
                                     last_state->last_action = status_value;
                                     last_state->in_alert = 1;
                                 }
@@ -460,13 +459,13 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                         }
                     }
                     else {
-                        my_zsys_debug (self->verbose, "GPO_INTERACTION: status value is unknown!");
+                        log_debug ("GPO_INTERACTION: status value is unknown!");
                         zmsg_addstr (reply, "ERROR");
                         zmsg_addstr (reply, "UNKNOWN_VALUE");
                     }
                 }
                 else {
-                    my_zsys_debug (self->verbose, "GPO_INTERACTION: can't find sensor '%s'!", sensor_name);
+                    log_debug ("GPO_INTERACTION: can't find sensor '%s'!", sensor_name);
                     zmsg_addstr (reply, "ERROR");
                     zmsg_addstr (reply, "ASSET_NOT_FOUND");
                 }
@@ -489,21 +488,21 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             // Check for a parameter, to send (a) specific template(s)
             if (asset_partnumber) {
                 while (asset_partnumber) {
-                    my_zsys_debug (self->verbose, "Asset filter provided: %s", asset_partnumber);
+                    log_debug ("Asset filter provided: %s", asset_partnumber);
                     // FIXME: use @datadir@ (how?)!
                     string template_filename = string(self->template_dir) + string(asset_partnumber) + string(".tpl");
 
                     // We have a GPIO sensor, process it
                     zconfig_t *sensor_template_file = zconfig_load (template_filename.c_str());
                     if (!sensor_template_file) {
-                        my_zsys_debug (self->verbose, "Can't load sensor template file"); // FIXME: error
+                        log_debug ("Can't load sensor template file"); // FIXME: error
                         zmsg_addstr (reply, "ERROR");
                         zmsg_addstr (reply, "ASSET_NOT_FOUND");
                         // FIXME: should we break for 1 issue or?
                         break;
                     }
                     else {
-                        my_zsys_debug (self->verbose, "Template file found for %s", asset_partnumber);
+                        log_debug ("Template file found for %s", asset_partnumber);
                         // Get info from template
                         const char *manufacturer = s_get (sensor_template_file, "manufacturer", "");
                         const char *type = s_get (sensor_template_file, "type", "");
@@ -555,7 +554,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     zmsg_addstr (reply, "OK");
                 while (item) {
                     if (std::regex_match (zfile_filename (item, self->template_dir), file_rex)) {
-                        my_zsys_debug (self->verbose, "%s: %s matched", __func__, zfile_filename (item, self->template_dir));
+                        log_debug ("%s: %s matched", __func__, zfile_filename (item, self->template_dir));
                         string template_filename = zfile_filename (item, NULL);
 
                         string asset_partnumber = zfile_filename (item, self->template_dir);
@@ -607,7 +606,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 // We have a GPIO sensor, process it
                 /*zconfig_t *sensor_template_file = zconfig_load (template_filename.c_str());
                 if (!sensor_template_file) {
-                    my_zsys_debug (self->verbose, "Can't create sensor template file"); // FIXME: error
+                    log_debug ("Can't create sensor template file"); // FIXME: error
                     zmsg_addstr (reply, "ERROR");
                     zmsg_addstr (reply, "?"); // FIXME: check errno for exact
                 }*/
@@ -782,7 +781,6 @@ fty_sensor_gpio_server_new (const char* name)
     //  Initialize class properties
     self->mlm          = mlm_client_new();
     self->name         = strdup(name);
-    self->verbose      = false;
     self->test_mode    = false;
     self->template_dir = NULL;
 // FIXME: we should share access to libgpio for both -server and -asset
@@ -824,7 +822,7 @@ s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
     if (!state_file)
         // no state file - alright
         return;
-    my_zsys_debug (self->verbose, "state file = %s", state_file);
+    log_debug ("state file = %s", state_file);
     FILE *f_state = fopen (state_file, "r");
     if (!f_state) {
         zsys_warning ("Could not load state file, continuing without it...");
@@ -894,12 +892,12 @@ s_save_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
 int
 request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
 {
-    my_zsys_debug (self->verbose, "%s", __func__);
-    my_zsys_debug (self->verbose, "%s:\tRequest GPIO capabilities info for '%s'", self->name, type);
+    log_debug ("%s", __func__);
+    log_debug ("%s:\tRequest GPIO capabilities info for '%s'", self->name, type);
 
     // Sanity check
     if ((!streq (type, "gpi")) && (!streq (type, "gpo"))) {
-        my_zsys_debug (self->verbose, "%s: error: only 'gpi' and 'gpo' are supported", __func__);
+        log_debug ("%s: error: only 'gpi' and 'gpo' are supported", __func__);
         return 1;
     }
 
@@ -920,7 +918,7 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
             return 1;
         }
         else
-            my_zsys_debug (self->verbose, "%s: %s capability request sent successfully", self->name, type);
+            log_debug ("%s: %s capability request sent successfully", self->name, type);
 
         reply = my_mlm_client_recv (self->mlm, 5000);
         if (!reply) {
@@ -931,7 +929,7 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
         char *uuid_recv = zmsg_popstr(reply);
 
         if (0 != strcmp (zuuid_str_canonical (uuid), uuid_recv)) {
-            my_zsys_debug (self->verbose, "%s: zuuid reply doesn't match request", self->name);
+            log_debug ("%s: zuuid reply doesn't match request", self->name);
             zmsg_destroy (&reply);
             zstr_free (&uuid_recv);
             return 1;
@@ -964,7 +962,7 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
     // Process the GPx count
     value = zmsg_popstr (reply);
     int ivalue = atoi(value);
-    my_zsys_debug (self->verbose, "%s count=%i", type, ivalue);
+    log_debug ("%s count=%i", type, ivalue);
     if (streq (type, "gpi")) {
         libgpio_set_gpi_count (self->gpio_lib, ivalue);
     } else if (streq (type, "gpo")) {
@@ -973,21 +971,21 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
     zstr_free (&value);
 
     if (ivalue == 0) {
-        my_zsys_debug (self->verbose, "%s count is 0, no further processing", type);
+        log_debug ("%s count is 0, no further processing", type);
         return 0;
     }
 
     // Process the GPIO chipset base address
     value = zmsg_popstr (reply);
     ivalue = atoi(value);
-    my_zsys_debug (self->verbose, "%s chipset base address: %i", type, ivalue);
+    log_debug ("%s chipset base address: %i", type, ivalue);
     libgpio_set_gpio_base_address (self->gpio_lib, ivalue);
     zstr_free (&value);
 
     // Process the offset of the GPI/O
     value = zmsg_popstr (reply);
     ivalue = atoi(value);
-    my_zsys_debug (self->verbose, "%s offset=%i", type, ivalue);
+    log_debug ("%s offset=%i", type, ivalue);
     if (streq (type, "gpi")) {
         libgpio_set_gpi_offset (self->gpio_lib, ivalue);
     } else if (streq (type, "gpo")) {
@@ -1054,7 +1052,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
             zmsg_t *message = zmsg_recv (pipe);
             char *cmd = zmsg_popstr (message);
             if (cmd) {
-                my_zsys_debug(self->verbose, "fty_sensor_gpio: received command %s", cmd);
+                log_debug("fty_sensor_gpio: received command %s", cmd);
                 if (streq (cmd, "$TERM")) {
                     zstr_free (&cmd);
                     zmsg_destroy (&message);
@@ -1068,14 +1066,14 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     int r = mlm_client_connect (self->mlm, endpoint, 5000, self->name);
                     if (r == -1)
                         zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
-                    my_zsys_debug(self->verbose, "fty-gpio-sensor-server: CONNECT %s/%s", endpoint, self->name);
+                    log_debug("fty-gpio-sensor-server: CONNECT %s/%s", endpoint, self->name);
                     zstr_free (&endpoint);
                 }
                 else if (streq (cmd, "PRODUCER")) {
                     char *stream = zmsg_popstr (message);
                     assert (stream);
                     mlm_client_set_producer (self->mlm, stream);
-                    my_zsys_debug (self->verbose, "fty_sensor_gpio: setting PRODUCER on %s", stream);
+                    log_debug ("fty_sensor_gpio: setting PRODUCER on %s", stream);
                     zstr_free (&stream);
                 }
                 else if (streq (cmd, "CONSUMER")) {
@@ -1083,26 +1081,21 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     char *pattern = zmsg_popstr (message);
                     assert (stream && pattern);
                     mlm_client_set_consumer (self->mlm, stream, pattern);
-                    my_zsys_debug (self->verbose, "fty_sensor_gpio: setting CONSUMER on %s/%s", stream, pattern);
+                    log_debug ("fty_sensor_gpio: setting CONSUMER on %s/%s", stream, pattern);
                     zstr_free (&stream);
                     zstr_free (&pattern);
-                }
-                else if (streq (cmd, "VERBOSE")) {
-                    self->verbose = true;
-                    my_zsys_debug (self->verbose, "fty_sensor_gpio: VERBOSE=true");
-                    libgpio_set_verbose(self->gpio_lib, self->verbose);
                 }
                 else if (streq (cmd, "TEST")) {
                     self->test_mode = true;
                     libgpio_set_test_mode (self->gpio_lib, self->test_mode);
-                    my_zsys_debug (self->verbose, "fty_sensor_gpio: TEST=true");
+                    log_debug ("fty_sensor_gpio: TEST=true");
                 }
                 else if (streq (cmd, "UPDATE")) {
                     s_check_gpio_status(self);
                 }
                 else if (streq (cmd, "TEMPLATE_DIR")) {
                     self->template_dir = zmsg_popstr (message);
-                    my_zsys_debug (self->verbose, "fty_sensor_gpio: Using sensors template directory: %s", self->template_dir);
+                    log_debug ("fty_sensor_gpio: Using sensors template directory: %s", self->template_dir);
                 }
                 else if (streq (cmd, "HW_CAP")) {
                     // Request our config
@@ -1110,7 +1103,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     int rvo = request_capabilities_info(self, "gpo");
                     // We can now stop the reschedule loop
                     if (!rvi && !rvo) {
-                        my_zsys_debug (self->verbose, "HW_CAP request succeeded");
+                        log_debug ("HW_CAP request succeeded");
                         hw_cap_inited = true;
                     }
                 }
@@ -1183,8 +1176,6 @@ fty_sensor_gpio_server_test (bool verbose)
     zsys_dir_create (template_dir.c_str());
     zactor_t *server = zactor_new (mlm_server, (void*) "Malamute");
     zstr_sendx (server, "BIND", endpoint, NULL);
-    if (verbose)
-        zstr_send (server, "VERBOSE");
 
     zactor_t *self = zactor_new (fty_sensor_gpio_server, (void*)FTY_SENSOR_GPIO_AGENT);
     assert (self);
@@ -1214,8 +1205,6 @@ fty_sensor_gpio_server_test (bool verbose)
     zmsg_addstr (hw_cap_test_reply_gpo, "503");
 
     // Configure the server
-    if (verbose)
-        zstr_sendx (self, "VERBOSE", NULL);
     // TEST *MUST* be set first, before HW_CAP, for HW capabilities
     zstr_sendx (self, "TEST", NULL);
     zstr_sendx (self, "CONNECT", endpoint, NULL);
@@ -1261,7 +1250,7 @@ fty_sensor_gpio_server_test (bool verbose)
 
     // Acquire the list of monitored sensors
     pthread_mutex_lock (&gpx_list_mutex);
-    zlistx_t *test_gpx_list = get_gpx_list(verbose);
+    zlistx_t *test_gpx_list = get_gpx_list();
     assert (test_gpx_list);
     int sensors_count = zlistx_size (test_gpx_list);
     assert (sensors_count == 2);
@@ -1346,7 +1335,7 @@ fty_sensor_gpio_server_test (bool verbose)
         zstr_free(&answer);
         answer = zmsg_popstr (recv);
         assert ( answer );
-        my_zsys_debug(verbose, "Got answer: '%s'", answer);
+        log_debug("Got answer: '%s'", answer);
         assert ( streq (answer, "OK") );
         zstr_free(&answer);
 

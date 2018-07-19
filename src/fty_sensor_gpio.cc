@@ -46,9 +46,9 @@
 void
 usage(){
     puts ("fty-sensor-gpio [options] ...");
-    puts ("  -v|--verbose        verbose test output");
+    puts ("  -v|--verbose        verbose output");
     puts ("  -h|--help           this information");
-    puts ("  -c|--config         path to config file\n");
+    puts ("  -c|--config         path to agent config file\n");
     puts ("  -e|--endpoint       malamute endpoint [ipc://@/malamute]");
 
 }
@@ -98,6 +98,9 @@ int main (int argc, char *argv [])
     int poll_interval = DEFAULT_POLL_INTERVAL;
     bool verbose = false;
     int argn;
+    char *log_config = NULL;
+
+    ManageFtyLog::setInstanceFtylog(FTY_SENSOR_GPIO_AGENT);
 
     // Parse command line
     for (argn = 1; argn < argc; argn++) {
@@ -131,13 +134,13 @@ int main (int argc, char *argv [])
 
     // Parse config file
     if(config_file) {
-        my_zsys_debug (verbose, "fty_sensor_gpio: loading configuration file '%s'", config_file);
+        log_debug ("fty_sensor_gpio: loading configuration file '%s'", config_file);
         config = zconfig_load (config_file);
         if (!config) {
             zsys_error ("Failed to load config file %s: %m", config_file);
             exit (EXIT_FAILURE);
         }
-        // VERBOSE
+
         if (streq (zconfig_get (config, "server/verbose", "false"), "true")) {
             verbose = true;
         }
@@ -148,10 +151,11 @@ int main (int argc, char *argv [])
         if (str_poll_interval) {
             poll_interval = atoi(str_poll_interval);
         }
-        my_zsys_debug (verbose, "Polling interval set to %i", poll_interval);
+        log_debug ("Polling interval set to %i", poll_interval);
         if (endpoint) zstr_free(&endpoint);
         endpoint = strdup(s_get (config, "malamute/endpoint", NULL));
         actor_name = strdup(s_get (config, "malamute/address", NULL));
+        log_config = strdup(s_get (config, "log/config", DEFAULT_LOG_CONFIG));
     }
     if (actor_name == NULL)
         actor_name = strdup(FTY_SENSOR_GPIO_AGENT);
@@ -161,6 +165,12 @@ int main (int argc, char *argv [])
 
     if (state_file == NULL)
         state_file = strdup(DEFAULT_STATEFILE_PATH);
+
+    if (log_config)
+        ManageFtyLog::getInstanceFtylog()->setConfigFile(std::string(log_config));
+
+    if (verbose)
+        ManageFtyLog::getInstanceFtylog()->setVeboseMode();
 
     // Guess the template installation directory
     char *template_dir = NULL;
@@ -194,20 +204,13 @@ int main (int argc, char *argv [])
         template_dir = strdup("/usr/share/fty-sensor-gpio/data/");
     }
     fclose(template_file);
-    my_zsys_debug (verbose, "Using sensors template directory: %s", template_dir);
+    log_debug ("Using sensors template directory: %s", template_dir);
 
-    // Check env. variables
-    if (getenv ("BIOS_LOG_LEVEL") && streq (getenv ("BIOS_LOG_LEVEL"), "LOG_DEBUG"))
-        verbose = true;
 
     zactor_t *server = zactor_new (fty_sensor_gpio_server, (void*)actor_name);
     zactor_t *assets = zactor_new (fty_sensor_gpio_assets, (void*)"gpio-assets");
 
-    if (verbose) {
-        zstr_sendx (server, "VERBOSE", NULL);
-        zstr_sendx (assets, "VERBOSE", NULL);
-        zsys_info ("%s - Agent which manages GPI sensors and GPO devices", actor_name);
-    }
+    zsys_info ("%s - Agent which manages GPI sensors and GPO devices", actor_name);
 
     // 1rst (main) stream to handle GPx polling, metrics publication and mailbox requests
     // -server MUST be init'ed prior to -asset
@@ -239,6 +242,7 @@ int main (int argc, char *argv [])
     zstr_free(&actor_name);
     zstr_free(&endpoint);
     zstr_free(&state_file);
+    zstr_free(&log_config);
     zconfig_destroy (&config);
 
     return 0;

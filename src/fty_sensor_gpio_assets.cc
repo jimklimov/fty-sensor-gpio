@@ -36,7 +36,6 @@ pthread_mutex_t gpx_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 //  Structure of our class
 
 struct _fty_sensor_gpio_assets_t {
-    bool               verbose;       // is actor verbose or not
     char               *name;         // actor name
     mlm_client_t       *mlm;          // malamute client
     zlistx_t           *gpx_list;     // List of monitored GPx _gpx_info_t (10xGPI / 5xGPO on IPC3000)
@@ -49,11 +48,11 @@ struct _fty_sensor_gpio_assets_t {
 //  Return a copy of the list of monitored sensors
 
 zlistx_t *
-get_gpx_list(bool verbose)
+get_gpx_list()
 {
-    my_zsys_debug (verbose, "%s", __func__);
+    log_debug ("%s", __func__);
     if (!_gpx_list)
-        my_zsys_debug (verbose, "%s: GPx list not initialized, skipping", __func__);
+        log_debug ("%s: GPx list not initialized, skipping", __func__);
     //return zlistx_dup (_gpx_list);
     return _gpx_list;
 }
@@ -246,7 +245,7 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
             }
         }
         else {
-            my_zsys_debug (self->verbose, "Sensor '%s' is already monitored. Skipping!", assetname);
+            log_debug ("Sensor '%s' is already monitored. Skipping!", assetname);
             pthread_mutex_unlock (&gpx_list_mutex);
             return 0;
         }
@@ -257,7 +256,7 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
 
     // Don't free gpx_info, it will be done at TERM time
 
-    my_zsys_debug (self->verbose, "%s sensor '%s' (%s) %sd with\n\tmanufacturer: %s\n\tmodel: %s \
+    log_debug ("%s sensor '%s' (%s) %sd with\n\tmanufacturer: %s\n\tmodel: %s \
     \n\ttype: %s\n\tnormal-state: %s\n\t%s number: %s\n\tparent: %s\n\tlocation: %s \
     \n\tpower source: %s\n\talarm-message: %s\n\talarm-severity: %s",
         sensor_gpx_direction, extname, assetname, operation, manufacturer, asset_subtype,
@@ -312,7 +311,7 @@ delete_sensor(fty_sensor_gpio_assets_t *self, const char* assetname)
         retval = 1;
     }
     else {
-        my_zsys_debug (self->verbose, "Deleting '%s'", assetname);
+        log_debug ("Deleting '%s'", assetname);
         // Delete from zlist
         zlistx_delete (_gpx_list, (void *)gpx_info_result);
     }
@@ -334,13 +333,13 @@ is_asset_gpio_sensor (fty_sensor_gpio_assets_t *self, string asset_subtype, stri
     string template_filename = "";
 
     if ((asset_subtype == "") || (asset_subtype == "N_A")) {
-        my_zsys_debug (self->verbose, "Asset subtype is not available");
-        my_zsys_debug (self->verbose, "Verification will be limited to template existence!");
+        log_debug ("Asset subtype is not available");
+        log_debug ("Verification will be limited to template existence!");
     }
     else {
         // Check if it's a sensor, otherwise no need to continue!
         if (asset_subtype != "sensorgpio" && asset_subtype != "gpo") {
-            my_zsys_debug (self->verbose, "Asset is not a GPIO sensor, skipping!");
+            log_debug ("Asset is not a GPIO sensor, skipping!");
             return "";
         }
     }
@@ -353,12 +352,12 @@ is_asset_gpio_sensor (fty_sensor_gpio_assets_t *self, string asset_subtype, stri
 
     FILE *template_file = fopen(template_filename.c_str(), "r");
     if (!template_file) {
-        my_zsys_debug (self->verbose, "Template config file %s doesn't exist!", template_filename.c_str());
-        my_zsys_debug (self->verbose, "Asset is not a GPIO sensor, skipping!");
+        log_debug ("Template config file %s doesn't exist!", template_filename.c_str());
+        log_debug ("Asset is not a GPIO sensor, skipping!");
     }
     else {
-        my_zsys_debug (self->verbose, "Template config file %s found!", template_filename.c_str());
-        my_zsys_debug (self->verbose, "Asset is a GPIO sensor, processing!");
+        log_debug ("Template config file %s found!", template_filename.c_str());
+        log_debug ("Asset is a GPIO sensor, processing!");
         fclose(template_file);
         return template_filename;
     }
@@ -380,25 +379,25 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
     const char* operation = fty_proto_operation (ftymessage);
     const char* assetname = fty_proto_name (ftymessage);
 
-    my_zsys_debug (self->verbose, "%s: '%s' operation on asset '%s'", __func__, operation, assetname);
+    log_debug ("%s: '%s' operation on asset '%s'", __func__, operation, assetname);
 
     // Initial addition , listing or udpdate
     if ( (streq (operation, "inventory"))
         ||  (streq (operation, "create"))
         ||  (streq (operation, "update")) ) {
         const char* asset_subtype = fty_proto_aux_string (ftymessage, "subtype", "");
-        my_zsys_debug (self->verbose, "asset_subtype = %s", asset_subtype);
+        log_debug ("asset_subtype = %s", asset_subtype);
 
         // Only consider active assets!
         // Default to 'active' for inventory
         if (!streq (fty_proto_aux_string (ftymessage, "status", "active"), "active")) {
             // when updating from active to inactive, delete the sensor
             if (streq (operation, "update")) {
-                my_zsys_debug (self->verbose, "%s: deleting de-actived sensor %s", self->name, assetname);
+                log_debug ("%s: deleting de-actived sensor %s", self->name, assetname);
                 delete_sensor( self, assetname);
             }
             else
-                my_zsys_debug (self->verbose, "%s: discarded non active sensor %s", self->name, assetname);
+                log_debug ("%s: discarded non active sensor %s", self->name, assetname);
 
             return;
         }
@@ -420,7 +419,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
             // We have a GPI sensor, process it
             config_template = zconfig_load (config_template_filename.c_str());
             if (!config_template) {
-                my_zsys_debug (self->verbose, "Can't load sensor template file"); // FIXME: error
+                log_debug ("Can't load sensor template file"); // FIXME: error
                 return;
             }
 
@@ -448,13 +447,13 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
 
             // Sanity checks
             if (streq (sensor_normal_state, "")) {
-                my_zsys_debug (self->verbose, "No sensor normal state found in template nor provided by the user!");
-                my_zsys_debug (self->verbose, "Skipping sensor");
+                log_debug ("No sensor normal state found in template nor provided by the user!");
+                log_debug ("Skipping sensor");
                 zconfig_destroy (&config_template);
                 return;
             }
             if (streq (sensor_gpx_number, "")) {
-                my_zsys_debug (self->verbose, "No sensor pin (port) provided! Skipping sensor");
+                log_debug ("No sensor pin (port) provided! Skipping sensor");
                 zconfig_destroy (&config_template);
                 return;
             }
@@ -480,13 +479,13 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
 
             // Sanity checks
             if (streq (sensor_normal_state, "")) {
-                my_zsys_debug (self->verbose, "No sensor normal state found in template nor provided by the user!");
-                my_zsys_debug (self->verbose, "Skipping sensor");
+                log_debug ("No sensor normal state found in template nor provided by the user!");
+                log_debug ("Skipping sensor");
                 zconfig_destroy (&config_template);
                 return;
             }
             if (streq (sensor_gpx_number, "")) {
-                my_zsys_debug (self->verbose, "No sensor pin (port) provided! Skipping sensor");
+                log_debug ("No sensor pin (port) provided! Skipping sensor");
                 zconfig_destroy (&config_template);
                 return;
             }
@@ -517,7 +516,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
 void
 request_sensor_power_source(fty_sensor_gpio_assets_t *self, const char* asset_name)
 {
-    my_zsys_debug (self->verbose, "%s", __func__);
+    log_debug ("%s", __func__);
 
 // FIXME: need a power topology request:
 /*         subject: "TOPOLOGY"
@@ -534,8 +533,8 @@ request_sensor_power_source(fty_sensor_gpio_assets_t *self, const char* asset_na
 void
 request_sensor_assets(fty_sensor_gpio_assets_t *self)
 {
-    my_zsys_debug (self->verbose, "%s", __func__);
-    my_zsys_debug (self->verbose, "%s:\tRequest GPIO sensors list", self->name);
+    log_debug ("%s", __func__);
+    log_debug ("%s:\tRequest GPIO sensors list", self->name);
 
     zmsg_t *msg = zmsg_new ();
     zuuid_t *uuid = zuuid_new ();
@@ -548,7 +547,7 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
     if (rv != 0)
         zsys_error ("%s:\tRequest GPIO sensors list failed", self->name);
     else
-        my_zsys_debug (self->verbose, "%s:\tGPIO sensors list request sent successfully", self->name);
+        log_debug ("%s:\tGPIO sensors list request sent successfully", self->name);
     zmsg_destroy (&msg);
 
     zmsg_t *reply = mlm_client_recv (self->mlm);
@@ -558,7 +557,7 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
     char *uuid_recv = zmsg_popstr(reply);
 
     if (0 != strcmp (zuuid_str_canonical (uuid), uuid_recv)) {
-        my_zsys_debug (self->verbose, "%s:\tGPIO zuuid doesn't match 1", self->name);
+        log_debug ("%s:\tGPIO zuuid doesn't match 1", self->name);
         zmsg_destroy (&reply);
         zstr_free (&uuid_recv);
     }
@@ -584,7 +583,7 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
         if (rv != 0)
             zsys_error ("%s:\tRequest ASSET_DETAIL failed for %s", self->name, asset);
 
-        my_zsys_debug (self->verbose, "sending ASSET_DETAIL request");
+        log_debug ("sending ASSET_DETAIL request");
         zmsg_t *reply2 = mlm_client_recv (self->mlm);
 
         if (reply2)
@@ -592,7 +591,7 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
             char *uuid_recv = zmsg_popstr (reply2);
 
             if (0 != strcmp (zuuid_str_canonical (uuid), uuid_recv)) {
-                my_zsys_debug (self->verbose, "%s:\tGPIO zuuid doesn't match 2", self->name);
+                log_debug ("%s:\tGPIO zuuid doesn't match 2", self->name);
                 zmsg_destroy (&reply2);
                 continue;
             }
@@ -602,9 +601,8 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
                 fty_proto_t *fmessage = fty_proto_decode (&reply2);
                 if (fty_proto_id (fmessage) == FTY_PROTO_ASSET)
                 {
-                    my_zsys_debug (self->verbose, "%s: Processing sensor %s", self->name, asset);
-                    if (self->verbose)
-                        fty_proto_print (fmessage);
+                    log_debug ("%s: Processing sensor %s", self->name, asset);
+                    fty_proto_print (fmessage);
 
                     fty_sensor_gpio_handle_asset (self, fmessage);
                 }
@@ -613,7 +611,7 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
             else
             {
                 if (streq (zmsg_popstr (reply2), "ERROR"))
-                    my_zsys_debug (self->verbose, "%s: error received %s", self->name, zmsg_popstr (reply2));
+                    log_debug ("%s: error received %s", self->name, zmsg_popstr (reply2));
             }
             asset = zmsg_popstr (reply);
             zmsg_destroy (&reply2);
@@ -635,7 +633,6 @@ fty_sensor_gpio_assets_new (const char* name)
     //  Initialize class properties
     self->mlm         = mlm_client_new();
     self->name        = strdup(name);
-    self->verbose     = false;
     self->test_mode   = false;
     self->template_dir = NULL;
     // Declare our zlist for GPIOs tracking
@@ -710,7 +707,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
             zmsg_t *message = zmsg_recv (pipe);
             char *cmd = zmsg_popstr (message);
             if (cmd) {
-                my_zsys_debug (self->verbose, "fty-gpio-sensor-assets: received command %s", cmd);
+                log_debug ("fty-gpio-sensor-assets: received command %s", cmd);
                 if (streq (cmd, "$TERM")) {
                     zstr_free (&cmd);
                     zmsg_destroy (&message);
@@ -724,14 +721,14 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                     int r = mlm_client_connect (self->mlm, endpoint, 5000, self->name);
                     if (r == -1)
                         zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
-                    my_zsys_debug(self->verbose, "fty-gpio-sensor-assets: CONNECT %s/%s", endpoint, self->name);
+                    log_debug("fty-gpio-sensor-assets: CONNECT %s/%s", endpoint, self->name);
                     zstr_free (&endpoint);
                 }
                 else if (streq (cmd, "PRODUCER")) {
                     char *stream = zmsg_popstr (message);
                     assert (stream);
                     mlm_client_set_producer (self->mlm, stream);
-                    my_zsys_debug (self->verbose, "fty-gpio-sensor-assets: setting PRODUCER on %s", stream);
+                    log_debug ("fty-gpio-sensor-assets: setting PRODUCER on %s", stream);
                     zstr_free (&stream);
                     request_sensor_assets(self);
                 }
@@ -740,21 +737,17 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                     char *pattern = zmsg_popstr (message);
                     assert (stream && pattern);
                     mlm_client_set_consumer (self->mlm, stream, pattern);
-                    my_zsys_debug (self->verbose, "fty-gpio-sensor-assets: setting CONSUMER on %s/%s", stream, pattern);
+                    log_debug ("fty-gpio-sensor-assets: setting CONSUMER on %s/%s", stream, pattern);
                     zstr_free (&stream);
                     zstr_free (&pattern);
                 }
-                else if (streq (cmd, "VERBOSE")) {
-                    self->verbose = true;
-                    my_zsys_debug (self->verbose, "fty-gpio-sensor-assets: VERBOSE=true");
-                }
                 else if (streq (cmd, "TEST")) {
                     self->test_mode = true;
-                    my_zsys_debug (self->verbose, "fty-gpio-sensor-assets: TEST=true");
+                    log_debug ("fty-gpio-sensor-assets: TEST=true");
                 }
                 else if (streq (cmd, "TEMPLATE_DIR")) {
                     self->template_dir = zmsg_popstr (message);
-                    my_zsys_debug (self->verbose, "fty_sensor_gpio: Using sensors template directory: %s", self->template_dir);
+                    log_debug ("fty_sensor_gpio: Using sensors template directory: %s", self->template_dir);
                 }
                 else {
                     zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
@@ -823,14 +816,10 @@ fty_sensor_gpio_assets_test (bool verbose)
 
     zactor_t *server = zactor_new (mlm_server, (void*) "Malamute");
     zstr_sendx (server, "BIND", endpoint, NULL);
-    if (verbose)
-        zstr_send (server, "VERBOSE");
 
     zactor_t *assets = zactor_new (fty_sensor_gpio_assets, (void*)"gpio-assets");
     zstr_sendx (assets, "TEMPLATE_DIR", test_data_dir, NULL);
 
-    if (verbose)
-        zstr_send (assets, "VERBOSE");
     zstr_sendx (assets, "TEST", NULL);
     zstr_sendx (assets, "CONNECT", endpoint, NULL);
     zstr_sendx (assets, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
@@ -843,7 +832,7 @@ fty_sensor_gpio_assets_test (bool verbose)
 
     // Test #1: inject a basic list of assets and check it
     {
-        my_zsys_debug (verbose, "fty-sensor-gpio-assets-test: Test #1");
+        log_debug ("fty-sensor-gpio-assets-test: Test #1");
         // Asset 1: DCS001
         zhash_t* aux = zhash_new ();
         zhash_t *ext = zhash_new ();
@@ -944,7 +933,7 @@ fty_sensor_gpio_assets_test (bool verbose)
 
         // Check the result list
         pthread_mutex_lock (&gpx_list_mutex);
-        zlistx_t *test_gpx_list = get_gpx_list(verbose);
+        zlistx_t *test_gpx_list = get_gpx_list();
         assert (test_gpx_list);
         int sensors_count = zlistx_size (test_gpx_list);
         assert (sensors_count == 3);
@@ -995,7 +984,7 @@ fty_sensor_gpio_assets_test (bool verbose)
 
     // Test #2: Using the list of assets from #1, delete asset 3 and check the list
     {
-        my_zsys_debug (verbose, "fty-sensor-gpio-assets-test: Test #2");
+        log_debug ("fty-sensor-gpio-assets-test: Test #2");
         // Asset 1: DCS001
         zhash_t* aux = zhash_new ();
         zhash_t *ext = zhash_new ();
@@ -1019,18 +1008,18 @@ fty_sensor_gpio_assets_test (bool verbose)
 
         // Check the result list
         pthread_mutex_lock (&gpx_list_mutex);
-        zlistx_t *test_gpx_list = get_gpx_list(verbose);
+        zlistx_t *test_gpx_list = get_gpx_list();
         assert (test_gpx_list);
         int sensors_count = zlistx_size (test_gpx_list);
         assert (sensors_count == 2);
-        my_zsys_debug(verbose, "test_gpx_list = %i", sensors_count);
+        log_debug("test_gpx_list = %i", sensors_count);
 
         pthread_mutex_unlock (&gpx_list_mutex);
     }
     // Test #3: Using the list of assets from #1, update asset 1 with overriden
     // 'normal-state' and check the list
     {
-        my_zsys_debug (verbose, "fty-sensor-gpio-assets-test: Test #3");
+        log_debug ("fty-sensor-gpio-assets-test: Test #3");
         // Asset 1: DCS001
         zhash_t* aux = zhash_new ();
         zhash_t *ext = zhash_new ();
@@ -1061,7 +1050,7 @@ fty_sensor_gpio_assets_test (bool verbose)
 
         // Check the result list
         pthread_mutex_lock (&gpx_list_mutex);
-        zlistx_t *test_gpx_list = get_gpx_list(verbose);
+        zlistx_t *test_gpx_list = get_gpx_list();
         assert (test_gpx_list);
         int sensors_count = zlistx_size (test_gpx_list);
         assert (sensors_count == 2);
@@ -1090,7 +1079,7 @@ fty_sensor_gpio_assets_test (bool verbose)
 
     // Test #4: Using the list of assets from #1, delete asset 1 and check the list
     {
-        my_zsys_debug (verbose, "fty-sensor-gpio-assets-test: Test #4");
+        log_debug ("fty-sensor-gpio-assets-test: Test #4");
         // Asset 1: DCS001
         zhash_t* aux = zhash_new ();
         zhash_t *ext = zhash_new ();
@@ -1114,11 +1103,11 @@ fty_sensor_gpio_assets_test (bool verbose)
 
         // Check the result list
         pthread_mutex_lock (&gpx_list_mutex);
-        zlistx_t *test_gpx_list = get_gpx_list(verbose);
+        zlistx_t *test_gpx_list = get_gpx_list();
         assert (test_gpx_list);
         int sensors_count = zlistx_size (test_gpx_list);
         assert (sensors_count == 1);
-        my_zsys_debug(verbose, "test_gpx_list = %i", sensors_count);
+        log_debug("test_gpx_list = %i", sensors_count);
         // There must remain only 'sensorgpio-11'
         _gpx_info_t *gpx_info = (_gpx_info_t *)zlistx_first (test_gpx_list);
         assert (gpx_info);
@@ -1130,7 +1119,7 @@ fty_sensor_gpio_assets_test (bool verbose)
     // Test #5: Using the list of assets from #1, update asset 2 with
     // 'status=nonactive' and check the list
     {
-        my_zsys_debug (verbose, "fty-sensor-gpio-assets-test: Test #5");
+        log_debug ("fty-sensor-gpio-assets-test: Test #5");
         // Asset 1: DCS001
         zhash_t* aux = zhash_new ();
         zhash_t *ext = zhash_new ();
@@ -1160,10 +1149,10 @@ fty_sensor_gpio_assets_test (bool verbose)
 
         // Check the result list
         pthread_mutex_lock (&gpx_list_mutex);
-        zlistx_t *test_gpx_list = get_gpx_list(verbose);
+        zlistx_t *test_gpx_list = get_gpx_list();
         assert (test_gpx_list);
         int sensors_count = zlistx_size (test_gpx_list);
-        my_zsys_debug(verbose, "test_gpx_list = %i", sensors_count);
+        log_debug("test_gpx_list = %i", sensors_count);
         assert (sensors_count == 0);
 
         pthread_mutex_unlock (&gpx_list_mutex);
