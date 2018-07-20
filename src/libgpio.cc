@@ -59,7 +59,7 @@ const char *SELFTEST_DIR_RW = "src/selftest-rw";
 void *dup_int_ptr (const void *ptr)
 {
     if (ptr == NULL) {
-        zsys_error ("Attempt to dup NULL");
+        log_error ("Attempt to dup NULL");
         return NULL ;
     }
     int *new_ptr = (int *) zmalloc (sizeof (int));
@@ -70,7 +70,7 @@ void *dup_int_ptr (const void *ptr)
 static void free_fn (void ** self_ptr)
 {
     if (!self_ptr || !*self_ptr) {
-        zsys_error ("Attempt to free NULL");
+        log_error ("Attempt to free NULL");
         return;
     }
     free (*self_ptr);
@@ -241,7 +241,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
 
     // Sanity check
     if (GPx_number > ((direction==GPIO_DIRECTION_IN)?self->gpi_count:self->gpo_count)) {
-        zsys_error("Requested GPx is higher than the count of supported GPIO!");
+        log_error("Requested GPx is higher than the count of supported GPIO!");
         return -1;
     }
 
@@ -275,7 +275,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
             continue;
         }
 
-        zsys_error("%s: Failed to set direction after %i tries. Aborting!", __func__, GPIO_MAX_RETRY);
+        log_error("%s: Failed to set direction after %i tries. Aborting!", __func__, GPIO_MAX_RETRY);
         goto end;
     }
 
@@ -287,12 +287,12 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         mkpath(path, 0777);
     fd = open(path, O_RDONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
-        zsys_error("Failed to open gpio '%s' for reading!", path);
+        log_error("Failed to open gpio '%s' for reading!", path);
         goto end;
     }
 
     if (read(fd, value_str, 3) <= 0) {
-        zsys_error("Failed to read value!");
+        log_error("Failed to read value!");
         close(fd);
         goto end;
     }
@@ -323,7 +323,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
 
     // Sanity check
     if (GPO_number > self->gpo_count) {
-        zsys_error("Requested GPx is higher than the count of supported GPIO!");
+        log_error("Requested GPx is higher than the count of supported GPIO!");
         return -1;
     }
 
@@ -355,7 +355,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
             continue;
         }
 
-        zsys_error("%s: Failed to set direction after %i tries. Aborting!", __func__, GPIO_MAX_RETRY);
+        log_error("%s: Failed to set direction after %i tries. Aborting!", __func__, GPIO_MAX_RETRY);
         goto end;
     }
 
@@ -367,13 +367,13 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
         mkpath(path, 0777);
     fd = open(path, O_WRONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
-        zsys_error("Failed to open gpio value for writing (path: %s)!", path);
+        log_error("Failed to open gpio value for writing (path: %s)!", path);
         retval = -1;
         goto end;
     }
 
     if (write(fd, &s_values_str[GPIO_STATE_CLOSED == value ? 0 : 1], 1) != 1) {
-        zsys_error("Failed to write value!");
+        log_error("Failed to write value!");
         retval = -1;
     }
     else
@@ -549,7 +549,7 @@ libgpio_export(libgpio_t *self, int pin)
         mkpath(path, 0777);
     fd = open(path, O_WRONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
-        zsys_error("%s: Failed to open %s for writing! %i", __func__, path, errno);
+        log_error("%s: Failed to open %s for writing! %i", __func__, path, errno);
         return -1;
     }
     log_debug ("%s: exporting pin %d", __func__, pin);
@@ -584,7 +584,7 @@ libgpio_unexport(libgpio_t *self, int pin)
         mkpath(path, 0777);
     fd = open(path, O_WRONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
-      zsys_error("Failed to open unexport for writing!");
+      log_error("Failed to open unexport for writing!");
       return -1;
     }
 

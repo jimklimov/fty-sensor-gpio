@@ -76,6 +76,4 @@ extern pthread_mutex_t gpx_list_mutex;
 // Implemented in server actor
 extern bool hw_cap_inited;
 
-#define my_zsys_debug(verbose, ...) { if (verbose) zsys_debug (__VA_ARGS__); }
-
 #endif

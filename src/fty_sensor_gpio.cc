@@ -137,7 +137,7 @@ int main (int argc, char *argv [])
         log_debug ("fty_sensor_gpio: loading configuration file '%s'", config_file);
         config = zconfig_load (config_file);
         if (!config) {
-            zsys_error ("Failed to load config file %s: %m", config_file);
+            log_error ("Failed to load config file %s: %m", config_file);
             exit (EXIT_FAILURE);
         }
 
@@ -184,7 +184,7 @@ int main (int argc, char *argv [])
             template_file = fopen(template_filename.c_str(), "r");
             if (!template_file) {
                 template_dir = NULL;
-                zsys_error ("Can't find sensors template files directory!");
+                log_error ("Can't find sensors template files directory!");
                 zstr_free(&actor_name);
                 zstr_free(&endpoint);
                 return EXIT_FAILURE;
@@ -210,7 +210,7 @@ int main (int argc, char *argv [])
     zactor_t *server = zactor_new (fty_sensor_gpio_server, (void*)actor_name);
     zactor_t *assets = zactor_new (fty_sensor_gpio_assets, (void*)"gpio-assets");
 
-    zsys_info ("%s - Agent which manages GPI sensors and GPO devices", actor_name);
+    log_info ("%s - Agent which manages GPI sensors and GPO devices", actor_name);
 
     // 1rst (main) stream to handle GPx polling, metrics publication and mailbox requests
     // -server MUST be init'ed prior to -asset

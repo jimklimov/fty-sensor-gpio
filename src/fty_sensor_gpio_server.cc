@@ -186,7 +186,7 @@ s_get (zconfig_t *config, const char* key, const char*dfl) {
 static void free_fn (void ** self_ptr)
 {
     if (!self_ptr || !*self_ptr) {
-        zsys_error ("Attempt to free NULL");
+        log_error ("Attempt to free NULL");
         return;
     }
     free (*self_ptr);
@@ -309,7 +309,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                 if (libgpio_write ( self->gpio_lib,
                                     atoi(gpx_info->power_source),
                                     GPIO_STATE_OPENED) != 0) {
-                    zsys_error ("Failed to activate GPO power source!");
+                    log_error ("Failed to activate GPO power source!");
                 }
                 else {
                     log_debug ("GPO power source successfully activated.");
@@ -338,7 +338,7 @@ s_check_gpio_status(fty_sensor_gpio_server_t *self)
                     state->last_action = gpx_info->current_state;
             }
             if (gpx_info->current_state == GPIO_STATE_UNKNOWN) {
-                zsys_error ("Can't read GPx sensor #%i status", gpx_info->gpx_number);
+                log_error ("Can't read GPx sensor #%i status", gpx_info->gpx_number);
             }
             else {
                 log_debug ("Read '%s' (value: %i) on GPx sensor #%i (%s/%s)",
@@ -363,12 +363,12 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
 /*    std::string command = zmsg_popstr (message);
     if (command == "") {
         zmsg_destroy (&message);
-        zsys_warning ("Empty subject.");
+        log_warning ("Empty subject.");
         return;
     }
 
     if (command != "GET") {
-        zsys_warning ("%s: Received unexpected command '%s'", self->name, command.c_str());
+        log_warning ("%s: Received unexpected command '%s'", self->name, command.c_str());
         zmsg_t *reply = zmsg_new ();
         zmsg_addstr(reply, "ERROR");
         zmsg_addstr (reply, "BAD_COMMAND");
@@ -381,7 +381,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
     if ( (subject != "") && (subject != "GPO_INTERACTION") && (subject != "GPIO_TEMPLATE_ADD")
          && (subject != "GPIO_MANIFEST") && (subject != "GPIO_MANIFEST_SUMMARY")
          && (subject != "GPIO_TEST") && (subject != "GPOSTATE") && (subject != "ERROR")) {
-        zsys_warning ("%s: Received unexpected subject '%s' from '%s'", self->name, subject.c_str(), mlm_client_sender (self->mlm));
+        log_warning ("%s: Received unexpected subject '%s' from '%s'", self->name, subject.c_str(), mlm_client_sender (self->mlm));
         zmsg_t *reply = zmsg_new ();
         zmsg_addstr(reply, "ERROR");
         zmsg_addstr (reply, "BAD_COMMAND");
@@ -427,7 +427,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     if (status_value != GPIO_STATE_UNKNOWN) {
                         // check whether this action is allowed in this state
                         if (status_value == current_state) {
-                            zsys_error ("Current state is %s, GPO is requested to become %s",
+                            log_error ("Current state is %s, GPO is requested to become %s",
                                     (libgpio_get_status_string (current_state)).c_str (),
                                     (libgpio_get_status_string (status_value)).c_str ());
                             zmsg_addstr (reply, "ERROR");
@@ -435,7 +435,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                         }
                         else {
                             if (libgpio_write (self->gpio_lib, gpx_info->gpx_number, status_value) != 0) {
-                                zsys_error ("GPO_INTERACTION: failed to set value!");
+                                log_error ("GPO_INTERACTION: failed to set value!");
                                 zmsg_addstr (reply, "ERROR");
                                 zmsg_addstr (reply, "SET_VALUE_FAILED");
                             }
@@ -472,7 +472,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 // send the reply
                 int rv = mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), subject.c_str(), NULL, 5000, &reply);
                 if (rv == -1)
-                    zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
+                    log_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
             }
             pthread_mutex_unlock (&gpx_list_mutex);
             zstr_free(&sensor_name);
@@ -592,7 +592,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             // send the reply
             int rv = mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), subject.c_str(), NULL, 5000, &reply);
             if (rv == -1)
-                zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
+                log_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
             zstr_free (&zuuid);
         }
         else if (subject == "GPIO_TEMPLATE_ADD") {
@@ -673,7 +673,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
             // send the reply
             int rv = mlm_client_sendto (self->mlm, mlm_client_sender (self->mlm), subject.c_str(), NULL, 5000, &reply);
             if (rv == -1)
-                zsys_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
+                log_error ("%s:\tgpio: mlm_client_sendto failed", self->name);
 
             zstr_free(&sensor_partnumber);
             zstr_free (&zuuid);
@@ -705,7 +705,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     if (!state->in_alert) {
                         int rv = libgpio_write (self->gpio_lib, state->gpo_number, num_default_state);
                         if (rv) {
-                            zsys_error ("Error during default action %s on GPO #%d",
+                            log_error ("Error during default action %s on GPO #%d",
                                         default_state,
                                         state->gpo_number);
                         }
@@ -717,17 +717,16 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     // turn off the previous port
                     int rv = libgpio_write (self->gpio_lib, state->gpo_number, GPIO_STATE_CLOSED);
                     if (rv)
-                        zsys_error ("Error while closing no longer active GPO #%d", state->gpo_number);
+                        log_error ("Error while closing no longer active GPO #%d", state->gpo_number);
 
                     // do the default action on the new port
                     int num_default_state = libgpio_get_status_value (default_state);
                     rv = libgpio_write (self->gpio_lib, num_gpo_number, num_default_state);
                     if (rv) {
-                        zsys_error ("Error during default action %s on GPO #%d",
+                        log_error ("Error during default action %s on GPO #%d",
                                     default_state,
                                     state->gpo_number);
                     }
-
                     state->gpo_number = num_gpo_number;
                     state->last_action = num_default_state;
                     state->in_alert = 0;
@@ -740,7 +739,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 // do the default action
                 int rv = libgpio_write (self->gpio_lib, state->gpo_number, state->default_state);
                 if (rv) {
-                    zsys_error ("Error during default action %s on GPO #%d",
+                    log_error ("Error during default action %s on GPO #%d",
                                 default_state,
                                 state->gpo_number);
                     state->last_action = GPIO_STATE_UNKNOWN;
@@ -748,7 +747,6 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                 else
                     state->last_action = libgpio_get_status_value (default_state);
                 state->in_alert = 0;
-
                 zhashx_update (self->gpo_states, (void *) assetname, (void *) state);
             }
 
@@ -763,7 +761,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
 
         else if (subject == "ERROR") {
             // Don't reply to ERROR messages
-            zsys_warning ("%s: Received ERROR subject from '%s', ignoring", self->name, mlm_client_sender (self->mlm));
+            log_warning ("%s: Received ERROR subject from '%s', ignoring", self->name, mlm_client_sender (self->mlm));
         }
         zmsg_destroy (&reply);
     }
@@ -825,7 +823,7 @@ s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
     log_debug ("state file = %s", state_file);
     FILE *f_state = fopen (state_file, "r");
     if (!f_state) {
-        zsys_warning ("Could not load state file, continuing without it...");
+        log_warning ("Could not load state file, continuing without it...");
         return;
     }
     char asset_name[15]; //gpo-[0-9]{10} + terminator, which should be enough for DB UINT
@@ -843,7 +841,7 @@ s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
                     // turn off the port from state file
                     int rv = libgpio_write (self->gpio_lib, gpo_number, GPIO_STATE_CLOSED);
                     if (rv)
-                        zsys_error ("Error while closing no longer active GPO #%d", state->gpo_number);
+                        log_error ("Error while closing no longer active GPO #%d", state->gpo_number);
                     // default action on the new port was done when adding it
                 }
             }
@@ -854,7 +852,7 @@ s_load_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
                 // do the default action
                 int rv = libgpio_write (self->gpio_lib, state->gpo_number, state->default_state);
                 if (rv) {
-                    zsys_error ("Error during default action %s on GPO #%d",
+                    log_error ("Error during default action %s on GPO #%d",
                                 libgpio_get_status_string (default_state).c_str (),
                                 state->gpo_number);
                     state->last_action = GPIO_STATE_UNKNOWN;
@@ -912,7 +910,7 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
 
         int rv = mlm_client_sendto (self->mlm, "fty-info", "info", NULL, 5000, &msg);
         if (rv != 0) {
-            zsys_error ("%s:\tRequest %s sensors list failed", self->name, type);
+            log_error ("%s:\tRequest %s sensors list failed", self->name, type);
             zmsg_destroy (&msg);
             zuuid_destroy (&uuid);
             return 1;
@@ -922,7 +920,7 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
 
         reply = my_mlm_client_recv (self->mlm, 5000);
         if (!reply) {
-            zsys_error ("%s: no reply message received", self->name);
+            log_error ("%s: no reply message received", self->name);
             return 1;
         }
 
@@ -937,7 +935,7 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
 
         if (streq (zmsg_popstr (reply), "ERROR")) {
             char *reason = zmsg_popstr (reply);
-            zsys_error ("%s: error message received %s", self->name, reason);
+            log_error ("%s: error message received %s", self->name, reason);
             return 1;
         }
     } else { // TEST mode
@@ -952,7 +950,7 @@ request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
     // sanity check on type requested Vs received
     char *value = zmsg_popstr (reply);
     if (!streq (value, type)) {
-        zsys_error ("%s: mismatch in reply on the type received (should be %s ; is %s)",
+        log_error ("%s: mismatch in reply on the type received (should be %s ; is %s)",
             self->name, type, value);
         zstr_free (&value);
         return 1;
@@ -1026,7 +1024,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
 {
     char *name = (char *)args;
     if (!name) {
-        zsys_error ("Adress for fty-sensor-gpio actor is NULL");
+        log_error ("Adress for fty-sensor-gpio actor is NULL");
         return;
     }
     char *state_file_path = NULL;
@@ -1038,7 +1036,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
     assert (poller);
 
     zsock_signal (pipe, 0);
-    zsys_info ("%s_server: Started", self->name);
+    log_info ("%s_server: Started", self->name);
 
     while (!zsys_interrupted)
     {
@@ -1061,11 +1059,11 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                 else if (streq (cmd, "CONNECT")) {
                     char *endpoint = zmsg_popstr (message);
                      if (!endpoint)
-                        zsys_error ("%s:\tMissing endpoint", self->name);
+                        log_error ("%s:\tMissing endpoint", self->name);
                     assert (endpoint);
                     int r = mlm_client_connect (self->mlm, endpoint, 5000, self->name);
                     if (r == -1)
-                        zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
+                        log_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
                     log_debug("fty-gpio-sensor-server: CONNECT %s/%s", endpoint, self->name);
                     zstr_free (&endpoint);
                 }
@@ -1113,7 +1111,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     state_file_path = state_file;
                 }
                 else {
-                    zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
+                    log_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
                 }
                 zstr_free (&cmd);
             }
@@ -1166,7 +1164,6 @@ fty_sensor_gpio_server_test (bool verbose)
     // NOTE that for "char*" context you need (str_SELFTEST_DIR_RO + "/myfilename").c_str()
 
     //  @selftest
-
     static const char* endpoint = "inproc://fty_sensor_gpio_server_test";
 
     // Note: here we test the creation of a template (GPIO_TEMPLATE_ADD)
@@ -1267,18 +1264,16 @@ fty_sensor_gpio_server_test (bool verbose)
     zmsg_addstr (msg, "2");
     zmsg_addstr (msg, "closed");
     rv = mlm_client_sendto (mb_client, FTY_SENSOR_GPIO_AGENT, "GPOSTATE", NULL, 5000, &msg);
-    assert ( rv == 0 ); // no response
 
+    assert ( rv == 0 ); // no response
     // Test #1: Get status for an asset through its published metric
     {
         mlm_client_t *metrics_listener = mlm_client_new ();
         mlm_client_connect (metrics_listener, endpoint, 1000, "fty_sensor_gpio_metrics_listener");
         mlm_client_set_consumer (metrics_listener, FTY_PROTO_STREAM_METRICS_SENSOR, ".*");
-
+        zclock_sleep (1000);
         // Send an update and check for the generated metric
         zstr_sendx (self, "UPDATE", endpoint, NULL);
-        zclock_sleep (500);
-
         // Check the published metric
         zmsg_t *recv = mlm_client_recv (metrics_listener);
         assert (recv);

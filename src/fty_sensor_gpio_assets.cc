@@ -132,7 +132,7 @@ _gpx_info_t *sensor_new()
 {
     _gpx_info_t *gpx_info = (_gpx_info_t *)malloc(sizeof(_gpx_info_t));
     if (!gpx_info) {
-        zsys_error ("ERROR: Can't allocate gpx_info!");
+        log_error ("ERROR: Can't allocate gpx_info!");
         return NULL;
     }
 
@@ -177,13 +177,13 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     if (!self->test_mode) {
         if ( streq (sensor_gpx_direction, "GPO" ) ) {
             if (gpx_number > libgpio_get_gpo_count ()) {
-                zsys_info ("ERROR: GPO number is higher than the number of supported GPO");
+                log_info ("ERROR: GPO number is higher than the number of supported GPO");
                 return 1;
             }
         }
         else {
             if (gpx_number > libgpio_get_gpi_count ()) {
-                zsys_info ("ERROR: GPI number is higher than the number of supported GPI");
+                log_info ("ERROR: GPI number is higher than the number of supported GPI");
                 return 1;
             }
         }
@@ -191,7 +191,7 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     _gpx_info_t *prev_gpx_info = NULL;
     _gpx_info_t *gpx_info = sensor_new();
     if (!gpx_info) {
-        zsys_info ("ERROR: Can't allocate gpx_info!");
+        log_info ("ERROR: Can't allocate gpx_info!");
         return 1;
     }
 
@@ -203,7 +203,7 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     if (libgpio_get_status_value (sensor_normal_state) != GPIO_STATE_UNKNOWN)
         gpx_info->normal_state = libgpio_get_status_value (sensor_normal_state);
     else {
-        zsys_info ("ERROR: provided normal_state '%s' is not valid!", sensor_normal_state);
+        log_info ("ERROR: provided normal_state '%s' is not valid!", sensor_normal_state);
         return 1;
     }
     gpx_info->gpx_number = gpx_number;
@@ -239,7 +239,7 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
         if ( streq (operation, "update" ) ) {
             // FIXME: we may lose some data, check for merging entries prior to deleting
             if (zlistx_delete (_gpx_list, (void *)prev_gpx_info) == -1) {
-                zsys_error ("Update: error deleting the previous GPx record for '%s'!", assetname);
+                log_error ("Update: error deleting the previous GPx record for '%s'!", assetname);
                 pthread_mutex_unlock (&gpx_list_mutex);
                 return -1;
             }
@@ -298,7 +298,7 @@ delete_sensor(fty_sensor_gpio_assets_t *self, const char* assetname)
     if (gpx_info)
         gpx_info->asset_name = strdup(assetname);
     else {
-        zsys_info ("ERROR: Can't allocate gpx_info!");
+        log_info ("ERROR: Can't allocate gpx_info!");
         return 1;
     }
 
@@ -545,14 +545,14 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
 
     int rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSETS", NULL, 5000, &msg);
     if (rv != 0)
-        zsys_error ("%s:\tRequest GPIO sensors list failed", self->name);
+        log_error ("%s:\tRequest GPIO sensors list failed", self->name);
     else
         log_debug ("%s:\tGPIO sensors list request sent successfully", self->name);
     zmsg_destroy (&msg);
 
     zmsg_t *reply = mlm_client_recv (self->mlm);
     if (!reply)
-        zsys_error ("%s: no reply message received", self->name);
+        log_error ("%s: no reply message received", self->name);
 
     char *uuid_recv = zmsg_popstr(reply);
 
@@ -565,7 +565,7 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
     if (streq (zmsg_popstr (reply), "ERROR"))
     {
         char *reason = zmsg_popstr (reply);
-        zsys_error ("%s: error message received %s", self->name, reason);
+        log_error ("%s: error message received %s", self->name, reason);
     }
 
     char *asset = NULL;
@@ -581,7 +581,7 @@ request_sensor_assets(fty_sensor_gpio_assets_t *self)
 
         rv = mlm_client_sendto (self->mlm, "asset-agent", "ASSET_DETAIL", NULL, 5000, &msg);
         if (rv != 0)
-            zsys_error ("%s:\tRequest ASSET_DETAIL failed for %s", self->name, asset);
+            log_error ("%s:\tRequest ASSET_DETAIL failed for %s", self->name, asset);
 
         log_debug ("sending ASSET_DETAIL request");
         zmsg_t *reply2 = mlm_client_recv (self->mlm);
@@ -682,7 +682,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
 {
     char *name = (char *)args;
     if (!name) {
-        zsys_error ("Adress for fty-sensor-gpio-assets actor is NULL");
+        log_error ("Adress for fty-sensor-gpio-assets actor is NULL");
         return;
     }
 
@@ -693,7 +693,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
     assert (poller);
 
     zsock_signal (pipe, 0);
-    zsys_info ("%s_assets: Started", self->name);
+    log_info ("%s_assets: Started", self->name);
 
     while (!zsys_interrupted)
     {
@@ -716,11 +716,11 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                 else if (streq (cmd, "CONNECT")) {
                     char *endpoint = zmsg_popstr (message);
                      if (!endpoint)
-                        zsys_error ("%s:\tMissing endpoint", self->name);
+                        log_error ("%s:\tMissing endpoint", self->name);
                     assert (endpoint);
                     int r = mlm_client_connect (self->mlm, endpoint, 5000, self->name);
                     if (r == -1)
-                        zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
+                        log_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
                     log_debug("fty-gpio-sensor-assets: CONNECT %s/%s", endpoint, self->name);
                     zstr_free (&endpoint);
                 }
@@ -750,7 +750,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                     log_debug ("fty_sensor_gpio: Using sensors template directory: %s", self->template_dir);
                 }
                 else {
-                    zsys_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
+                    log_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
                 }
                 zstr_free (&cmd);
             }
