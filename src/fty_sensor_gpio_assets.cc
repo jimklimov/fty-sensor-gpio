@@ -45,14 +45,13 @@ struct _fty_sensor_gpio_assets_t {
 
 
 //  --------------------------------------------------------------------------
-//  Return a copy of the list of monitored sensors
+//  Return the list of monitored sensors without transfering ownership
 
 zlistx_t *
 get_gpx_list()
 {
-    log_debug ("%s", __func__);
     if (!_gpx_list)
-        log_debug ("%s: GPx list not initialized, skipping", __func__);
+        log_debug ("GPx list not initialized, skipping");
     //return zlistx_dup (_gpx_list);
     return _gpx_list;
 }
@@ -132,7 +131,7 @@ _gpx_info_t *sensor_new()
 {
     _gpx_info_t *gpx_info = (_gpx_info_t *)malloc(sizeof(_gpx_info_t));
     if (!gpx_info) {
-        log_error ("ERROR: Can't allocate gpx_info!");
+        log_error ("Can't allocate gpx_info!");
         return NULL;
     }
 
@@ -177,13 +176,13 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     if (!self->test_mode) {
         if ( streq (sensor_gpx_direction, "GPO" ) ) {
             if (gpx_number > libgpio_get_gpo_count ()) {
-                log_info ("ERROR: GPO number is higher than the number of supported GPO");
+                log_error ("GPO number is higher than the number of supported GPO");
                 return 1;
             }
         }
         else {
             if (gpx_number > libgpio_get_gpi_count ()) {
-                log_info ("ERROR: GPI number is higher than the number of supported GPI");
+                log_error ("GPI number is higher than the number of supported GPI");
                 return 1;
             }
         }
@@ -191,7 +190,7 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     _gpx_info_t *prev_gpx_info = NULL;
     _gpx_info_t *gpx_info = sensor_new();
     if (!gpx_info) {
-        log_info ("ERROR: Can't allocate gpx_info!");
+        log_error ("Can't allocate gpx_info!");
         return 1;
     }
 
@@ -203,7 +202,7 @@ add_sensor(fty_sensor_gpio_assets_t *self, const char* operation,
     if (libgpio_get_status_value (sensor_normal_state) != GPIO_STATE_UNKNOWN)
         gpx_info->normal_state = libgpio_get_status_value (sensor_normal_state);
     else {
-        log_info ("ERROR: provided normal_state '%s' is not valid!", sensor_normal_state);
+        log_error ("provided normal_state '%s' is not valid!", sensor_normal_state);
         return 1;
     }
     gpx_info->gpx_number = gpx_number;
@@ -298,7 +297,7 @@ delete_sensor(fty_sensor_gpio_assets_t *self, const char* assetname)
     if (gpx_info)
         gpx_info->asset_name = strdup(assetname);
     else {
-        log_info ("ERROR: Can't allocate gpx_info!");
+        log_error ("Can't allocate gpx_info!");
         return 1;
     }
 
@@ -379,7 +378,7 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
     const char* operation = fty_proto_operation (ftymessage);
     const char* assetname = fty_proto_name (ftymessage);
 
-    log_debug ("%s: '%s' operation on asset '%s'", __func__, operation, assetname);
+    log_debug ("'%s' operation on asset '%s'", operation, assetname);
 
     // Initial addition , listing or udpdate
     if ( (streq (operation, "inventory"))
@@ -516,8 +515,6 @@ fty_sensor_gpio_handle_asset (fty_sensor_gpio_assets_t *self, fty_proto_t *ftyme
 void
 request_sensor_power_source(fty_sensor_gpio_assets_t *self, const char* asset_name)
 {
-    log_debug ("%s", __func__);
-
 // FIXME: need a power topology request:
 /*         subject: "TOPOLOGY"
          message: is a multipart message A/B
@@ -533,7 +530,6 @@ request_sensor_power_source(fty_sensor_gpio_assets_t *self, const char* asset_na
 void
 request_sensor_assets(fty_sensor_gpio_assets_t *self)
 {
-    log_debug ("%s", __func__);
     log_debug ("%s:\tRequest GPIO sensors list", self->name);
 
     zmsg_t *msg = zmsg_new ();
@@ -707,7 +703,7 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
             zmsg_t *message = zmsg_recv (pipe);
             char *cmd = zmsg_popstr (message);
             if (cmd) {
-                log_debug ("fty-gpio-sensor-assets: received command %s", cmd);
+                log_debug ("received command %s", cmd);
                 if (streq (cmd, "$TERM")) {
                     zstr_free (&cmd);
                     zmsg_destroy (&message);
@@ -721,14 +717,14 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                     int r = mlm_client_connect (self->mlm, endpoint, 5000, self->name);
                     if (r == -1)
                         log_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
-                    log_debug("fty-gpio-sensor-assets: CONNECT %s/%s", endpoint, self->name);
+                    log_debug("CONNECT %s/%s", endpoint, self->name);
                     zstr_free (&endpoint);
                 }
                 else if (streq (cmd, "PRODUCER")) {
                     char *stream = zmsg_popstr (message);
                     assert (stream);
                     mlm_client_set_producer (self->mlm, stream);
-                    log_debug ("fty-gpio-sensor-assets: setting PRODUCER on %s", stream);
+                    log_debug ("setting PRODUCER on %s", stream);
                     zstr_free (&stream);
                     request_sensor_assets(self);
                 }
@@ -737,20 +733,20 @@ fty_sensor_gpio_assets (zsock_t *pipe, void *args)
                     char *pattern = zmsg_popstr (message);
                     assert (stream && pattern);
                     mlm_client_set_consumer (self->mlm, stream, pattern);
-                    log_debug ("fty-gpio-sensor-assets: setting CONSUMER on %s/%s", stream, pattern);
+                    log_debug ("setting CONSUMER on %s/%s", stream, pattern);
                     zstr_free (&stream);
                     zstr_free (&pattern);
                 }
                 else if (streq (cmd, "TEST")) {
                     self->test_mode = true;
-                    log_debug ("fty-gpio-sensor-assets: TEST=true");
+                    log_debug ("TEST=true");
                 }
                 else if (streq (cmd, "TEMPLATE_DIR")) {
                     self->template_dir = zmsg_popstr (message);
                     log_debug ("fty_sensor_gpio: Using sensors template directory: %s", self->template_dir);
                 }
                 else {
-                    log_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
+                    log_warning ("\tUnknown API command=%s, ignoring", cmd);
                 }
                 zstr_free (&cmd);
             }
