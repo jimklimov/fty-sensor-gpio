@@ -261,8 +261,6 @@ void publish_status (fty_sensor_gpio_server_t *self, _gpx_info_t *sensor, int tt
 static void
 s_check_gpio_status(fty_sensor_gpio_server_t *self)
 {
-    log_debug ("%s_server: %s", self->name, __func__);
-
     pthread_mutex_lock (&gpx_list_mutex);
 
     // number of sensors monitored in gpx_list
@@ -554,7 +552,7 @@ s_handle_mailbox(fty_sensor_gpio_server_t* self, zmsg_t *message)
                     zmsg_addstr (reply, "OK");
                 while (item) {
                     if (std::regex_match (zfile_filename (item, self->template_dir), file_rex)) {
-                        log_debug ("%s: %s matched", __func__, zfile_filename (item, self->template_dir));
+                        log_debug ("%s matched", zfile_filename (item, self->template_dir));
                         string template_filename = zfile_filename (item, NULL);
 
                         string asset_partnumber = zfile_filename (item, self->template_dir);
@@ -890,12 +888,11 @@ s_save_state_file (fty_sensor_gpio_server_t *self, const char *state_file)
 int
 request_capabilities_info(fty_sensor_gpio_server_t *self, const char *type)
 {
-    log_debug ("%s", __func__);
     log_debug ("%s:\tRequest GPIO capabilities info for '%s'", self->name, type);
 
     // Sanity check
     if ((!streq (type, "gpi")) && (!streq (type, "gpo"))) {
-        log_debug ("%s: error: only 'gpi' and 'gpo' are supported", __func__);
+        log_error ("only 'gpi' and 'gpo' are supported");
         return 1;
     }
 
@@ -1050,7 +1047,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
             zmsg_t *message = zmsg_recv (pipe);
             char *cmd = zmsg_popstr (message);
             if (cmd) {
-                log_debug("fty_sensor_gpio: received command %s", cmd);
+                log_trace("received command %s", cmd);
                 if (streq (cmd, "$TERM")) {
                     zstr_free (&cmd);
                     zmsg_destroy (&message);
@@ -1064,7 +1061,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     int r = mlm_client_connect (self->mlm, endpoint, 5000, self->name);
                     if (r == -1)
                         log_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
-                    log_debug("fty-gpio-sensor-server: CONNECT %s/%s", endpoint, self->name);
+                    log_debug("CONNECT %s/%s", endpoint, self->name);
                     zstr_free (&endpoint);
                 }
                 else if (streq (cmd, "PRODUCER")) {
@@ -1111,7 +1108,7 @@ fty_sensor_gpio_server (zsock_t *pipe, void *args)
                     state_file_path = state_file;
                 }
                 else {
-                    log_warning ("%s:\tUnknown API command=%s, ignoring", __func__, cmd);
+                    log_warning ("\tUnknown API command=%s, ignoring", cmd);
                 }
                 zstr_free (&cmd);
             }

@@ -32,8 +32,8 @@
 //  External dependencies
 #include <czmq.h>
 #include <malamute.h>
-#include <ftyproto.h>
 #include <fty_log.h>
+#include <ftyproto.h>
 
 //  FTY_SENSOR_GPIO version macros for compile-time API detection
 #define FTY_SENSOR_GPIO_VERSION_MAJOR 1

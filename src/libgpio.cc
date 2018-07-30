@@ -112,7 +112,7 @@ libgpio_new (void)
 void
 libgpio_set_gpio_base_address (libgpio_t *self, int GPx_base_index)
 {
-    log_debug ("%s: setting address to %i", __func__, GPx_base_index);
+    log_debug ("setting address to %i", GPx_base_index);
     self->gpio_base_address = GPx_base_index;
 }
 
@@ -122,7 +122,7 @@ libgpio_set_gpio_base_address (libgpio_t *self, int GPx_base_index)
 void
 libgpio_set_gpo_offset (libgpio_t *self, int gpo_offset)
 {
-    log_debug ("%s: setting GPO offset to %i", __func__, gpo_offset);
+    log_debug ("setting GPO offset to %i", gpo_offset);
     self->gpo_offset = gpo_offset;
 }
 
@@ -132,7 +132,7 @@ libgpio_set_gpo_offset (libgpio_t *self, int gpo_offset)
 void
 libgpio_set_gpi_offset (libgpio_t *self, int gpi_offset)
 {
-    log_debug ("%s: setting GPI offset to %i", __func__, gpi_offset);
+    log_debug ("setting GPI offset to %i", gpi_offset);
     self->gpi_offset = gpi_offset;
 }
 
@@ -141,7 +141,7 @@ libgpio_set_gpi_offset (libgpio_t *self, int gpi_offset)
 void
 libgpio_set_gpi_count (libgpio_t *self, int gpi_count)
 {
-    log_debug ("%s: setting GPI count to %i", __func__, gpi_count);
+    log_debug ("setting GPI count to %i", gpi_count);
     self->gpi_count = gpi_count;
     _gpi_count = gpi_count;
 }
@@ -159,7 +159,7 @@ libgpio_get_gpi_count ()
 void
 libgpio_set_gpo_count (libgpio_t *self, int gpo_count)
 {
-    log_debug ("%s: setting GPO count to %i", __func__, gpo_count);
+    log_debug ("setting GPO count to %i", gpo_count);
     self->gpo_count = gpo_count;
     _gpo_count = gpo_count;
 }
@@ -177,7 +177,7 @@ libgpio_get_gpo_count ()
 void
 libgpio_add_gpi_mapping (libgpio_t *self, int port_num, int pin_num)
 {
-    log_debug ("%s: adding GPI mapping from port %d to pin %d", __func__, port_num, pin_num);
+    log_debug ("adding GPI mapping from port %d to pin %d", port_num, pin_num);
     zhashx_insert (self->gpi_mapping, (void *)&port_num, (void *)&pin_num);
 }
 
@@ -186,7 +186,7 @@ libgpio_add_gpi_mapping (libgpio_t *self, int port_num, int pin_num)
 void
 libgpio_add_gpo_mapping (libgpio_t *self, int port_num, int pin_num)
 {
-    log_debug ("%s: adding GPIO mapping from port %d to pin %d", __func__, port_num, pin_num);
+    log_debug ("adding GPIO mapping from port %d to pin %d", port_num, pin_num);
     zhashx_insert (self->gpo_mapping, (void *)&port_num, (void *)&pin_num);
 }
 //  --------------------------------------------------------------------------
@@ -195,7 +195,7 @@ libgpio_add_gpo_mapping (libgpio_t *self, int port_num, int pin_num)
 void
 libgpio_set_test_mode (libgpio_t *self, bool test_mode)
 {
-    log_debug ("%s: setting test_mode to '%s'", __func__, (test_mode == true)?"True":"False");
+    log_debug ("setting test_mode to '%s'", (test_mode == true)?"True":"False");
     self->test_mode = test_mode;
 }
 
@@ -255,17 +255,17 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
         pin = libgpio_compute_pin_number (self, GPx_number, direction);
     else
         pin = *pin_ptr;
-    log_debug ("%s: reading GPx #%i (pin %i)", __func__, GPx_number, pin);
+    log_debug ("reading GPx #%i (pin %i)", GPx_number, pin);
     // Enable the desired GPIO
     if (libgpio_export(self, pin) == -1) {
-        log_debug ("%s: Failed to export, aborting...", __func__);
+        log_debug ("Failed to export, aborting...");
         goto end;
     }
 
     // Set its direction, with a possible delay
     while (libgpio_set_direction(self, pin, direction) == -1) {
 
-        log_debug ("%s: Failed to set direction, retrying...", __func__);
+        log_warning ("Failed to set direction, retrying...");
 
         // Wait a bit for the sysfs to be created and udev rules to be applied
         // so that we get the right privileges applied
@@ -275,7 +275,7 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
             continue;
         }
 
-        log_error("%s: Failed to set direction after %i tries. Aborting!", __func__, GPIO_MAX_RETRY);
+        log_error("Failed to set direction after %i tries. Aborting!", GPIO_MAX_RETRY);
         goto end;
     }
 
@@ -298,13 +298,13 @@ libgpio_read (libgpio_t *self, int GPx_number, int direction)
     }
     retvalue = atoi(&value_str[0]);
 
-    log_debug ("%s: read value '%c'", __func__, value_str[0]);
+    log_trace ("read value '%c'", value_str[0]);
 
     close(fd);
 
 end:
     if (libgpio_unexport(self, pin) == -1) {
-        log_debug ("%s: Failed to unexport...", __func__);
+        log_error ("Failed to unexport...");
         return -1;
     }
 
@@ -334,18 +334,18 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     else
         pin = *pin_ptr;
 
-    log_debug ("%s: writing GPO #%i (pin %i)", __func__, GPO_number, pin);
+    log_trace ("writing GPO #%i (pin %i)", GPO_number, pin);
 
     // Enable the desired GPIO
     if (libgpio_export(self, pin) == -1) {
-        log_debug ("%s: Failed to export, aborting...", __func__);
+        log_error ("Failed to export, aborting...");
         goto end;
     }
 
     // Set its direction, with a possible delay
     while (libgpio_set_direction(self, pin, GPIO_DIRECTION_OUT) == -1) {
 
-        log_debug ("%s: Failed to set direction, retrying...", __func__);
+        log_warning ("Failed to set direction, retrying...");
 
         // Wait a bit for the sysfs to be created and udev rules to be applied
         // so that we get the right privileges applied
@@ -355,7 +355,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
             continue;
         }
 
-        log_error("%s: Failed to set direction after %i tries. Aborting!", __func__, GPIO_MAX_RETRY);
+        log_error("Failed to set direction after %i tries. Aborting!", GPIO_MAX_RETRY);
         goto end;
     }
 
@@ -379,7 +379,7 @@ libgpio_write (libgpio_t *self, int GPO_number, int value)
     else
         retval = 0;
 
-    log_debug ("%s: wrote value '%i' with result %i", __func__, value, retval);
+    log_trace ("wrote value '%i' with result %i", value, retval);
 
     close(fd);
 end:
@@ -549,15 +549,15 @@ libgpio_export(libgpio_t *self, int pin)
         mkpath(path, 0777);
     fd = open(path, O_WRONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
-        log_error("%s: Failed to open %s for writing! %i", __func__, path, errno);
+        log_error("Failed to open %s for writing! %i", path, errno);
         return -1;
     }
-    log_debug ("%s: exporting pin %d", __func__, pin);
+    log_debug ("exporting pin %d", pin);
 
     bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin);
     if (write(fd, buffer, bytes_written) < bytes_written) {
-        log_debug ("%s: ERROR: wrote less than %i bytes (errno %i)",
-            __func__, bytes_written, errno);
+        log_error ("wrote less than %i bytes (errno %i)",
+            bytes_written, errno);
         retval = -1;
     }
 
@@ -590,8 +590,8 @@ libgpio_unexport(libgpio_t *self, int pin)
 
     bytes_written = snprintf(buffer, GPIO_BUFFER_MAX, "%d", pin);
     if (write(fd, buffer, bytes_written) < bytes_written) {
-        log_debug ("%s: ERROR: wrote less than %i bytes",
-            __func__, bytes_written);
+        log_error ("wrote less than %i bytes",
+            bytes_written);
         retval = -1;
     }
 
@@ -620,13 +620,13 @@ libgpio_set_direction(libgpio_t *self, int pin, int direction)
         mkpath(path, 0777);
     fd = open(path, O_WRONLY | ((self->test_mode)?O_CREAT:0), 0777);
     if (fd == -1) {
-        log_debug ("%s: Failed to open %s for writing!", __func__, path);
+        log_error ("Failed to open %s for writing!", path);
         return -1;
     }
 
     if (write(fd, &s_directions_str[GPIO_DIRECTION_IN == direction ? 0 : 3],
       GPIO_DIRECTION_IN == direction ? 2 : 3) == -1) {
-        log_debug ("%s: Failed to set direction!", __func__);
+        log_error ("Failed to set direction!");
         retval = -1;
     }
 
