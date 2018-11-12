@@ -79,16 +79,12 @@
 
 //  Opaque class structures to allow forward references
 //  These classes are stable or legacy and built in all releases
-//  Draft classes are by default not built in stable releases
-#ifdef FTY_SENSOR_GPIO_BUILD_DRAFT_API
 typedef struct _libgpio_t libgpio_t;
 #define LIBGPIO_T_DEFINED
 typedef struct _fty_sensor_gpio_assets_t fty_sensor_gpio_assets_t;
 #define FTY_SENSOR_GPIO_ASSETS_T_DEFINED
 typedef struct _fty_sensor_gpio_server_t fty_sensor_gpio_server_t;
 #define FTY_SENSOR_GPIO_SERVER_T_DEFINED
-#endif // FTY_SENSOR_GPIO_BUILD_DRAFT_API
-
 
 //  Public classes, each with its own header file
 #ifdef FTY_SENSOR_GPIO_BUILD_DRAFT_API
