@@ -150,7 +150,8 @@ before_install:
 - if [ "$TRAVIS_OS_NAME" == "osx" -a "$BUILD_TYPE" == "valgrind" ] ; then brew install valgrind ; fi
 
 # Hand off to generated script for each BUILD_TYPE
-script: ./ci_build.sh
+# Note: timeout bumped up
+script: travis_wait 30 ./ci_build.sh
 before_deploy: . ./ci_deploy.sh && ./ci_deploy_obs.sh
 deploy:
   provider: releases
