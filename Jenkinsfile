@@ -49,7 +49,7 @@ pipeline {
             description: 'If the deployment is done, should THIS job wait for it to complete and include its success or failure as the build result (true), or should it schedule the job and exit quickly to free up the executor (false)',
             name: 'DEPLOY_REPORT_RESULT')
         booleanParam (
-            defaultValue: false,
+            defaultValue: true,
             description: 'Attempt stable build without DRAFT API in this run?',
             name: 'DO_BUILD_WITHOUT_DRAFT_API')
         booleanParam (
@@ -124,6 +124,10 @@ pipeline {
             defaultValue: true,
             description: 'When using temporary subdirs in build/test workspaces, wipe them after the whole job is done successfully?',
             name: 'DO_CLEANUP_AFTER_JOB')
+        booleanParam (
+            defaultValue: false,
+            description: 'When using temporary subdirs in build/test workspaces, wipe them after the whole job is done unsuccessfully (failed)? Note this would not allow postmortems on CI server, but would conserve its disk space.',
+            name: 'DO_CLEANUP_AFTER_FAILED_JOB')
     }
     triggers {
         pollSCM 'H/2 * * * *'
@@ -131,15 +135,19 @@ pipeline {
 // Note: your Jenkins setup may benefit from similar setup on side of agents:
 //        PATH="/usr/lib64/ccache:/usr/lib/ccache:/usr/bin:/bin:${PATH}"
     stages {
-        stage ('prepare') {
+        stage ('pre-clean') {
                     steps {
                         dir("tmp") {
                             sh 'if [ -s Makefile ]; then make -k distclean || true ; fi'
                             sh 'chmod -R u+w .'
                             deleteDir()
                         }
+                        sh 'rm -f ccache.log cppcheck.xml'
+                    }
+        }
+        stage ('prepare') {
+                    steps {
                         sh './autogen.sh'
-                        sh 'rm -f ccache.log'
                         stash (name: 'prepped', includes: '**/*', excludes: '**/cppcheck.xml')
                     }
         }
@@ -569,6 +577,16 @@ pipeline {
             sleep 1
             //slackSend (color: "#AA0000", message: "Build ${env.BUILD_NUMBER} of ${env.JOB_NAME} ${currentBuild.result} (<${env.BUILD_URL}|Open>)")
             //emailext (to: "qa@example.com", subject: "Build ${env.JOB_NAME} failed!", body: "Build ${env.BUILD_NUMBER} of ${env.JOB_NAME} ${currentBuild.result}\nSee ${env.BUILD_URL}")
+
+            dir("tmp") {
+                script {
+                    if ( params.DO_CLEANUP_AFTER_FAILED_JOB ) {
+                        deleteDir()
+                    } else {
+                        sh """ echo "NOTE: BUILD AREA OF WORKSPACE `pwd` REMAINS FOR POST-MORTEMS ON `hostname` AND CONSUMES `du -hs . | awk '{print \$1}'` !" """
+                    }
+                }
+            }
         }
     }
 }
