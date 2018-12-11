@@ -73,22 +73,22 @@
 #   endif
 #endif
 
-//  Project has no stable classes, so we build the draft API
-#undef  FTY_SENSOR_GPIO_BUILD_DRAFT_API
-#define FTY_SENSOR_GPIO_BUILD_DRAFT_API
-
 //  Opaque class structures to allow forward references
 //  These classes are stable or legacy and built in all releases
 typedef struct _libgpio_t libgpio_t;
 #define LIBGPIO_T_DEFINED
+//  Draft classes are by default not built in stable releases
+#ifdef FTY_SENSOR_GPIO_BUILD_DRAFT_API
 typedef struct _fty_sensor_gpio_assets_t fty_sensor_gpio_assets_t;
 #define FTY_SENSOR_GPIO_ASSETS_T_DEFINED
 typedef struct _fty_sensor_gpio_server_t fty_sensor_gpio_server_t;
 #define FTY_SENSOR_GPIO_SERVER_T_DEFINED
+#endif // FTY_SENSOR_GPIO_BUILD_DRAFT_API
+
 
 //  Public classes, each with its own header file
-#ifdef FTY_SENSOR_GPIO_BUILD_DRAFT_API
 #include "libgpio.h"
+#ifdef FTY_SENSOR_GPIO_BUILD_DRAFT_API
 #include "fty_sensor_gpio_assets.h"
 #include "fty_sensor_gpio_server.h"
 #endif // FTY_SENSOR_GPIO_BUILD_DRAFT_API
