@@ -39,12 +39,10 @@ typedef struct {
 
 static test_item_t
 all_tests [] = {
-#ifdef FTY_SENSOR_GPIO_BUILD_DRAFT_API
-// Tests for draft public classes:
-    { "libgpio", libgpio_test, false, true, NULL },
-    { "fty_sensor_gpio_assets", fty_sensor_gpio_assets_test, false, true, NULL },
-    { "fty_sensor_gpio_server", fty_sensor_gpio_server_test, false, true, NULL },
-#endif // FTY_SENSOR_GPIO_BUILD_DRAFT_API
+// Tests for stable public classes:
+    { "libgpio", libgpio_test, true, true, NULL },
+    { "fty_sensor_gpio_assets", fty_sensor_gpio_assets_test, true, true, NULL },
+    { "fty_sensor_gpio_server", fty_sensor_gpio_server_test, true, true, NULL },
     {NULL, NULL, 0, 0, NULL}          //  Sentinel
 };
 
