@@ -14,14 +14,9 @@ pkgconfig_DATA = src/libfty_sensor_gpio.pc
 
 src_libfty_sensor_gpio_la_SOURCES = \
     src/libgpio.cc \
-    src/platform.h
-
-if ENABLE_DRAFTS
-src_libfty_sensor_gpio_la_SOURCES += \
     src/fty_sensor_gpio_assets.cc \
-    src/fty_sensor_gpio_server.cc
-
-endif
+    src/fty_sensor_gpio_server.cc \
+    src/platform.h
 
 if ENABLE_DRAFTS
 src_libfty_sensor_gpio_la_SOURCES += \

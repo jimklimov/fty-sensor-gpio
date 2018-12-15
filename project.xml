@@ -116,8 +116,8 @@
     </use>
 
     <class name = "libgpio" stable = "1">General Purpose Input/Output (GPIO) sensors library</class>
-    <class name = "fty-sensor-gpio-assets">42ITy GPIO assets handler</class>
-    <class name = "fty-sensor-gpio-server">42ITy GPIO server</class>
+    <class name = "fty-sensor-gpio-assets" stable = "1">42ITy GPIO assets handler</class>
+    <class name = "fty-sensor-gpio-server" stable = "1">42ITy GPIO server</class>
 
     <main name = "fty-sensor-gpio" service = "1">Manage GPI sensors and GPO devices</main>
 

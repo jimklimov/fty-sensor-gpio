@@ -5,14 +5,10 @@
 include_HEADERS = \
     fty_sensor_gpio.h \
     libgpio.h \
+    fty_sensor_gpio_assets.h \
+    fty_sensor_gpio_server.h \
     fty_sensor_gpio_library.h
 
-if ENABLE_DRAFTS
-include_HEADERS += \
-    fty_sensor_gpio_assets.h \
-    fty_sensor_gpio_server.h
-
-endif
 
 
 ################################################################################
