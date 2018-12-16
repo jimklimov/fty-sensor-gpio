@@ -21,6 +21,8 @@
     <target name = "jenkins" >
         <option name = "agent_label" value = "devel-image-ipm_1.5.0 &amp;&amp; x86_64" />
         <option name = "triggers_pollSCM" value = "H/2 * * * *" />
+        <!-- Test sporadically freezes trying GPxO access messages -->
+        <option name = "use_test_retry" value = "3" />
         <option name = "use_test_timeout" value = "30" />
         <option name = "test_cppcheck" value = "1" />
         <option name = "build_docs" value = "1" />

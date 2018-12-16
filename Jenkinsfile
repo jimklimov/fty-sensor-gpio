@@ -321,6 +321,8 @@ pipeline {
                       dir("tmp/test-check-withDRAFT") {
                         script {
                          def RETRY_NUMBER = 0
+                         retry(3) {
+                          RETRY_NUMBER++
                           deleteDir()
                           unstash 'built-draft'
                           timeout (time: "${params.USE_TEST_TIMEOUT}".toInteger(), unit: 'MINUTES') {
@@ -334,6 +336,7 @@ pipeline {
                             throw e
                            }
                           }
+                         }
                         }
                         sh """ echo "Are GitIgnores good after make check with drafts?"; make CI_REQUIRE_GOOD_GITIGNORE="${params.CI_REQUIRE_GOOD_GITIGNORE}" check-gitignore """
                         script {
@@ -350,6 +353,8 @@ pipeline {
                       dir("tmp/test-check-withoutDRAFT") {
                         script {
                          def RETRY_NUMBER = 0
+                         retry(3) {
+                          RETRY_NUMBER++
                           deleteDir()
                           unstash 'built-nondraft'
                           timeout (time: "${params.USE_TEST_TIMEOUT}".toInteger(), unit: 'MINUTES') {
@@ -363,6 +368,7 @@ pipeline {
                             throw e
                            }
                           }
+                         }
                         }
                         sh """ echo "Are GitIgnores good after make check without drafts?"; make CI_REQUIRE_GOOD_GITIGNORE="${params.CI_REQUIRE_GOOD_GITIGNORE}" check-gitignore """
                         script {
@@ -379,6 +385,8 @@ pipeline {
                       dir("tmp/test-memcheck-withDRAFT") {
                         script {
                          def RETRY_NUMBER = 0
+                         retry(3) {
+                          RETRY_NUMBER++
                           deleteDir()
                           unstash 'built-draft'
                           timeout (time: "${params.USE_TEST_TIMEOUT}".toInteger(), unit: 'MINUTES') {
@@ -392,6 +400,7 @@ pipeline {
                             throw e
                            }
                           }
+                         }
                         }
                         sh """ echo "Are GitIgnores good after make memcheck with drafts?"; make CI_REQUIRE_GOOD_GITIGNORE="${params.CI_REQUIRE_GOOD_GITIGNORE}" check-gitignore """
                         script {
@@ -408,6 +417,8 @@ pipeline {
                       dir("tmp/test-memcheck-withoutDRAFT") {
                         script {
                          def RETRY_NUMBER = 0
+                         retry(3) {
+                          RETRY_NUMBER++
                           deleteDir()
                           unstash 'built-nondraft'
                           timeout (time: "${params.USE_TEST_TIMEOUT}".toInteger(), unit: 'MINUTES') {
@@ -421,6 +432,7 @@ pipeline {
                             throw e
                            }
                           }
+                         }
                         }
                         sh """ echo "Are GitIgnores good after make memcheck without drafts?"; make CI_REQUIRE_GOOD_GITIGNORE="${params.CI_REQUIRE_GOOD_GITIGNORE}" check-gitignore """
                         script {
@@ -437,6 +449,8 @@ pipeline {
                       dir("tmp/test-distcheck-withDRAFT") {
                         script {
                          def RETRY_NUMBER = 0
+                         retry(3) {
+                          RETRY_NUMBER++
                           deleteDir()
                           unstash 'built-draft'
                           timeout (time: "${params.USE_TEST_TIMEOUT}".toInteger(), unit: 'MINUTES') {
@@ -450,6 +464,7 @@ pipeline {
                             throw e
                            }
                           }
+                         }
                         }
                         sh """ echo "Are GitIgnores good after make distcheck with drafts?"; make CI_REQUIRE_GOOD_GITIGNORE="${params.CI_REQUIRE_GOOD_GITIGNORE}" check-gitignore """
                         script {
@@ -466,6 +481,8 @@ pipeline {
                       dir("tmp/test-distcheck-withoutDRAFT") {
                         script {
                          def RETRY_NUMBER = 0
+                         retry(3) {
+                          RETRY_NUMBER++
                           deleteDir()
                           unstash 'built-nondraft'
                           timeout (time: "${params.USE_TEST_TIMEOUT}".toInteger(), unit: 'MINUTES') {
@@ -479,6 +496,7 @@ pipeline {
                             throw e
                            }
                           }
+                         }
                         }
                         sh """ echo "Are GitIgnores good after make distcheck without drafts?"; make CI_REQUIRE_GOOD_GITIGNORE="${params.CI_REQUIRE_GOOD_GITIGNORE}" check-gitignore """
                         script {
@@ -495,8 +513,10 @@ pipeline {
                       dir("tmp/test-install-withDRAFT") {
                         deleteDir()
                         unstash 'built-draft'
+                        retry(3) {
                         timeout (time: "${params.USE_TEST_TIMEOUT}".toInteger(), unit: 'MINUTES') {
                             sh """CCACHE_BASEDIR="`pwd`" ; export CCACHE_BASEDIR; if test "${params.USE_CCACHE_LOGGING}" = true ; then CCACHE_LOGFILE="`pwd`/ccache.log" ; export CCACHE_LOGFILE ; fi ; LD_LIBRARY_PATH="`pwd`/src/.libs:\${LD_LIBRARY_PATH}"; export LD_LIBRARY_PATH; make LD_LIBRARY_PATH="\${LD_LIBRARY_PATH}" DESTDIR="${params.USE_TEST_INSTALL_DESTDIR}/withDRAFT" install"""
+                        }
                         }
                         sh """cd "${params.USE_TEST_INSTALL_DESTDIR}/withDRAFT" && find . -ls"""
                         sh """ echo "Are GitIgnores good after make install with drafts?"; make CI_REQUIRE_GOOD_GITIGNORE="${params.CI_REQUIRE_GOOD_GITIGNORE}" check-gitignore """
@@ -514,8 +534,10 @@ pipeline {
                       dir("tmp/test-install-withoutDRAFT") {
                         deleteDir()
                         unstash 'built-nondraft'
+                        retry(3) {
                         timeout (time: "${params.USE_TEST_TIMEOUT}".toInteger(), unit: 'MINUTES') {
                             sh """CCACHE_BASEDIR="`pwd`" ; export CCACHE_BASEDIR; if test "${params.USE_CCACHE_LOGGING}" = true ; then CCACHE_LOGFILE="`pwd`/ccache.log" ; export CCACHE_LOGFILE ; fi ; LD_LIBRARY_PATH="`pwd`/src/.libs:\${LD_LIBRARY_PATH}"; export LD_LIBRARY_PATH; make LD_LIBRARY_PATH="\${LD_LIBRARY_PATH}" DESTDIR="${params.USE_TEST_INSTALL_DESTDIR}/withoutDRAFT" install"""
+                        }
                         }
                         sh """cd "${params.USE_TEST_INSTALL_DESTDIR}/withoutDRAFT" && find . -ls"""
                         sh """ echo "Are GitIgnores good after make install without drafts?"; make CI_REQUIRE_GOOD_GITIGNORE="${params.CI_REQUIRE_GOOD_GITIGNORE}" check-gitignore """
@@ -533,8 +555,10 @@ pipeline {
                       dir("tmp/test-install-withDOCS") {
                         deleteDir()
                         unstash 'built-docs'
+                        retry(3) {
                         timeout (time: "${params.USE_TEST_TIMEOUT}".toInteger(), unit: 'MINUTES') {
                             sh """CCACHE_BASEDIR="`pwd`" ; export CCACHE_BASEDIR; if test "${params.USE_CCACHE_LOGGING}" = true ; then CCACHE_LOGFILE="`pwd`/ccache.log" ; export CCACHE_LOGFILE ; fi ; LD_LIBRARY_PATH="`pwd`/src/.libs:\${LD_LIBRARY_PATH}"; export LD_LIBRARY_PATH; make LD_LIBRARY_PATH="\${LD_LIBRARY_PATH}" DESTDIR="${params.USE_TEST_INSTALL_DESTDIR}/withDOCS" install"""
+                        }
                         }
                         sh """cd "${params.USE_TEST_INSTALL_DESTDIR}/withDOCS" && find . -ls"""
                         sh """ echo "Are GitIgnores good after make install with docs?"; make CI_REQUIRE_GOOD_GITIGNORE="${params.CI_REQUIRE_GOOD_GITIGNORE}" check-gitignore """
