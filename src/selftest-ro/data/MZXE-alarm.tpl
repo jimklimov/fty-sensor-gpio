@@ -1,7 +1,7 @@
 manufacturer   = Zettler
 part-number    = MZXE (alarm)
 type           = fire-detector
-normal-state   = open
+normal-state   = opened
 gpx-direction  = GPI
 power-source   = internal
 alarm-severity = CRITICAL
