@@ -8,7 +8,6 @@ PartOf=bios.target
 Type=simple
 User=bios
 Group=gpio
-Restart=always
 EnvironmentFile=-@prefix@/share/bios/etc/default/bios
 EnvironmentFile=-@prefix@/share/bios/etc/default/bios__%n.conf
 EnvironmentFile=-@prefix@/share/fty/etc/default/fty
