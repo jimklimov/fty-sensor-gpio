@@ -32,9 +32,9 @@
 //  External API
 #include "../include/fty_sensor_gpio.h"
 
-//  Extra headers
-
 //  Opaque class structures to allow forward references
+
+//  Extra headers
 
 //  Internal API
 
