@@ -16,6 +16,8 @@ Installation model
     <item path = "/usr/share/fty-sensor-gpio/data/" name = "../src/selftest-ro/data/WLD012.tpl" />
     <item path = "/usr/share/fty-sensor-gpio/data/" name = "../src/selftest-ro/data/XCELW.tpl" />
     <item path = "/usr/share/fty-sensor-gpio/data/" name = "../src/selftest-ro/data/GPOGEN.tpl" />
+    <item path = "/usr/share/fty-sensor-gpio/data/" name = "../src/selftest-ro/data/MZXE-prealarm.tpl" />
+    <item path = "/usr/share/fty-sensor-gpio/data/" name = "../src/selftest-ro/data/MZXE-alarm.tpl" />
     <item path = "/etc/udev/rules.d/"  name = "../src/42-ity-gpio.rules" />
     <item path = "/lib/udev/"  name = "../src/42ity-gpio-permissions" />
     <item type = "systemd-tmpfiles" />
